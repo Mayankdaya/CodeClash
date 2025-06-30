@@ -1,7 +1,6 @@
 'use client';
 
 import { AuthForm } from '@/components/AuthForm';
-import { Footer } from '@/components/Footer';
 import { Header } from '@/components/Header';
 import { useEffect } from 'react';
 import { onAuthStateChanged } from 'firebase/auth';
@@ -27,7 +26,6 @@ export default function SignupPage() {
       <main className="flex-1 flex items-center justify-center py-12 px-4">
         <AuthForm mode="signup" />
       </main>
-      <Footer />
     </div>
   );
 }

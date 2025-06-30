@@ -6,13 +6,11 @@ import { useSearchParams, useRouter } from 'next/navigation';
 import { collection, addDoc, serverTimestamp } from 'firebase/firestore';
 import { useToast } from '@/hooks/use-toast';
 import { Header } from '@/components/Header';
-import { Footer } from '@/components/Footer';
 import AuthGuard from '@/components/AuthGuard';
 import { auth, db } from '@/lib/firebase';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
-import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { Button } from '@/components/ui/button';
-import { CameraOff, Loader2 } from 'lucide-react';
+import { Loader2 } from 'lucide-react';
 import Link from 'next/link';
 import { generateProblem } from '@/ai/flows/generateProblemFlow';
 import { UserVideo } from '@/components/UserVideo';
@@ -132,7 +130,6 @@ export default function MatchingPage() {
             </CardContent>
           </Card>
         </main>
-        <Footer />
       </div>
     </AuthGuard>
   );

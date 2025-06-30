@@ -3,7 +3,6 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/com
 import { ArrowRight, Code, Users, Trophy, GitMerge, List, Swords, MoveHorizontal, Coins } from "lucide-react";
 import Link from "next/link";
 import { Header } from "@/components/Header";
-import { Footer } from "@/components/Footer";
 import { Spotlight } from "@/components/ui/spotlight";
 
 const howItWorksSteps = [
@@ -189,8 +188,6 @@ export default function Home() {
         </section>
 
       </main>
-
-      <Footer />
     </div>
   );
 }
