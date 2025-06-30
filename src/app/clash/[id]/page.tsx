@@ -15,7 +15,6 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Progress } from '@/components/ui/progress';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { Header } from '@/components/Header';
 import { Footer } from '@/components/Footer';
 import AuthGuard from '@/components/AuthGuard';
@@ -150,6 +149,8 @@ export default function ClashPage() {
   
   // Camera permission
   useEffect(() => {
+    if (!clashData) return;
+
     const getCameraPermission = async () => {
       if (!navigator.mediaDevices?.getUserMedia) {
         setHasCameraPermission(false);
@@ -186,7 +187,7 @@ export default function ClashPage() {
         videoRef.current.srcObject = null;
       }
     };
-  }, [toast]);
+  }, [clashData, toast]);
 
   const handleSendMessage = async () => {
     if (newMessage.trim() === '' || !db || !auth.currentUser || !id) return;
@@ -396,6 +397,14 @@ export default function ClashPage() {
                 <div className="grid grid-cols-2 gap-2 mb-4">
                   <div className="relative aspect-video w-full bg-muted/30 rounded-lg flex items-center justify-center overflow-hidden">
                     <video ref={videoRef} className="w-full h-full object-cover" autoPlay muted playsInline />
+                    
+                    {hasCameraPermission === null && (
+                        <div className="absolute inset-0 flex flex-col items-center justify-center text-center text-muted-foreground p-2 bg-background/80">
+                            <Loader2 className="h-8 w-8 animate-spin mx-auto mb-1" />
+                            <p className="text-xs">Starting camera...</p>
+                        </div>
+                    )}
+                    
                     {hasCameraPermission === false && (
                         <div className="absolute inset-0 flex flex-col items-center justify-center text-center text-muted-foreground p-2 bg-background/80">
                             <CameraOff className="h-8 w-8 mx-auto mb-1" />
