@@ -2,7 +2,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
 import { Header } from "@/components/Header";
 import { Footer } from "@/components/Footer";
-import { ArrowRight, Binary, Columns, Link as LinkIcon, List, MoveHorizontal, Sailboat, Search, Slack, StackedCoins, ToyBrick } from "lucide-react";
+import { ArrowRight, Coins, Columns, GitMerge, Link as LinkIcon, List, MoveHorizontal, Search, ToyBrick } from "lucide-react";
 import Link from "next/link";
 
 const topics = [
@@ -43,13 +43,13 @@ const topics = [
     href: "/clash/linked-list",
   },
   {
-    icon: Sailboat,
+    icon: GitMerge,
     title: "Trees",
     description: "Navigate hierarchical data structures to solve tree traversal and manipulation problems.",
     href: "/clash/trees",
   },
   {
-    icon: StackedCoins,
+    icon: Coins,
     title: "Dynamic Programming",
     description: "Break down complex problems into simpler subproblems with DP.",
     href: "/clash/dynamic-programming",
