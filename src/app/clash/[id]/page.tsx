@@ -286,7 +286,7 @@ export default function ClashPage() {
         };
 
         worker.onerror = (e) => {
-            resolve({ status: 'error', message: \`A worker error occurred: \${e.message}\` });
+            resolve({ status: 'error', message: `A worker error occurred: ${e.message}` });
             worker.terminate();
             URL.revokeObjectURL(workerUrl);
         };
@@ -329,7 +329,7 @@ export default function ClashPage() {
         setOutput(result.message);
         setSubmissionResult({
             status: 'Error',
-            message: \`An error occurred during submission: \${result.message}\`,
+            message: `An error occurred during submission: ${result.message}`,
         });
     } else {
         setOutput(result.results);
@@ -339,12 +339,12 @@ export default function ClashPage() {
         if (passedCount === totalCount) {
             setSubmissionResult({
                 status: 'Accepted',
-                message: \`Congratulations! All \${totalCount} test cases passed.\`,
+                message: `Congratulations! All ${totalCount} test cases passed.`,
             });
         } else {
             setSubmissionResult({
                 status: 'Wrong Answer',
-                message: \`Your solution failed. Passed \${passedCount} out of \${totalCount} test cases.\`,
+                message: `Your solution failed. Passed ${passedCount} out of ${totalCount} test cases.`,
             });
         }
     }
@@ -377,7 +377,7 @@ export default function ClashPage() {
   const formatTime = (seconds: number) => {
     const minutes = Math.floor(seconds / 60);
     const remainingSeconds = seconds % 60;
-    return \`\${minutes.toString().padStart(2, '0')}:\${remainingSeconds.toString().padStart(2, '0')}\`;
+    return `${minutes.toString().padStart(2, '0')}:${remainingSeconds.toString().padStart(2, '0')}`;
   };
 
   const progressValue = (timeLeft / (30 * 60)) * 100;
