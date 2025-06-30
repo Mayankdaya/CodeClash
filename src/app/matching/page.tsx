@@ -2,44 +2,33 @@
 'use client';
 
 import { useState, useEffect, useRef } from 'react';
-import Link from 'next/link';
-import Image from 'next/image';
-import { Button } from '@/components/ui/button';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
-import { Badge } from '@/components/ui/badge';
-import { Skeleton } from '@/components/ui/skeleton';
-import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
+import { useSearchParams, useRouter } from 'next/navigation';
+import { collection, query, where, limit, getDocs, addDoc, doc, onSnapshot, updateDoc, Unsubscribe } from 'firebase/firestore';
 import { useToast } from '@/hooks/use-toast';
 import { Header } from '@/components/Header';
 import { Footer } from '@/components/Footer';
 import AuthGuard from '@/components/AuthGuard';
-import { CameraOff, Loader2, SkipForward, Swords } from 'lucide-react';
-
-const opponents = [
-  { name: 'CodeWizard', rank: 'Diamond', avatar: 'https://placehold.co/600x400.png', hint: 'man coding' },
-  { name: 'SyntaxSorceress', rank: 'Platinum', avatar: 'https://placehold.co/600x400.png', hint: 'woman programming' },
-  { name: 'LogicLancer', rank: 'Gold', avatar: 'https://placehold.co/600x400.png', hint: 'person thinking' },
-  { name: 'BugBasher', rank: 'Silver', avatar: 'https://placehold.co/600x400.png', hint: 'developer concentrating' },
-];
+import { auth, db } from '@/lib/firebase';
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
+import { Button } from '@/components/ui/button';
+import { CameraOff, Loader2 } from 'lucide-react';
+import Link from 'next/link';
 
 export default function MatchingPage() {
   const { toast } = useToast();
+  const router = useRouter();
+  const searchParams = useSearchParams();
   const videoRef = useRef<HTMLVideoElement>(null);
 
   const [hasCameraPermission, setHasCameraPermission] = useState<boolean | null>(null);
-  const [opponent, setOpponent] = useState(opponents[0]);
-  const [isLoading, setIsLoading] = useState(false);
-  const [clashId, setClashId] = useState('');
+  const [isSearching, setIsSearching] = useState(false);
+  const [queueDocId, setQueueDocId] = useState<string | null>(null);
 
   useEffect(() => {
-    // Generate the initial clashId only on the client to avoid hydration mismatch
-    setClashId(`challenge-${Math.random().toString(36).substring(7)}`);
-  }, []);
-
-  useEffect(() => {
+    // Camera permission logic
     const getCameraPermission = async () => {
       if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
-        console.error('Camera API is not available in this browser.');
         setHasCameraPermission(false);
         toast({
           variant: 'destructive',
@@ -48,15 +37,11 @@ export default function MatchingPage() {
         });
         return;
       }
-
       try {
         const stream = await navigator.mediaDevices.getUserMedia({ video: true });
         setHasCameraPermission(true);
-        if (videoRef.current) {
-          videoRef.current.srcObject = stream;
-        }
+        if (videoRef.current) videoRef.current.srcObject = stream;
       } catch (error) {
-        console.error('Error accessing camera:', error);
         setHasCameraPermission(false);
         toast({
           variant: 'destructive',
@@ -65,110 +50,135 @@ export default function MatchingPage() {
         });
       }
     };
-
     getCameraPermission();
-
     return () => {
       if (videoRef.current && videoRef.current.srcObject) {
-        const stream = videoRef.current.srcObject as MediaStream;
-        stream.getTracks().forEach(track => track.stop());
+        (videoRef.current.srcObject as MediaStream).getTracks().forEach(track => track.stop());
       }
-    }
+    };
   }, [toast]);
+  
+  useEffect(() => {
+    let unsubscribe: Unsubscribe | null = null;
+    let myQueueDocId: string | null = null;
+    
+    const findMatch = async () => {
+      const currentUser = auth?.currentUser;
+      const topicId = searchParams.get('topic');
 
-  const handleSkip = () => {
-    setIsLoading(true);
-    setTimeout(() => {
-      const currentIndex = opponents.findIndex(o => o.name === opponent.name);
-      const nextIndex = (currentIndex + 1) % opponents.length;
-      setOpponent(opponents[nextIndex]);
-      setClashId(`challenge-${Math.random().toString(36).substring(7)}`);
-      setIsLoading(false);
-    }, 1500);
-  };
+      if (!db || !currentUser || !topicId) {
+        if(!topicId) {
+            toast({ title: "No Topic Selected", description: "Please select a topic from the lobby.", variant: "destructive" });
+            router.push('/lobby');
+        }
+        return;
+      }
+
+      setIsSearching(true);
+      const queueRef = collection(db, 'matchmakingQueue');
+      const q = query(
+        queueRef,
+        where('topicId', '==', topicId),
+        where('status', '==', 'pending'),
+        where('userId', '!=', currentUser.uid),
+        limit(1)
+      );
+
+      const querySnapshot = await getDocs(q);
+
+      if (!querySnapshot.empty) {
+        // Match found
+        const opponentQueueDoc = querySnapshot.docs[0];
+        const opponentData = opponentQueueDoc.data();
+        
+        const clashesRef = collection(db, 'clashes');
+        const newClashDoc = await addDoc(clashesRef, {
+          topicId,
+          participants: [
+            { userId: currentUser.uid, userName: currentUser.displayName, userAvatar: currentUser.photoURL },
+            { userId: opponentData.userId, userName: opponentData.userName, userAvatar: opponentData.userAvatar }
+          ],
+          createdAt: new Date(),
+          status: 'active'
+        });
+
+        await updateDoc(doc(db, 'matchmakingQueue', opponentQueueDoc.id), {
+          status: 'matched',
+          clashId: newClashDoc.id
+        });
+        
+        router.push(`/clash/${newClashDoc.id}`);
+      } else {
+        // No match, add to queue
+        const myQueueDoc = await addDoc(queueRef, {
+          userId: currentUser.uid,
+          userName: currentUser.displayName,
+          userAvatar: currentUser.photoURL,
+          topicId,
+          status: 'pending',
+          createdAt: new Date()
+        });
+        myQueueDocId = myQueueDoc.id;
+        setQueueDocId(myQueueDoc.id);
+
+        unsubscribe = onSnapshot(doc(db, 'matchmakingQueue', myQueueDoc.id), (docSnap) => {
+          if (docSnap.data()?.status === 'matched') {
+            router.push(`/clash/${docSnap.data()?.clashId}`);
+          }
+        });
+      }
+    };
+
+    findMatch();
+    
+    return () => {
+      if (unsubscribe) unsubscribe();
+      // Optional: Clean up my document from the queue if I navigate away
+      // This part is tricky due to race conditions and can be improved later.
+    };
+
+  }, [searchParams, router, toast]);
 
   return (
     <AuthGuard>
       <div className="flex flex-col min-h-dvh bg-transparent text-foreground font-body">
         <Header />
         <main className="flex-1 container mx-auto py-8 px-4 flex flex-col items-center justify-center">
-          <div className="text-center mb-8">
-            <h1 className="text-4xl font-extrabold tracking-tight sm:text-5xl">Find Your Opponent</h1>
-            <p className="mt-4 text-lg text-muted-foreground">Get ready to clash with another coder!</p>
-          </div>
-
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-8 w-full max-w-6xl">
-            {/* Your Camera */}
-            <Card className="bg-card/50 backdrop-blur-lg border border-white/10 rounded-2xl shadow-lg">
-              <CardHeader>
-                <CardTitle>Your Camera</CardTitle>
-                <CardDescription>This is how your opponent will see you.</CardDescription>
-              </CardHeader>
-              <CardContent>
-                <div className="aspect-video w-full bg-muted/30 rounded-lg flex items-center justify-center overflow-hidden">
-                  <video ref={videoRef} className="w-full h-full object-cover" autoPlay muted playsInline />
-                  {hasCameraPermission === false && (
-                    <div className="text-center text-muted-foreground p-4">
-                      <CameraOff className="h-12 w-12 mx-auto mb-2" />
-                      <p>Camera access is disabled.</p>
-                    </div>
-                  )}
-                </div>
-                 {hasCameraPermission === false && (
-                    <Alert variant="destructive" className="mt-4">
-                      <AlertTitle>Camera Access Required</AlertTitle>
-                      <AlertDescription>
-                        Please allow camera access in your browser settings to use this feature.
-                      </AlertDescription>
-                    </Alert>
+          <Card className="bg-card/50 backdrop-blur-lg border border-white/10 rounded-2xl shadow-lg w-full max-w-2xl">
+            <CardHeader className="text-center">
+              <CardTitle className="text-3xl">Finding Your Opponent</CardTitle>
+              <CardDescription>Please wait while we match you with a worthy adversary.</CardDescription>
+            </CardHeader>
+            <CardContent className="flex flex-col items-center gap-6">
+              <div className="aspect-video w-full max-w-md bg-muted/30 rounded-lg flex items-center justify-center overflow-hidden">
+                <video ref={videoRef} className="w-full h-full object-cover" autoPlay muted playsInline />
+                {hasCameraPermission === false && (
+                  <div className="text-center text-muted-foreground p-4">
+                    <CameraOff className="h-12 w-12 mx-auto mb-2" />
+                    <p>Camera access is disabled.</p>
+                  </div>
                 )}
-              </CardContent>
-            </Card>
-
-            {/* Opponent Camera */}
-            <Card className="bg-card/50 backdrop-blur-lg border border-white/10 rounded-2xl shadow-lg">
-              <CardHeader>
-                <CardTitle>Opponent Found</CardTitle>
-                <CardDescription>Ready to accept the challenge?</CardDescription>
-              </CardHeader>
-              <CardContent>
-                <div className="aspect-video w-full bg-muted/30 rounded-lg flex items-center justify-center overflow-hidden">
-                  {isLoading ? (
-                    <Skeleton className="w-full h-full" />
-                  ) : (
-                    <Image src={opponent.avatar} alt="Opponent" width={600} height={400} className="w-full h-full object-cover" data-ai-hint={opponent.hint} />
-                  )}
-                </div>
-                <div className="flex items-center justify-between mt-4">
-                  {isLoading ? (
-                     <Skeleton className="h-6 w-3/4" />
-                  ) : (
-                    <>
-                      <p className="text-xl font-bold">{opponent.name}</p>
-                      <Badge variant="secondary" className="text-base">{opponent.rank}</Badge>
-                    </>
-                  )}
-                </div>
-              </CardContent>
-            </Card>
-          </div>
-
-          <div className="flex gap-4 mt-8">
-            <Button variant="outline" size="lg" className="text-lg px-8 py-6 w-48 backdrop-blur-md" onClick={handleSkip} disabled={isLoading}>
-              {isLoading ? (
-                <Loader2 className="mr-2 h-5 w-5 animate-spin" />
-              ) : (
-                <>
-                  <SkipForward className="mr-2 h-5 w-5" /> Skip
-                </>
+              </div>
+              
+              {hasCameraPermission === false && (
+                <Alert variant="destructive" className="w-full max-w-md">
+                  <AlertTitle>Camera Access Required</AlertTitle>
+                  <AlertDescription>
+                    Please allow camera access in your browser settings to use this feature.
+                  </AlertDescription>
+                </Alert>
               )}
-            </Button>
-            <Button asChild size="lg" className="text-lg px-8 py-6 w-48 bg-green-600 hover:bg-green-700 text-white" disabled={isLoading || !clashId}>
-              <Link href={clashId ? `/clash/${clashId}?opponentName=${encodeURIComponent(opponent.name)}&opponentAvatar=${encodeURIComponent(opponent.avatar)}&opponentHint=${encodeURIComponent(opponent.hint)}` : '#'}>
-                <Swords className="mr-2 h-5 w-5" /> Battle
-              </Link>
-            </Button>
-          </div>
+
+              <div className="flex items-center gap-4 text-lg text-muted-foreground">
+                <Loader2 className="h-6 w-6 animate-spin" />
+                <p>Searching for a clash...</p>
+              </div>
+
+              <Button variant="outline" asChild>
+                <Link href="/lobby">Cancel Search</Link>
+              </Button>
+            </CardContent>
+          </Card>
         </main>
         <Footer />
       </div>

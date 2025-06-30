@@ -10,52 +10,52 @@ import AuthGuard from "@/components/AuthGuard";
 
 const topics = [
   {
+    id: "arrays-hashing",
     icon: List,
     title: "Arrays & Hashing",
     description: "Master problems involving data structures, and algorithms for arrays and hashing.",
-    href: "/matching",
   },
   {
+    id: "two-pointers",
     icon: MoveHorizontal,
     title: "Two Pointers",
     description: "Solve challenges efficiently by using two pointers to iterate through data structures.",
-    href: "/matching",
   },
   {
+    id: "sliding-window",
     icon: Columns,
     title: "Sliding Window",
     description: "Tackle problems on contiguous subarrays with the efficient sliding window technique.",
-    href: "/matching",
   },
   {
+    id: "stack",
     icon: ToyBrick,
     title: "Stack",
     description: "Understand and apply the LIFO principle to solve complex logical problems.",
-    href: "/matching",
   },
   {
+    id: "binary-search",
     icon: Search,
     title: "Binary Search",
     description: "Sharpen your skills in logarithmic time complexity searches on sorted arrays.",
-    href: "/matching",
   },
   {
+    id: "linked-list",
     icon: LinkIcon,
     title: "Linked List",
     description: "Explore problems related to nodes, pointers, and dynamic data structures.",
-    href: "/matching",
   },
   {
+    id: "trees",
     icon: GitMerge,
     title: "Trees",
     description: "Navigate hierarchical data structures to solve tree traversal and manipulation problems.",
-    href: "/matching",
   },
   {
+    id: "dynamic-programming",
     icon: Coins,
     title: "Dynamic Programming",
     description: "Break down complex problems into simpler subproblems with DP.",
-    href: "/matching",
   },
 ];
 
@@ -84,7 +84,7 @@ export default function LobbyPage() {
                   </CardContent>
                   <CardFooter>
                     <Button className="w-full bg-primary/90 text-primary-foreground hover:bg-primary" asChild>
-                      <Link href={topic.href}>
+                      <Link href={`/matching?topic=${topic.id}`}>
                         Find Opponent <ArrowRight className="ml-2 h-4 w-4" />
                       </Link>
                     </Button>

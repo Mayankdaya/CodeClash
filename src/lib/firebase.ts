@@ -1,5 +1,6 @@
 import { initializeApp, getApps, getApp, type FirebaseApp } from "firebase/app";
 import { getAuth, type Auth } from "firebase/auth";
+import { getFirestore, type Firestore } from "firebase/firestore";
 
 const firebaseConfig = {
   apiKey: process.env.NEXT_PUBLIC_FIREBASE_API_KEY,
@@ -12,6 +13,7 @@ const firebaseConfig = {
 
 let app: FirebaseApp | null = null;
 let auth: Auth | null = null;
+let db: Firestore | null = null;
 
 if (
   firebaseConfig.apiKey &&
@@ -21,13 +23,14 @@ if (
   try {
     app = getApps().length > 0 ? getApp() : initializeApp(firebaseConfig);
     auth = getAuth(app);
+    db = getFirestore(app);
   } catch (error) {
     console.error("Firebase initialization error:", error);
   }
 } else {
   console.warn(
-    "Firebase configuration is missing or incomplete. Authentication features will be disabled."
+    "Firebase configuration is missing or incomplete. Authentication and database features will be disabled."
   );
 }
 
-export { app, auth };
+export { app, auth, db };
