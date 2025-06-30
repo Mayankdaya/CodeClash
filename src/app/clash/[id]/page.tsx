@@ -585,8 +585,8 @@ export default function ClashPage() {
 
           {/* Right Panel: Workspace */}
           <div className="w-3/5 flex flex-col gap-2 min-h-0">
-             {/* Editor Panel - Takes up more space */}
-             <div className="flex-[3_3_0%] flex flex-col bg-card/50 border border-white/10 rounded-xl min-h-0">
+             {/* Editor Panel */}
+             <div className="flex-1 flex flex-col bg-card/50 border border-white/10 rounded-xl min-h-0">
                 <div className="p-2 border-b border-border flex items-center justify-between">
                     <Select value={language} onValueChange={handleLanguageChange} disabled={isRunning || isSubmitting || isTranslatingCode}>
                       <SelectTrigger className="w-[180px] h-9">
@@ -622,8 +622,8 @@ export default function ClashPage() {
                 </div>
              </div>
              
-             {/* Console Panel - Takes up less space, but is still substantial */}
-             <div className="flex-[2_2_0%] flex flex-col bg-card/50 border border-white/10 rounded-xl min-h-0">
+             {/* Console Panel */}
+             <div className="flex-1 flex flex-col bg-card/50 border border-white/10 rounded-xl min-h-0">
                 <Tabs value={consoleTab} onValueChange={setConsoleTab} className="flex-1 flex flex-col p-2 min-h-0">
                     <TabsList className="grid w-full grid-cols-3">
                         <TabsTrigger value="test-result"><Terminal className="mr-2 h-4 w-4"/>Test Result</TabsTrigger>
@@ -757,3 +757,5 @@ export default function ClashPage() {
     </AuthGuard>
   );
 }
+
+    
