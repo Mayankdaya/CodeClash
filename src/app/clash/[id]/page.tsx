@@ -180,61 +180,97 @@ export default function ClashPage() {
     setOutput('Running test cases...');
     setIsRunning(true);
     
+    // Use a timeout to allow the UI to update and prevent blocking
     setTimeout(() => {
         try {
             if (!problem.entryPoint || !problem.testCases || problem.testCases.length === 0) {
-                setOutput('Error: The problem is missing an entry point or test cases. Cannot execute code.');
-                setIsRunning(false);
-                return;
+                throw new Error('The problem is missing an entry point or test cases.');
             }
 
-            const funcName = problem.entryPoint;
-            
-            const userFunc = new Function(code + '\nreturn ' + funcName)();
-            
-            if (typeof userFunc !== 'function') {
-                setOutput(`Error: Could not find function "${funcName}". Make sure your function is defined correctly as a variable (e.g., var ${funcName} = function(...) ...).`);
-                setIsRunning(false);
-                return;
-            }
-
-            const testCases = problem.testCases;
-            let results = `Running tests for "${problem.title}"...\n\n`;
-            let allPassed = true;
-
-            testCases.forEach((testCase, index) => {
-                const result = userFunc(...testCase.input);
-                
-                let processedResult = result;
-                let processedExpected = testCase.expected;
-
-                if (Array.isArray(result) && Array.isArray(testCase.expected)) {
+            // Web Worker code as a string
+            const workerCode = `
+                self.onmessage = function(e) {
+                    const { code, testCases, funcName, problemTitle } = e.data;
+                    let results = '';
+                    let allPassed = true;
+                    
                     try {
-                      processedResult = [...result].sort();
-                      processedExpected = [...testCase.expected].sort();
-                    } catch (e) {
-                      // Sorting might fail if array contains non-sortable items. Fallback to unsorted.
+                        // The user code is expected to define a function on the global scope of the worker (self)
+                        // e.g., var twoSum = function(...) { ... }
+                        eval(code);
+                        const userFunc = self[funcName];
+
+                        if (typeof userFunc !== 'function') {
+                            throw new Error('Could not find function "' + funcName + '". Make sure your function is defined correctly as a variable (e.g., var ' + funcName + ' = function(...) ...).');
+                        }
+
+                        results += 'Running tests for "' + problemTitle + '"...\\n\\n';
+
+                        testCases.forEach((testCase, index) => {
+                            const inputArgs = Array.isArray(testCase.input) ? testCase.input : [testCase.input];
+                            const result = userFunc(...inputArgs);
+                            
+                            let processedResult = result;
+                            let processedExpected = testCase.expected;
+
+                            if (Array.isArray(result) && Array.isArray(testCase.expected)) {
+                                try {
+                                  processedResult = [...result].sort();
+                                  processedExpected = [...testCase.expected].sort();
+                                } catch (e) {
+                                  // Sorting might fail if array contains non-sortable items. Fallback to unsorted.
+                                }
+                            }
+                            
+                            const passed = JSON.stringify(processedResult) === JSON.stringify(processedExpected);
+                            if (!passed) allPassed = false;
+
+                            results += \`Case \${index + 1}: \${passed ? '✅ Passed' : '❌ Failed'}\\n\`;
+                            results += \`  Input:    \${JSON.stringify(inputArgs)}\\n\`;
+                            results += \`  Output:   \${JSON.stringify(result)}\\n\`;
+                            results += \`  Expected: \${JSON.stringify(testCase.expected)}\\n\\n\`;
+                        });
+                        
+                        results += allPassed ? 'All test cases passed!' : 'Some test cases failed.';
+
+                    } catch (error) {
+                        results = 'An error occurred during execution:\\n' + error.name + ': ' + error.message;
                     }
+                    
+                    self.postMessage(results);
                 }
-                
-                const passed = JSON.stringify(processedResult) === JSON.stringify(processedExpected);
+            `;
 
-                if (!passed) allPassed = false;
+            const blob = new Blob([workerCode], { type: 'application/javascript' });
+            const workerUrl = URL.createObjectURL(blob);
+            const worker = new Worker(workerUrl);
 
-                results += `Case ${index + 1}: ${passed ? '✅ Passed' : '❌ Failed'}\n`;
-                results += `  Input:    ${JSON.stringify(testCase.input)}\n`;
-                results += `  Output:   ${JSON.stringify(result)}\n`;
-                results += `  Expected: ${JSON.stringify(testCase.expected)}\n\n`;
+            worker.onmessage = (e) => {
+                setOutput(e.data);
+                setIsRunning(false);
+                worker.terminate();
+                URL.revokeObjectURL(workerUrl);
+            };
+
+            worker.onerror = (e) => {
+                setOutput(`A worker error occurred: ${e.message}`);
+                setIsRunning(false);
+                worker.terminate();
+                URL.revokeObjectURL(workerUrl);
+            };
+
+            worker.postMessage({
+                code,
+                testCases: problem.testCases,
+                funcName: problem.entryPoint,
+                problemTitle: problem.title,
             });
 
-            results += allPassed ? 'All test cases passed!' : 'Some test cases failed.';
-            setOutput(results);
         } catch (error: any) {
-            setOutput(`An error occurred during execution:\n${error.name}: ${error.message}`);
-        } finally {
+            setOutput(`An error occurred on the main thread: ${error.message}`);
             setIsRunning(false);
         }
-    }, 500);
+    }, 100);
   };
   
   const handleSubmitCode = () => {
