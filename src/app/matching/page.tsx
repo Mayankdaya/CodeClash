@@ -3,7 +3,7 @@
 
 import { useState, useEffect, useRef } from 'react';
 import { useSearchParams, useRouter } from 'next/navigation';
-import { collection, query, where, limit, getDocs, addDoc, doc, onSnapshot, updateDoc, deleteDoc, type Unsubscribe, serverTimestamp } from 'firebase/firestore';
+import { collection, addDoc, serverTimestamp } from 'firebase/firestore';
 import { useToast } from '@/hooks/use-toast';
 import { Header } from '@/components/Header';
 import { Footer } from '@/components/Footer';
@@ -23,9 +23,7 @@ export default function MatchingPage() {
 
   const [hasCameraPermission, setHasCameraPermission] = useState<boolean | null>(null);
   
-  const queueDocIdRef = useRef<string | null>(null);
-  const unsubscribeRef = useRef<Unsubscribe | null>(null);
-  const isMatchedRef = useRef(false);
+  const isCreatingClash = useRef(false);
 
   useEffect(() => {
     const getCameraPermission = async () => {
@@ -60,7 +58,10 @@ export default function MatchingPage() {
   }, [toast]);
   
   useEffect(() => {
-    const findMatch = async () => {
+    const createTestMatch = async () => {
+      if (isCreatingClash.current) return;
+      isCreatingClash.current = true;
+
       const currentUser = auth?.currentUser;
       const topicId = searchParams.get('topic');
 
@@ -72,81 +73,36 @@ export default function MatchingPage() {
         return;
       }
 
-      const queueRef = collection(db, 'matchmakingQueue');
-      
-      const q = query(
-        queueRef,
-        where('topicId', '==', topicId),
-        where('status', '==', 'pending'),
-        limit(10)
-      );
-
-      const querySnapshot = await getDocs(q);
-      const opponentQueueDoc = querySnapshot.docs.find(doc => doc.data().userId !== currentUser.uid);
-
-      if (opponentQueueDoc) {
-        // Match found
-        isMatchedRef.current = true;
-        const opponentData = opponentQueueDoc.data();
-        
+      try {
         const clashesRef = collection(db, 'clashes');
         const newClashDoc = await addDoc(clashesRef, {
           topicId,
           participants: [
-            { userId: currentUser.uid, userName: currentUser.displayName || 'Anonymous', userAvatar: currentUser.photoURL || '' },
-            { userId: opponentData.userId, userName: opponentData.userName || 'Anonymous', userAvatar: opponentData.userAvatar || '' }
+            { userId: currentUser.uid, userName: currentUser.displayName || 'Anonymous', userAvatar: currentUser.photoURL || 'https://placehold.co/100x100.png' },
+            { userId: 'bot-123', userName: 'CodeBot', userAvatar: 'https://placehold.co/100x100.png' }
           ],
           createdAt: serverTimestamp(),
           status: 'active'
         });
 
-        await updateDoc(doc(db, 'matchmakingQueue', opponentQueueDoc.id), {
-          status: 'matched',
-          clashId: newClashDoc.id
-        });
-        
+        toast({ title: "Match Found!", description: "Redirecting you to the clash..." });
         router.push(`/clash/${newClashDoc.id}`);
-      } else {
-        // No match, add to queue
-        const myQueueDoc = await addDoc(queueRef, {
-          userId: currentUser.uid,
-          userName: currentUser.displayName || 'Anonymous',
-          userAvatar: currentUser.photoURL || '',
-          topicId,
-          status: 'pending',
-          createdAt: serverTimestamp()
-        });
-        queueDocIdRef.current = myQueueDoc.id;
 
-        unsubscribeRef.current = onSnapshot(doc(db, 'matchmakingQueue', myQueueDoc.id), (docSnap) => {
-          if (docSnap.exists() && docSnap.data()?.status === 'matched') {
-            isMatchedRef.current = true;
-            if(unsubscribeRef.current) unsubscribeRef.current();
-            router.push(`/clash/${docSnap.data()?.clashId}`);
-          }
+      } catch (error) {
+        console.error("Error creating test clash:", error);
+        toast({
+          title: "Matchmaking Error",
+          description: "Could not create a test match. Ensure Firestore is enabled.",
+          variant: "destructive"
         });
+        isCreatingClash.current = false; // Allow retry if it fails
       }
     };
 
-    findMatch().catch((error) => {
-      console.error("Error finding match:", error);
-      toast({
-        title: "Matchmaking Error",
-        description: "Could not search for an opponent. You may need to create a Firestore index. Check the browser console for a link.",
-        variant: "destructive",
-        duration: 10000
-      });
-    });
-    
-    return () => {
-      if (unsubscribeRef.current) {
-        unsubscribeRef.current();
-      }
-      if (queueDocIdRef.current && db && !isMatchedRef.current) {
-        const docRef = doc(db, 'matchmakingQueue', queueDocIdRef.current);
-        deleteDoc(docRef);
-      }
-    };
+    // Create the test match after a short delay so the user sees the screen.
+    const timeoutId = setTimeout(createTestMatch, 2000);
+
+    return () => clearTimeout(timeoutId);
 
   }, [searchParams, router, toast]);
 
