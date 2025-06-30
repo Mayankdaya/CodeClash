@@ -68,6 +68,17 @@ const executeInWorker = (code: string, entryPoint: string, testCases: TestCase[]
         const workerCode = `
             const deepEqual = (obj1, obj2) => {
                 if (obj1 === obj2) return true;
+
+                // For array comparison, sort and then compare for anagram-style problems
+                const isArray = Array.isArray(obj1) && Array.isArray(obj2);
+                if (isArray) {
+                    if (obj1.length !== obj2.length) return false;
+                    const sortFunc = (a, b) => JSON.stringify(a).localeCompare(JSON.stringify(b));
+                    const sorted1 = [...obj1].sort(sortFunc);
+                    const sorted2 = [...obj2].sort(sortFunc);
+                    return JSON.stringify(sorted1) === JSON.stringify(sorted2);
+                }
+
                 if (typeof obj1 !== 'object' || obj1 === null || typeof obj2 !== 'object' || obj2 === null) {
                     return false;
                 }
@@ -88,14 +99,13 @@ const executeInWorker = (code: string, entryPoint: string, testCases: TestCase[]
                 let passedCount = 0;
                 
                 try {
-                    // We redefine console.log to capture logs if needed, but for now we won't use it.
                     const consoleLogs = [];
                     const originalLog = console.log;
                     console.log = (...args) => {
                         consoleLogs.push(args.map(arg => JSON.stringify(arg)).join(' '));
                     };
 
-                    eval(code);
+                    eval('const ' + entryPoint + ' = ' + code);
                     const userFunc = self[entryPoint];
                     
                     console.log = originalLog;
@@ -110,7 +120,6 @@ const executeInWorker = (code: string, entryPoint: string, testCases: TestCase[]
                         let output, error = null;
                         
                         try {
-                            // Deep clone input to prevent modification
                             const inputClone = JSON.parse(JSON.stringify(tc.input));
                             output = userFunc(...inputClone);
                         } catch (err) {
@@ -200,15 +209,14 @@ export default function ClashPage() {
         
         // The problem's test cases are stored as stringified JSON. We need to parse them.
         if (data.problem && data.problem.testCases) {
-          const parsedTestCases = data.problem.testCases.map(tc => {
+          const parsedTestCases = (data.problem.testCases as any[]).map(tc => {
             try {
-              // The input is a stringified array of arguments, e.g., "[[1,2,3], 5]"
               const parsedInput = JSON.parse(tc.input);
-              return { ...tc, input: parsedInput };
+              const parsedExpected = JSON.parse(tc.expected);
+              return { input: parsedInput, expected: parsedExpected };
             } catch (e) {
-              console.error("Failed to parse test case input:", tc.input, e);
-              // Return a placeholder or skip if invalid
-              return { ...tc, input: [] }; 
+              console.error("Failed to parse test case:", tc, e);
+              return { input: [], expected: null }; 
             }
           });
           data.problem = { ...data.problem, testCases: parsedTestCases };
@@ -218,8 +226,9 @@ export default function ClashPage() {
         
         if (data.problem) {
           setProblem(data.problem);
-          setCode(data.problem.starterCode);
-          setStarterCodes({ javascript: data.problem.starterCode });
+          const starterCode = `function ${data.problem.entryPoint}(${data.problem.starterCode.match(/\((.*?)\)/)?.[1] || ''}) {\n  // your code here\n}`;
+          setCode(starterCode);
+          setStarterCodes({ javascript: starterCode });
         } else {
           toast({ title: "Problem not found", description: "The problem for this clash is missing.", variant: 'destructive' });
           router.push('/lobby');
@@ -293,12 +302,12 @@ export default function ClashPage() {
       return;
     }
 
-    if (!problem) return;
+    if (!problem || !starterCodes.javascript) return;
 
     setIsTranslatingCode(true);
     try {
       const result = await translateCode({
-        sourceCode: problem.starterCode,
+        sourceCode: starterCodes.javascript,
         sourceLanguage: 'javascript',
         targetLanguage: newLang,
         entryPoint: problem.entryPoint,
@@ -314,8 +323,10 @@ export default function ClashPage() {
         variant: "destructive",
       });
       // Revert to JS on failure
-      setLanguage('javascript'); 
-      setCode(problem.starterCode);
+      if(starterCodes.javascript) {
+        setLanguage('javascript'); 
+        setCode(starterCodes.javascript);
+      }
     } finally {
       setIsTranslatingCode(false);
     }
@@ -334,13 +345,14 @@ export default function ClashPage() {
     try {
       let result: ExecuteCodeOutput;
       if (language === 'javascript') {
-        result = await executeInWorker(code, problem.entryPoint, testCasesToRun);
+        const userFunctionCode = code.substring(code.indexOf('{') + 1, code.lastIndexOf('}'));
+        result = await executeInWorker(userFunctionCode, problem.entryPoint, testCasesToRun);
       } else {
         result = await executeCode({
           code,
           language,
           entryPoint: problem.entryPoint,
-          testCases: testCasesToRun.map(tc => ({...tc, input: JSON.stringify(tc.input)})),
+          testCases: testCasesToRun,
         });
       }
 
@@ -545,7 +557,7 @@ export default function ClashPage() {
                 </Select>
               </CardHeader>
               <CardContent className="flex-1 flex flex-col p-0 min-h-0">
-                <div className="flex flex-col min-h-0" style={{flexBasis: '50%'}}>
+                <div className="flex flex-col min-h-0 flex-grow" style={{flexBasis: '60%'}}>
                     <div className="p-6 pt-0 flex-1 flex flex-col min-h-0">
                       <div className="flex-1 w-full rounded-md min-h-0 relative">
                         {isTranslatingCode && (
@@ -572,7 +584,7 @@ export default function ClashPage() {
                       </div>
                     </div>
                 </div>
-                <div className="border-t border-border/50 flex flex-col min-h-0" style={{flexBasis: '50%'}}>
+                <div className="border-t border-border/50 flex flex-col min-h-0 flex-grow" style={{flexBasis: '40%'}}>
                     <Tabs value={consoleTab} onValueChange={setConsoleTab} className="flex-1 flex flex-col p-6 min-h-0">
                         <TabsList className="grid w-full grid-cols-2">
                             <TabsTrigger value="test-result">Test Result</TabsTrigger>

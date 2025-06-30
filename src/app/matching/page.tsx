@@ -59,12 +59,12 @@ export default function MatchingPage() {
           return;
         }
         
-        // Firestore doesn't support nested arrays. Stringify the test case inputs.
+        // Firestore doesn't support nested arrays well. Stringify test case inputs and expected outputs.
         const problemToStore = {
             ...problem,
             testCases: problem.testCases.map(tc => ({
-                ...tc,
                 input: JSON.stringify(tc.input),
+                expected: JSON.stringify(tc.expected),
             })),
         };
         
