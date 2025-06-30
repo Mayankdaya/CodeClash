@@ -203,7 +203,7 @@ export default function ClashPage() {
   const [output, setOutput] = useState<TestCaseResult[] | string>('Click "Run Code" to see the output here.');
   const [isRunning, setIsRunning] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
-  const [consoleTab, setConsoleTab] = useState('testcases');
+  const [consoleTab, setConsoleTab] = useState('test-result');
   const [submissionResult, setSubmissionResult] = useState<{ status: 'Accepted' | 'Wrong Answer' | 'Error'; message: string; } | null>(null);
   
   const [timeLeft, setTimeLeft] = useState(30 * 60); // 30 minutes
@@ -513,28 +513,29 @@ export default function ClashPage() {
     <AuthGuard>
       <div className="flex flex-col h-dvh bg-transparent text-foreground font-body">
         <Header />
-        <main className="flex-1 flex flex-row gap-6 p-6 overflow-x-auto">
+        <main className="flex-1 flex flex-row gap-6 p-6 overflow-hidden">
           
-          {/* Left Panel */}
-          <div className="flex flex-col gap-6" style={{ minWidth: '350px' }}>
-            <Card className="flex-1 flex flex-col bg-card/50 border border-white/10 rounded-2xl min-h-0">
-              <Tabs defaultValue="problem" className="flex-1 flex flex-col min-h-0">
-                <CardHeader>
-                  <TabsList className="grid w-full grid-cols-2">
+          {/* Main Content */}
+          <div className="flex-1 flex flex-col min-h-0">
+            <Tabs defaultValue="code" className="flex-1 flex flex-col bg-card/50 border border-white/10 rounded-2xl min-h-0">
+              <div className="p-4 border-b border-border">
+                  <TabsList className="grid w-full grid-cols-3">
                       <TabsTrigger value="problem"><BookOpen className="mr-2"/>Problem</TabsTrigger>
+                      <TabsTrigger value="code"><Code className="mr-2"/>Code</TabsTrigger>
                       <TabsTrigger value="solution"><KeySquare className="mr-2"/>Solution</TabsTrigger>
                   </TabsList>
-                </CardHeader>
-                <TabsContent value="problem" className="flex-1 p-6 pt-0 overflow-auto">
-                  <h3 className="font-bold text-lg mb-2 capitalize">{problem.title}</h3>
-                  <p className="text-muted-foreground mb-4 whitespace-pre-wrap">
+              </div>
+
+              <TabsContent value="problem" className="flex-1 p-6 overflow-auto">
+                  <h3 className="font-bold text-xl mb-4 capitalize">{problem.title}</h3>
+                  <p className="text-muted-foreground mb-6 whitespace-pre-wrap">
                     {problem.description}
                   </p>
                   <div className="text-sm space-y-4">
                     {problem.examples && problem.examples.map((example, index) => (
                       <div key={index}>
                         <p><strong className='text-foreground'>Example {index + 1}:</strong></p>
-                        <pre className='mt-1 p-2 rounded-md bg-muted/50 text-xs whitespace-pre-wrap'>
+                        <pre className='mt-2 p-3 rounded-md bg-muted/50 text-sm whitespace-pre-wrap font-code'>
                           <code>
                             Input: {example.input}<br/>
                             Output: {example.output}
@@ -544,126 +545,107 @@ export default function ClashPage() {
                       </div>
                     ))}
                   </div>
-                </TabsContent>
-                <TabsContent value="solution" className="flex-1 p-6 pt-0 overflow-auto">
-                   <CodeEditor
-                      language="javascript"
-                      value={problem.solution || "No solution available."}
-                      onChange={() => {}}
-                      disabled={true}
-                    />
-                </TabsContent>
-              </Tabs>
-            </Card>
-            <Card className="bg-card/50 border border-white/10 rounded-2xl">
-              <CardHeader className='flex-row items-center gap-4'>
-                <Timer className='h-6 w-6 text-primary' />
-                <CardTitle>Time Remaining</CardTitle>
-              </CardHeader>
-              <CardContent>
-                <Progress value={progressValue} className="w-full h-3 mb-2" />
-                <p className="text-center font-mono text-2xl font-bold tracking-widest">{formatTime(timeLeft)}</p>
-              </CardContent>
-            </Card>
-          </div>
+              </TabsContent>
 
-          {/* Middle Panel */}
-          <div className="flex flex-col min-h-0" style={{ minWidth: '600px', flex: '1 1 50%' }}>
-            <Card className="flex-1 flex flex-col bg-card/50 border border-white/10 rounded-2xl min-h-0">
-              <CardHeader className="flex-row items-center justify-between gap-4">
-                <div className='flex items-center gap-4'>
-                  <Code className="h-6 w-6 text-primary" />
-                  <CardTitle>Solution</CardTitle>
-                </div>
-                <Select value={language} onValueChange={handleLanguageChange} disabled={isRunning || isSubmitting || isTranslatingCode}>
-                  <SelectTrigger className="w-[180px] h-9">
-                    <SelectValue placeholder="Select Language" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {languages.map((lang) => (
-                        <SelectItem key={lang} value={lang} className='capitalize'>
-                          {lang.charAt(0).toUpperCase() + lang.slice(1)}
-                        </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </CardHeader>
-              <CardContent className="flex-1 flex flex-col p-0 min-h-0">
-                <div className="flex flex-col min-h-0" style={{flexBasis: '60%', flexGrow: 1}}>
-                    <div className="p-6 pt-0 flex-1 flex flex-col min-h-0">
-                      <div className="flex-1 w-full rounded-md min-h-0 relative">
-                        {isTranslatingCode && (
-                            <div className="absolute inset-0 bg-slate-900/80 backdrop-blur-sm flex flex-col items-center justify-center z-10 text-foreground rounded-md">
-                                <Loader2 className="h-8 w-8 animate-spin" />
-                                <p className="mt-2 text-sm">Generating {language} template...</p>
-                            </div>
-                        )}
-                        <CodeEditor
-                          key={language}
-                          language={language}
-                          value={code}
-                          onChange={(value) => setCode(value || '')}
-                          disabled={isRunning || isSubmitting || isTranslatingCode}
-                        />
+              <TabsContent value="code" className="flex-1 flex flex-col p-0 min-h-0">
+                  <div className="flex-1 flex flex-col min-h-0" style={{flexBasis: '60%', flexGrow: 1}}>
+                      <div className="p-4 border-b border-border flex items-center justify-end">
+                        <Select value={language} onValueChange={handleLanguageChange} disabled={isRunning || isSubmitting || isTranslatingCode}>
+                          <SelectTrigger className="w-[180px] h-9">
+                            <SelectValue placeholder="Select Language" />
+                          </SelectTrigger>
+                          <SelectContent>
+                            {languages.map((lang) => (
+                                <SelectItem key={lang} value={lang} className='capitalize'>
+                                  {lang.charAt(0).toUpperCase() + lang.slice(1)}
+                                </SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
                       </div>
-                      <div className='flex justify-end mt-4 gap-2'>
-                        <Button variant="outline" onClick={handleGetHint} disabled={isRunning || isSubmitting || isGettingHint || isTranslatingCode}>
-                          {isGettingHint ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Lightbulb className="mr-2 h-4 w-4" />}
-                          Get Hint
-                        </Button>
-                        <RunButton />
-                        <SubmitButton />
+                      <div className="p-4 flex-1 flex flex-col min-h-0">
+                        <div className="flex-1 w-full rounded-md min-h-0 relative">
+                          {isTranslatingCode && (
+                              <div className="absolute inset-0 bg-slate-900/80 backdrop-blur-sm flex flex-col items-center justify-center z-10 text-foreground rounded-md">
+                                  <Loader2 className="h-8 w-8 animate-spin" />
+                                  <p className="mt-2 text-sm">Generating {language} template...</p>
+                              </div>
+                          )}
+                          <CodeEditor
+                            key={language}
+                            language={language}
+                            value={code}
+                            onChange={(value) => setCode(value || '')}
+                            disabled={isRunning || isSubmitting || isTranslatingCode}
+                          />
+                        </div>
+                        <div className='flex justify-end mt-4 gap-2'>
+                          <Button variant="outline" onClick={handleGetHint} disabled={isRunning || isSubmitting || isGettingHint || isTranslatingCode}>
+                            {isGettingHint ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Lightbulb className="mr-2 h-4 w-4" />}
+                            Get Hint
+                          </Button>
+                          <RunButton />
+                          <SubmitButton />
+                        </div>
                       </div>
-                    </div>
-                </div>
-                <div className="border-t border-border/50 flex flex-col min-h-0" style={{flexBasis: '40%', flexGrow: 1}}>
-                    <Tabs value={consoleTab} onValueChange={setConsoleTab} className="flex-1 flex flex-col p-6 min-h-0">
-                        <TabsList className="grid w-full grid-cols-2">
-                            <TabsTrigger value="test-result">Test Result</TabsTrigger>
-                            <TabsTrigger value="testcases">Testcases</TabsTrigger>
-                        </TabsList>
-                        <TabsContent value="test-result" className="flex-1 mt-4 overflow-auto rounded-md bg-muted/30 p-4">
-                            {typeof output === 'string' ? (
-                                <pre className="whitespace-pre-wrap font-code text-sm"><code>{output}</code></pre>
-                            ) : (
-                                <div className="space-y-4 font-code">
-                                    {output.map((res, index) => (
-                                        <div key={index} className="border-b border-border/50 pb-2 last:border-b-0">
-                                            <div className="flex items-center gap-2 font-bold mb-2">
-                                                {res.passed ? <CheckCircle2 className="h-5 w-5 text-green-500" /> : <XCircle className="h-5 w-5 text-red-500" />}
-                                                <span className={cn(res.passed ? "text-green-400" : "text-red-400")}>Case {res.case}: {res.passed ? 'Passed' : 'Failed'}</span>
-                                            </div>
-                                            <div className='space-y-1 pl-7 text-xs'>
-                                              <p><span className="text-muted-foreground w-24 inline-block">Input:</span> {res.input}</p>
-                                              <p><span className="text-muted-foreground w-24 inline-block">Output:</span> {res.output}</p>
-                                              <p><span className="text-muted-foreground w-24 inline-block">Expected:</span> {res.expected}</p>
-                                            </div>
-                                        </div>
-                                    ))}
-                                </div>
-                            )}
-                        </TabsContent>
-                        <TabsContent value="testcases" className="flex-1 mt-4 overflow-auto rounded-md bg-muted/30 p-4">
-                          <div className="space-y-4 font-code">
-                              {problem?.testCases.slice(0, 3).map((tc, index) => (
-                                  <div key={index} className="border-b border-border/50 pb-3 last:border-b-0">
-                                      <p className="font-bold mb-2">Case {index + 1}</p>
-                                      <div className="bg-background/40 p-3 mt-1 rounded-md space-y-1 text-xs">
-                                          <p><span className='text-muted-foreground'>Input:</span> {JSON.stringify(tc.input)}</p>
-                                          <p><span className='text-muted-foreground'>Output:</span> {JSON.stringify(tc.expected)}</p>
-                                      </div>
+                  </div>
+                  <div className="border-t border-border/50 flex flex-col min-h-0" style={{flexBasis: '40%', flexGrow: 1}}>
+                      <Tabs value={consoleTab} onValueChange={setConsoleTab} className="flex-1 flex flex-col p-4 min-h-0">
+                          <TabsList className="grid w-full grid-cols-2">
+                              <TabsTrigger value="test-result">Test Result</TabsTrigger>
+                              <TabsTrigger value="testcases">Testcases</TabsTrigger>
+                          </TabsList>
+                          <TabsContent value="test-result" className="flex-1 mt-4 overflow-auto rounded-md bg-muted/30 p-4">
+                              {typeof output === 'string' ? (
+                                  <pre className="whitespace-pre-wrap font-code text-base"><code>{output}</code></pre>
+                              ) : (
+                                  <div className="space-y-4 font-code">
+                                      {output.map((res, index) => (
+                                          <div key={index} className="border-b border-border/50 pb-2 last:border-b-0">
+                                              <div className="flex items-center gap-2 font-bold mb-2 text-lg">
+                                                  {res.passed ? <CheckCircle2 className="h-6 w-6 text-green-500" /> : <XCircle className="h-6 w-6 text-red-500" />}
+                                                  <span className={cn(res.passed ? "text-green-400" : "text-red-400")}>Case {res.case}: {res.passed ? 'Passed' : 'Failed'}</span>
+                                              </div>
+                                              <div className='space-y-1 pl-8 text-base'>
+                                                <p><span className="text-muted-foreground w-24 inline-block">Input:</span> {res.input}</p>
+                                                <p><span className="text-muted-foreground w-24 inline-block">Output:</span> {res.output}</p>
+                                                <p><span className="text-muted-foreground w-24 inline-block">Expected:</span> {res.expected}</p>
+                                              </div>
+                                          </div>
+                                      ))}
                                   </div>
-                              ))}
-                          </div>
-                        </TabsContent>
-                    </Tabs>
-                </div>
-              </CardContent>
-            </Card>
+                              )}
+                          </TabsContent>
+                          <TabsContent value="testcases" className="flex-1 mt-4 overflow-auto rounded-md bg-muted/30 p-4">
+                            <div className="space-y-4 font-code text-base">
+                                {problem?.testCases.slice(0, 3).map((tc, index) => (
+                                    <div key={index} className="border-b border-border/50 pb-3 last:border-b-0">
+                                        <p className="font-bold mb-2">Case {index + 1}</p>
+                                        <div className="bg-background/40 p-3 mt-1 rounded-md space-y-1">
+                                            <p><span className='text-muted-foreground'>Input:</span> {JSON.stringify(tc.input)}</p>
+                                            <p><span className='text-muted-foreground'>Output:</span> {JSON.stringify(tc.expected)}</p>
+                                        </div>
+                                    </div>
+                                ))}
+                            </div>
+                          </TabsContent>
+                      </Tabs>
+                  </div>
+              </TabsContent>
+
+              <TabsContent value="solution" className="flex-1 p-4 min-h-0">
+                  <CodeEditor
+                    language="javascript"
+                    value={problem.solution || "No solution available."}
+                    onChange={() => {}}
+                    disabled={true}
+                  />
+              </TabsContent>
+            </Tabs>
           </div>
 
-          {/* Right Panel */}
-          <div className="flex flex-col gap-6 min-h-0" style={{ minWidth: '350px' }}>
+          {/* Right Sidebar */}
+          <div className="flex flex-col gap-6 w-[350px] min-w-[350px]">
             <Card className="flex-1 flex flex-col bg-card/50 border border-white/10 rounded-2xl min-h-0">
               <CardHeader className="flex-row items-center gap-4">
                 <Video className="h-6 w-6 text-primary" />
@@ -773,6 +755,16 @@ export default function ClashPage() {
                 </Tabs>
               </CardContent>
             </Card>
+             <Card className="bg-card/50 border border-white/10 rounded-2xl">
+              <CardHeader className='flex-row items-center gap-4'>
+                <Timer className='h-6 w-6 text-primary' />
+                <CardTitle>Time Remaining</CardTitle>
+              </CardHeader>
+              <CardContent>
+                <Progress value={progressValue} className="w-full h-3 mb-2" />
+                <p className="text-center font-mono text-2xl font-bold tracking-widest">{formatTime(timeLeft)}</p>
+              </CardContent>
+            </Card>
           </div>
         </main>
         <Footer />
@@ -814,3 +806,5 @@ export default function ClashPage() {
     </AuthGuard>
   );
 }
+
+    
