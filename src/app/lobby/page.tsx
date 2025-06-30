@@ -16,10 +16,10 @@ import { ref, onValue } from "firebase/database";
 
 const topics = [
   {
-    id: "arrays-hashing",
+    id: "arrays",
     icon: List,
-    title: "Arrays & Hashing",
-    description: "Master problems involving data structures, and algorithms for arrays and hashing.",
+    title: "Arrays",
+    description: "Master problems involving data structures and algorithms for arrays.",
   },
   {
     id: "binary-search",
@@ -34,7 +34,7 @@ const topics = [
     description: "Tackle challenges involving string manipulation, parsing, and pattern matching.",
   },
   {
-    id: "linked-list",
+    id: "linked-lists",
     icon: LinkIcon,
     title: "Linked Lists",
     description: "Explore problems related to nodes, pointers, and dynamic data structures.",
@@ -52,9 +52,9 @@ const topics = [
     description: "Manipulate individual bits of a number to solve problems efficiently.",
   },
   {
-    id: "stack-queues",
+    id: "stack-and-queues",
     icon: ToyBrick,
-    title: "Stack & Queues",
+    title: "Stack and Queues",
     description: "Understand and apply LIFO (Stack) and FIFO (Queue) principles to solve logical problems.",
   },
   {
