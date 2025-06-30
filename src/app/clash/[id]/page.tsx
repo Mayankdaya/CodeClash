@@ -586,7 +586,7 @@ export default function ClashPage() {
           {/* Right Panel: Workspace */}
           <div className="w-3/5 flex flex-col gap-2 min-h-0">
              {/* Editor Panel */}
-             <div className="flex-1 flex flex-col bg-card/50 border border-white/10 rounded-xl min-h-0">
+             <div className="flex-[3] flex flex-col bg-card/50 border border-white/10 rounded-xl min-h-0">
                 <div className="p-2 border-b border-border flex items-center justify-between">
                     <Select value={language} onValueChange={handleLanguageChange} disabled={isRunning || isSubmitting || isTranslatingCode}>
                       <SelectTrigger className="w-[180px] h-9">
@@ -623,94 +623,96 @@ export default function ClashPage() {
              </div>
              
              {/* Console Panel */}
-             <div className="flex-1 flex flex-col bg-card/50 border border-white/10 rounded-xl min-h-0">
-                <Tabs value={consoleTab} onValueChange={setConsoleTab} className="flex-1 flex flex-col p-2 min-h-0">
-                    <TabsList className="grid w-full grid-cols-3">
-                        <TabsTrigger value="test-result"><Terminal className="mr-2 h-4 w-4"/>Test Result</TabsTrigger>
-                        <TabsTrigger value="testcases"><TestTube2 className="mr-2 h-4 w-4"/>Testcases</TabsTrigger>
-                        <TabsTrigger value="chat"><MessageSquare className="mr-2 h-4 w-4"/>Chat & Video</TabsTrigger>
-                    </TabsList>
-                    <TabsContent value="test-result" className="flex-1 mt-2 overflow-auto rounded-md bg-muted/30 p-4">
-                        {typeof output === 'string' ? (
-                            <pre className="whitespace-pre-wrap font-code text-base"><code>{output}</code></pre>
-                        ) : (
-                            <div className="space-y-4 font-code text-base">
-                                {output.map((res, index) => (
-                                    <div key={index} className="border-b border-border/50 pb-3 last:border-b-0">
-                                        <div className="flex items-center gap-2 font-bold mb-2 text-lg">
-                                            {res.passed ? <CheckCircle2 className="h-5 w-5 text-green-500" /> : <XCircle className="h-5 w-5 text-red-500" />}
-                                            <span className={cn(res.passed ? "text-green-400" : "text-red-400")}>Case {res.case}: {res.passed ? 'Passed' : 'Failed'}</span>
-                                        </div>
-                                        <div className='space-y-2 pl-7 text-base'>
-                                          <p><span className="text-muted-foreground w-24 inline-block font-semibold">Input:</span> {res.input}</p>
-                                          <p><span className="text-muted-foreground w-24 inline-block font-semibold">Output:</span> {res.output}</p>
-                                          {!res.passed && <p><span className="text-muted-foreground w-24 inline-block font-semibold">Expected:</span> {res.expected}</p>}
-                                        </div>
-                                    </div>
-                                ))}
-                            </div>
-                        )}
-                    </TabsContent>
-                    <TabsContent value="testcases" className="flex-1 mt-2 overflow-auto rounded-md bg-muted/30 p-4">
-                      <div className="space-y-4 font-code text-base">
-                          {problem?.testCases.slice(0, 3).map((tc, index) => (
-                              <div key={index} className="border-b border-border/50 pb-3 last:border-b-0">
-                                  <p className="font-bold mb-2 text-lg">Case {index + 1}</p>
-                                  <div className="bg-background/40 p-3 mt-1 rounded-md space-y-2">
-                                      <p><span className='text-muted-foreground font-semibold'>Input:</span> {JSON.stringify(tc.input)}</p>
-                                      <p><span className='text-muted-foreground font-semibold'>Output:</span> {JSON.stringify(tc.expected)}</p>
-                                  </div>
+             <div className="flex-[2] flex flex-col bg-card/50 border border-white/10 rounded-xl min-h-0">
+                <div className="flex-1 flex flex-col min-h-0 p-2">
+                  <Tabs value={consoleTab} onValueChange={setConsoleTab} className="flex-1 flex flex-col min-h-0">
+                      <TabsList className="grid w-full grid-cols-3">
+                          <TabsTrigger value="test-result"><Terminal className="mr-2 h-4 w-4"/>Test Result</TabsTrigger>
+                          <TabsTrigger value="testcases"><TestTube2 className="mr-2 h-4 w-4"/>Testcases</TabsTrigger>
+                          <TabsTrigger value="chat"><MessageSquare className="mr-2 h-4 w-4"/>Chat & Video</TabsTrigger>
+                      </TabsList>
+                      <TabsContent value="test-result" className="flex-1 mt-2 overflow-auto rounded-md bg-muted/30 p-4">
+                          {typeof output === 'string' ? (
+                              <pre className="whitespace-pre-wrap font-code text-sm"><code>{output}</code></pre>
+                          ) : (
+                              <div className="space-y-4 font-code text-sm">
+                                  {output.map((res, index) => (
+                                      <div key={index} className="border-b border-border/50 pb-3 last:border-b-0">
+                                          <div className="flex items-center gap-2 font-bold mb-2">
+                                              {res.passed ? <CheckCircle2 className="h-5 w-5 text-green-500" /> : <XCircle className="h-5 w-5 text-red-500" />}
+                                              <span className={cn(res.passed ? "text-green-400" : "text-red-400")}>Case {res.case}: {res.passed ? 'Passed' : 'Failed'}</span>
+                                          </div>
+                                          <div className='space-y-1 pl-7 text-xs'>
+                                            <p><span className="text-muted-foreground w-20 inline-block font-semibold">Input:</span> {res.input}</p>
+                                            <p><span className="text-muted-foreground w-20 inline-block font-semibold">Output:</span> {res.output}</p>
+                                            {!res.passed && <p><span className="text-muted-foreground w-20 inline-block font-semibold">Expected:</span> {res.expected}</p>}
+                                          </div>
+                                      </div>
+                                  ))}
                               </div>
-                          ))}
-                      </div>
-                    </TabsContent>
-                    <TabsContent value="chat" className="flex-1 mt-2 flex flex-col min-h-0">
-                      <div className="grid grid-cols-2 gap-1 mb-1">
-                        <UserVideo />
-                        <div className="relative aspect-video w-full bg-muted/30 rounded-lg flex items-center justify-center overflow-hidden">
-                            <Image src={opponent.userAvatar || 'https://placehold.co/600x400.png'} data-ai-hint="person coding" alt={opponent.userName} width={320} height={180} className="w-full h-full object-cover" />
-                            <div className="absolute bottom-1 left-2 text-xs bg-black/50 text-white px-1.5 py-0.5 rounded">{opponent.userName}</div>
-                        </div>
-                      </div>
-                      <div className="flex-1 flex flex-col min-h-0 border-t pt-2">
-                          <div className="flex-1 pr-2 -mr-2 overflow-y-auto">
-                            <div className="space-y-2 text-sm pr-2">
-                              {messages.map((message) => {
-                                const isMe = message.senderId === auth.currentUser?.uid;
-                                return (
-                                  <div key={message.id} className={cn('flex items-start gap-2', isMe && 'flex-row-reverse')}>
-                                    <Avatar className="h-8 w-8">
-                                      <AvatarImage src={message.senderAvatar} data-ai-hint={isMe ? "man portrait" : "woman portrait"}/>
-                                      <AvatarFallback>{message.senderName.substring(0, 2).toUpperCase()}</AvatarFallback>
-                                    </Avatar>
-                                    <div className={cn(isMe && 'text-right')}>
-                                      <p className="font-bold">{message.senderName}</p>
-                                      <p className={cn('p-2 rounded-lg mt-1', isMe ? 'bg-primary/80 text-primary-foreground' : 'bg-muted/50')}>
-                                        {message.text}
-                                      </p>
+                          )}
+                      </TabsContent>
+                      <TabsContent value="testcases" className="flex-1 mt-2 overflow-auto rounded-md bg-muted/30 p-4">
+                        <div className="space-y-4 font-code text-base">
+                            {problem?.testCases.slice(0, 3).map((tc, index) => (
+                                <div key={index} className="border-b border-border/50 pb-3 last:border-b-0">
+                                    <p className="font-bold mb-2 text-lg">Case {index + 1}</p>
+                                    <div className="bg-background/40 p-3 mt-1 rounded-md space-y-2">
+                                        <p><span className='text-muted-foreground font-semibold'>Input:</span> {JSON.stringify(tc.input)}</p>
+                                        <p><span className='text-muted-foreground font-semibold'>Output:</span> {JSON.stringify(tc.expected)}</p>
                                     </div>
-                                  </div>
-                                );
-                              })}
-                              <div ref={endOfMessagesRef} />
+                                </div>
+                            ))}
+                        </div>
+                      </TabsContent>
+                      <TabsContent value="chat" className="flex-1 mt-2 flex flex-col min-h-0">
+                        <div className="grid grid-cols-2 gap-1 mb-1">
+                          <UserVideo />
+                          <div className="relative aspect-video w-full bg-muted/30 rounded-lg flex items-center justify-center overflow-hidden">
+                              <Image src={opponent.userAvatar || 'https://placehold.co/600x400.png'} data-ai-hint="person coding" alt={opponent.userName} width={320} height={180} className="w-full h-full object-cover" />
+                              <div className="absolute bottom-1 left-2 text-xs bg-black/50 text-white px-1.5 py-0.5 rounded">{opponent.userName}</div>
+                          </div>
+                        </div>
+                        <div className="flex-1 flex flex-col min-h-0 border-t pt-2">
+                            <div className="flex-1 pr-2 -mr-2 overflow-y-auto">
+                              <div className="space-y-2 text-sm pr-2">
+                                {messages.map((message) => {
+                                  const isMe = message.senderId === auth.currentUser?.uid;
+                                  return (
+                                    <div key={message.id} className={cn('flex items-start gap-2', isMe && 'flex-row-reverse')}>
+                                      <Avatar className="h-8 w-8">
+                                        <AvatarImage src={message.senderAvatar} data-ai-hint={isMe ? "man portrait" : "woman portrait"}/>
+                                        <AvatarFallback>{message.senderName.substring(0, 2).toUpperCase()}</AvatarFallback>
+                                      </Avatar>
+                                      <div className={cn(isMe && 'text-right')}>
+                                        <p className="font-bold">{message.senderName}</p>
+                                        <p className={cn('p-2 rounded-lg mt-1', isMe ? 'bg-primary/80 text-primary-foreground' : 'bg-muted/50')}>
+                                          {message.text}
+                                        </p>
+                                      </div>
+                                    </div>
+                                  );
+                                })}
+                                <div ref={endOfMessagesRef} />
+                              </div>
+                            </div>
+                            <div className="mt-1 flex gap-2">
+                              <Input placeholder="Send a message..." value={newMessage} onChange={(e) => setNewMessage(e.target.value)}
+                                onKeyDown={(e) => {
+                                  if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); handleSendMessage(); }
+                                }}/>
+                              <Button variant="secondary" size="icon" onClick={handleSendMessage} disabled={!newMessage.trim()}>
+                                <Send className="h-4 w-4" />
+                              </Button>
                             </div>
                           </div>
-                          <div className="mt-1 flex gap-2">
-                            <Input placeholder="Send a message..." value={newMessage} onChange={(e) => setNewMessage(e.target.value)}
-                              onKeyDown={(e) => {
-                                if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); handleSendMessage(); }
-                              }}/>
-                            <Button variant="secondary" size="icon" onClick={handleSendMessage} disabled={!newMessage.trim()}>
-                              <Send className="h-4 w-4" />
-                            </Button>
-                          </div>
-                        </div>
-                    </TabsContent>
-                    <div className='flex justify-end mt-4 gap-2'>
-                        <RunButton />
-                        <SubmitButton />
-                    </div>
-                </Tabs>
+                      </TabsContent>
+                  </Tabs>
+                </div>
+                <div className='flex justify-end p-2 pt-0 border-t-0 gap-2'>
+                    <RunButton />
+                    <SubmitButton />
+                </div>
              </div>
           </div>
         </main>
@@ -757,5 +759,3 @@ export default function ClashPage() {
     </AuthGuard>
   );
 }
-
-    
