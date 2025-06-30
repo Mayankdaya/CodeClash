@@ -14,7 +14,6 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Progress } from '@/components/ui/progress';
-import { ScrollArea, ScrollBar } from '@/components/ui/scroll-area';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { Header } from '@/components/Header';
@@ -25,6 +24,7 @@ import { BookOpen, Code, Send, Users, Timer, Star, ThumbsUp, Video, CameraOff, L
 import { cn } from '@/lib/utils';
 import type { Problem } from '@/lib/problems';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { ScrollArea } from '@/components/ui/scroll-area';
 
 interface Participant {
   userId: string;
@@ -277,233 +277,228 @@ export default function ClashPage() {
     <AuthGuard>
       <div className="flex flex-col h-dvh bg-transparent text-foreground font-body">
         <Header />
-        <main className="flex-1 flex flex-col min-h-0">
-          <ScrollArea className="flex-1 w-full">
-            <div className="h-full flex flex-row gap-6 p-6" style={{ minWidth: '1300px' }}>
-              
-              {/* Left Panel */}
-              <div className="w-1/4 flex-shrink-0 flex flex-col gap-6 min-h-0">
-                <Card className="flex-1 flex flex-col bg-card/50 border border-white/10 rounded-2xl min-h-0">
-                  <CardHeader className="flex-row items-center gap-4">
-                    <BookOpen className="h-6 w-6 text-primary" />
-                    <CardTitle>Problem</CardTitle>
-                  </CardHeader>
-                  <CardContent className="flex-1 p-6 pt-0 overflow-auto">
-                    <h3 className="font-bold text-lg mb-2 capitalize">{problem.title}</h3>
-                    <p className="text-muted-foreground mb-4 whitespace-pre-wrap">
-                      {problem.description}
-                    </p>
-                    <div className="text-sm space-y-3">
-                      <p><strong className='text-foreground'>Example:</strong></p>
-                      <pre className='p-2 rounded-md bg-muted/50 text-xs'>
-                        <code>
-                          Input: {problem.example.input}<br/>
-                          Output: {problem.example.output}
-                          {problem.example.explanation && <><br/>Explanation: {problem.example.explanation}</>}
-                        </code>
-                      </pre>
-                    </div>
-                  </CardContent>
-                </Card>
-                <Card className="bg-card/50 border border-white/10 rounded-2xl">
-                  <CardHeader className='flex-row items-center gap-4'>
-                    <Timer className='h-6 w-6 text-primary' />
-                    <CardTitle>Time Remaining</CardTitle>
-                  </CardHeader>
-                  <CardContent>
-                    <Progress value={progressValue} className="w-full h-3 mb-2" />
-                    <p className="text-center font-mono text-2xl font-bold tracking-widest">{formatTime(timeLeft)}</p>
-                  </CardContent>
-                </Card>
-              </div>
+        <main className="flex-1 flex flex-row gap-6 p-6 min-h-0 overflow-x-auto">
+          
+          {/* Left Panel */}
+          <div className="w-1/4 flex-shrink-0 flex flex-col gap-6" style={{ minWidth: '350px' }}>
+            <Card className="flex-1 flex flex-col bg-card/50 border border-white/10 rounded-2xl min-h-0">
+              <CardHeader className="flex-row items-center gap-4">
+                <BookOpen className="h-6 w-6 text-primary" />
+                <CardTitle>Problem</CardTitle>
+              </CardHeader>
+              <CardContent className="flex-1 p-6 pt-0 overflow-auto">
+                <h3 className="font-bold text-lg mb-2 capitalize">{problem.title}</h3>
+                <p className="text-muted-foreground mb-4 whitespace-pre-wrap">
+                  {problem.description}
+                </p>
+                <div className="text-sm space-y-3">
+                  <p><strong className='text-foreground'>Example:</strong></p>
+                  <pre className='p-2 rounded-md bg-muted/50 text-xs overflow-x-auto'>
+                    <code>
+                      Input: {problem.example.input}<br/>
+                      Output: {problem.example.output}
+                      {problem.example.explanation && <><br/>Explanation: {problem.example.explanation}</>}
+                    </code>
+                  </pre>
+                </div>
+              </CardContent>
+            </Card>
+            <Card className="bg-card/50 border border-white/10 rounded-2xl">
+              <CardHeader className='flex-row items-center gap-4'>
+                <Timer className='h-6 w-6 text-primary' />
+                <CardTitle>Time Remaining</CardTitle>
+              </CardHeader>
+              <CardContent>
+                <Progress value={progressValue} className="w-full h-3 mb-2" />
+                <p className="text-center font-mono text-2xl font-bold tracking-widest">{formatTime(timeLeft)}</p>
+              </CardContent>
+            </Card>
+          </div>
 
-              {/* Middle Panel */}
-              <div className="w-1/2 flex-shrink-0 flex flex-col min-h-0">
-                <Card className="flex-1 flex flex-col bg-card/50 border border-white/10 rounded-2xl min-h-0">
-                  <CardHeader className="flex-row items-center justify-between gap-4">
-                    <div className='flex items-center gap-4'>
-                      <Code className="h-6 w-6 text-primary" />
-                      <CardTitle>Solution</CardTitle>
-                    </div>
-                    <Select value={language} onValueChange={setLanguage} disabled={isRunning}>
-                      <SelectTrigger className="w-[180px] h-9">
-                        <SelectValue placeholder="Select Language" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        {languages.map((lang) => (
-                            <SelectItem key={lang} value={lang} className='capitalize'>
-                              {lang.charAt(0).toUpperCase() + lang.slice(1)}
-                            </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                  </CardHeader>
-                  <CardContent className="flex-1 flex flex-col p-0 min-h-0">
-                    <div className="flex flex-col min-h-0" style={{flexBasis: '70%'}}>
-                        <div className="p-6 pt-0 flex-1 flex flex-col min-h-0">
-                          <div className="flex-1 w-full rounded-md min-h-0">
-                            <CodeEditor
-                              key={language}
-                              language={language}
-                              value={code}
-                              onChange={(value) => setCode(value || '')}
-                              disabled={isRunning}
-                            />
-                          </div>
-                          <div className='flex justify-end mt-4 gap-2'>
-                            <Button variant="secondary" onClick={handleRunCode} disabled={isRunning}>
-                              {isRunning && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-                              Run Code
-                            </Button>
-                            <Button className="bg-green-600 hover:bg-green-700 text-white" onClick={handleSubmitCode} disabled={isRunning}>Submit</Button>
-                          </div>
-                        </div>
-                    </div>
-                    <div className="border-t border-border/50 p-6 flex flex-col min-h-0" style={{flexBasis: '30%'}}>
-                        <h3 className="text-lg font-semibold mb-2">Console</h3>
-                        <ScrollArea className="flex-1 bg-muted/30 p-4 rounded-md font-code text-sm min-h-0">
-                            <pre className="whitespace-pre-wrap">
-                                <code>{output}</code>
-                            </pre>
-                        </ScrollArea>
-                    </div>
-                  </CardContent>
-                </Card>
-              </div>
-
-              {/* Right Panel */}
-              <div className="w-1/4 flex-shrink-0 flex flex-col gap-6 min-h-0">
-                <Card className="flex-1 flex flex-col bg-card/50 border border-white/10 rounded-2xl min-h-0">
-                  <CardHeader className="flex-row items-center gap-4">
-                    <Video className="h-6 w-6 text-primary" />
-                    <CardTitle>Video & Chat</CardTitle>
-                  </CardHeader>
-                  <CardContent className="flex-1 flex flex-col pt-0 min-h-0">
-                    <div className="grid grid-cols-2 gap-2 mb-4">
-                      <div className="relative aspect-video w-full bg-muted/30 rounded-lg flex items-center justify-center overflow-hidden">
-                        <video ref={videoRef} className="w-full h-full object-cover" autoPlay muted playsInline />
-                        {hasCameraPermission === false && (
-                            <div className="absolute inset-0 flex flex-col items-center justify-center text-center text-muted-foreground p-2 bg-background/80">
-                                <CameraOff className="h-8 w-8 mx-auto mb-1" />
-                                <p className="text-xs">Your camera is off</p>
-                            </div>
-                        )}
-                        <div className="absolute bottom-1 left-2 text-xs bg-black/50 text-white px-1.5 py-0.5 rounded">You</div>
+          {/* Middle Panel */}
+          <div className="w-1/2 flex-shrink-0 flex flex-col min-h-0" style={{ minWidth: '600px' }}>
+            <Card className="flex-1 flex flex-col bg-card/50 border border-white/10 rounded-2xl min-h-0">
+              <CardHeader className="flex-row items-center justify-between gap-4">
+                <div className='flex items-center gap-4'>
+                  <Code className="h-6 w-6 text-primary" />
+                  <CardTitle>Solution</CardTitle>
+                </div>
+                <Select value={language} onValueChange={setLanguage} disabled={isRunning}>
+                  <SelectTrigger className="w-[180px] h-9">
+                    <SelectValue placeholder="Select Language" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {languages.map((lang) => (
+                        <SelectItem key={lang} value={lang} className='capitalize'>
+                          {lang.charAt(0).toUpperCase() + lang.slice(1)}
+                        </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </CardHeader>
+              <CardContent className="flex-1 flex flex-col p-0 min-h-0">
+                <div className="flex flex-col min-h-0" style={{flexBasis: '70%'}}>
+                    <div className="p-6 pt-0 flex-1 flex flex-col min-h-0">
+                      <div className="flex-1 w-full rounded-md min-h-0">
+                        <CodeEditor
+                          key={language}
+                          language={language}
+                          value={code}
+                          onChange={(value) => setCode(value || '')}
+                          disabled={isRunning}
+                        />
                       </div>
-                      <div className="relative aspect-video w-full bg-muted/30 rounded-lg flex items-center justify-center overflow-hidden">
-                          <Image src={opponent.userAvatar || 'https://placehold.co/600x400.png'} data-ai-hint="person coding" alt={opponent.userName} width={320} height={180} className="w-full h-full object-cover" />
-                          <div className="absolute bottom-1 left-2 text-xs bg-black/50 text-white px-1.5 py-0.5 rounded">{opponent.userName}</div>
+                      <div className='flex justify-end mt-4 gap-2'>
+                        <Button variant="secondary" onClick={handleRunCode} disabled={isRunning}>
+                          {isRunning && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                          Run Code
+                        </Button>
+                        <Button className="bg-green-600 hover:bg-green-700 text-white" onClick={handleSubmitCode} disabled={isRunning}>Submit</Button>
                       </div>
                     </div>
+                </div>
+                <div className="border-t border-border/50 p-6 flex flex-col min-h-0" style={{flexBasis: '30%'}}>
+                    <h3 className="text-lg font-semibold mb-2">Console</h3>
+                    <ScrollArea className="flex-1 bg-muted/30 p-4 rounded-md font-code text-sm min-h-0">
+                        <pre className="whitespace-pre-wrap">
+                            <code>{output}</code>
+                        </pre>
+                    </ScrollArea>
+                </div>
+              </CardContent>
+            </Card>
+          </div>
 
+          {/* Right Panel */}
+          <div className="w-1/4 flex-shrink-0 flex flex-col gap-6 min-h-0" style={{ minWidth: '350px' }}>
+            <Card className="flex-1 flex flex-col bg-card/50 border border-white/10 rounded-2xl min-h-0">
+              <CardHeader className="flex-row items-center gap-4">
+                <Video className="h-6 w-6 text-primary" />
+                <CardTitle>Video & Chat</CardTitle>
+              </CardHeader>
+              <CardContent className="flex-1 flex flex-col pt-0 min-h-0">
+                <div className="grid grid-cols-2 gap-2 mb-4">
+                  <div className="relative aspect-video w-full bg-muted/30 rounded-lg flex items-center justify-center overflow-hidden">
+                    <video ref={videoRef} className="w-full h-full object-cover" autoPlay muted playsInline />
                     {hasCameraPermission === false && (
-                        <Alert variant="destructive" className="mb-4">
-                          <AlertTitle>Camera Access Required</AlertTitle>
-                          <AlertDescription>
-                            Please allow camera access in your browser settings to use this feature.
-                          </AlertDescription>
-                        </Alert>
+                        <div className="absolute inset-0 flex flex-col items-center justify-center text-center text-muted-foreground p-2 bg-background/80">
+                            <CameraOff className="h-8 w-8 mx-auto mb-1" />
+                            <p className="text-xs">Your camera is off</p>
+                        </div>
                     )}
+                    <div className="absolute bottom-1 left-2 text-xs bg-black/50 text-white px-1.5 py-0.5 rounded">You</div>
+                  </div>
+                  <div className="relative aspect-video w-full bg-muted/30 rounded-lg flex items-center justify-center overflow-hidden">
+                      <Image src={opponent.userAvatar || 'https://placehold.co/600x400.png'} data-ai-hint="person coding" alt={opponent.userName} width={320} height={180} className="w-full h-full object-cover" />
+                      <div className="absolute bottom-1 left-2 text-xs bg-black/50 text-white px-1.5 py-0.5 rounded">{opponent.userName}</div>
+                  </div>
+                </div>
 
-                    <Tabs defaultValue="chat" className="flex-1 flex flex-col mt-2 min-h-0">
-                      <TabsList className="grid w-full grid-cols-2">
-                        <TabsTrigger value="chat">Chat</TabsTrigger>
-                        <TabsTrigger value="participants">Participants (2)</TabsTrigger>
-                      </TabsList>
-                      <TabsContent value="chat" className="flex-1 flex flex-col mt-4 min-h-0">
-                        <ScrollArea className="flex-1 pr-4 -mr-4">
-                          <div className="space-y-4 text-sm pr-4">
-                            {messages.map((message) => {
-                              const isMe = message.senderId === auth.currentUser?.uid;
-                              return (
-                                <div
-                                  key={message.id}
+                {hasCameraPermission === false && (
+                    <Alert variant="destructive" className="mb-4">
+                      <AlertTitle>Camera Access Required</AlertTitle>
+                      <AlertDescription>
+                        Please allow camera access in your browser settings to use this feature.
+                      </AlertDescription>
+                    </Alert>
+                )}
+
+                <Tabs defaultValue="chat" className="flex-1 flex flex-col mt-2 min-h-0">
+                  <TabsList className="grid w-full grid-cols-2">
+                    <TabsTrigger value="chat">Chat</TabsTrigger>
+                    <TabsTrigger value="participants">Participants (2)</TabsTrigger>
+                  </TabsList>
+                  <TabsContent value="chat" className="flex-1 flex flex-col mt-4 min-h-0">
+                    <ScrollArea className="flex-1 pr-4 -mr-4">
+                      <div className="space-y-4 text-sm pr-4">
+                        {messages.map((message) => {
+                          const isMe = message.senderId === auth.currentUser?.uid;
+                          return (
+                            <div
+                              key={message.id}
+                              className={cn(
+                                'flex items-start gap-3',
+                                isMe && 'flex-row-reverse'
+                              )}
+                            >
+                              <Avatar className="h-8 w-8">
+                                <AvatarImage src={message.senderAvatar} data-ai-hint={isMe ? "man portrait" : "woman portrait"}/>
+                                <AvatarFallback>
+                                  {message.senderName.substring(0, 2).toUpperCase()}
+                                </AvatarFallback>
+                              </Avatar>
+                              <div className={cn(isMe && 'text-right')}>
+                                <p className="font-bold">{message.senderName}</p>
+                                <p
                                   className={cn(
-                                    'flex items-start gap-3',
-                                    isMe && 'flex-row-reverse'
+                                    'p-2 rounded-lg',
+                                    isMe
+                                      ? 'bg-primary/80 text-primary-foreground'
+                                      : 'bg-muted/50'
                                   )}
                                 >
-                                  <Avatar className="h-8 w-8">
-                                    <AvatarImage src={message.senderAvatar} data-ai-hint={isMe ? "man portrait" : "woman portrait"}/>
-                                    <AvatarFallback>
-                                      {message.senderName.substring(0, 2).toUpperCase()}
-                                    </AvatarFallback>
-                                  </Avatar>
-                                  <div className={cn(isMe && 'text-right')}>
-                                    <p className="font-bold">{message.senderName}</p>
-                                    <p
-                                      className={cn(
-                                        'p-2 rounded-lg',
-                                        isMe
-                                          ? 'bg-primary/80 text-primary-foreground'
-                                          : 'bg-muted/50'
-                                      )}
-                                    >
-                                      {message.text}
-                                    </p>
-                                  </div>
-                                </div>
-                              );
-                            })}
-                            <div ref={endOfMessagesRef} />
-                          </div>
-                        </ScrollArea>
-                        <div className="mt-4 flex gap-2">
-                          <Input
-                            placeholder="Send a message..."
-                            value={newMessage}
-                            onChange={(e) => setNewMessage(e.target.value)}
-                            onKeyDown={(e) => {
-                              if (e.key === 'Enter' && !e.shiftKey) {
-                                e.preventDefault();
-                                handleSendMessage();
-                              }
-                            }}
-                          />
-                          <Button variant="secondary" size="icon" onClick={handleSendMessage} disabled={!newMessage.trim()}>
-                            <Send className="h-4 w-4" />
-                          </Button>
-                        </div>
-                      </TabsContent>
-                      <TabsContent value="participants" className="flex-1 mt-4 min-h-0">
-                        <ScrollArea className="h-full pr-4 -mr-4">
-                          <div className="space-y-4 pr-4">
-                              <div className="flex items-center justify-between">
-                                <div className='flex items-center gap-3'>
-                                  <Avatar className="h-10 w-10">
-                                    <AvatarImage src={auth.currentUser?.photoURL || ''} data-ai-hint="man portrait" />
-                                    <AvatarFallback>ME</AvatarFallback>
-                                  </Avatar>
-                                  <div>
-                                    <p className="font-semibold">You</p>
-                                    <p className="text-xs text-muted-foreground">Score: 0</p>
-                                  </div>
-                                </div>
-                                <Star className='h-5 w-5 text-yellow-400' />
+                                  {message.text}
+                                </p>
                               </div>
-                              <div className="flex items-center justify-between">
-                                <div className='flex items-center gap-3'>
-                                  <Avatar className="h-10 w-10">
-                                    <AvatarImage src={opponent.userAvatar} data-ai-hint="person coding" />
-                                    <AvatarFallback>{opponent.userName.substring(0, 2).toUpperCase()}</AvatarFallback>
-                                  </Avatar>
-                                  <div>
-                                    <p className="font-semibold">{opponent.userName}</p>
-                                    <p className="text-xs text-muted-foreground">Score: 0</p>
-                                  </div>
-                                </div>
-                                  <Button variant="ghost" size="icon" className='h-8 w-8 text-muted-foreground hover:text-green-500'><ThumbsUp className='h-4 w-4'/></Button>
+                            </div>
+                          );
+                        })}
+                        <div ref={endOfMessagesRef} />
+                      </div>
+                    </ScrollArea>
+                    <div className="mt-4 flex gap-2">
+                      <Input
+                        placeholder="Send a message..."
+                        value={newMessage}
+                        onChange={(e) => setNewMessage(e.target.value)}
+                        onKeyDown={(e) => {
+                          if (e.key === 'Enter' && !e.shiftKey) {
+                            e.preventDefault();
+                            handleSendMessage();
+                          }
+                        }}
+                      />
+                      <Button variant="secondary" size="icon" onClick={handleSendMessage} disabled={!newMessage.trim()}>
+                        <Send className="h-4 w-4" />
+                      </Button>
+                    </div>
+                  </TabsContent>
+                  <TabsContent value="participants" className="flex-1 mt-4 min-h-0">
+                    <ScrollArea className="h-full pr-4 -mr-4">
+                      <div className="space-y-4 pr-4">
+                          <div className="flex items-center justify-between">
+                            <div className='flex items-center gap-3'>
+                              <Avatar className="h-10 w-10">
+                                <AvatarImage src={auth.currentUser?.photoURL || ''} data-ai-hint="man portrait" />
+                                <AvatarFallback>ME</AvatarFallback>
+                              </Avatar>
+                              <div>
+                                <p className="font-semibold">You</p>
+                                <p className="text-xs text-muted-foreground">Score: 0</p>
                               </div>
+                            </div>
+                            <Star className='h-5 w-5 text-yellow-400' />
                           </div>
-                        </ScrollArea>
-                      </TabsContent>
-                    </Tabs>
-                  </CardContent>
-                </Card>
-              </div>
-            </div>
-            <ScrollBar orientation="horizontal" className="m-2"/>
-          </ScrollArea>
+                          <div className="flex items-center justify-between">
+                            <div className='flex items-center gap-3'>
+                              <Avatar className="h-10 w-10">
+                                <AvatarImage src={opponent.userAvatar} data-ai-hint="person coding" />
+                                <AvatarFallback>{opponent.userName.substring(0, 2).toUpperCase()}</AvatarFallback>
+                              </Avatar>
+                              <div>
+                                <p className="font-semibold">{opponent.userName}</p>
+                                <p className="text-xs text-muted-foreground">Score: 0</p>
+                              </div>
+                            </div>
+                              <Button variant="ghost" size="icon" className='h-8 w-8 text-muted-foreground hover:text-green-500'><ThumbsUp className='h-4 w-4'/></Button>
+                          </div>
+                      </div>
+                    </ScrollArea>
+                  </TabsContent>
+                </Tabs>
+              </CardContent>
+            </Card>
+          </div>
         </main>
         <Footer />
       </div>
