@@ -3,11 +3,11 @@ export interface Problem {
   id: string;
   title: string;
   description: string;
-  example: {
+  examples: {
     input: string;
     output: string;
     explanation?: string;
-  };
+  }[];
   starterCode: string;
   testCases: {
     input: any[];

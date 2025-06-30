@@ -253,7 +253,7 @@ export default function ClashPage() {
             };
 
             worker.onerror = (e) => {
-                setOutput(`A worker error occurred: ${e.message}`);
+                setOutput('A worker error occurred: ' + e.message);
                 setIsRunning(false);
                 worker.terminate();
                 URL.revokeObjectURL(workerUrl);
@@ -267,7 +267,7 @@ export default function ClashPage() {
             });
 
         } catch (error: any) {
-            setOutput(`An error occurred on the main thread: ${error.message}`);
+            setOutput('An error occurred on the main thread: ' + error.message);
             setIsRunning(false);
         }
     }, 100);
@@ -337,15 +337,19 @@ export default function ClashPage() {
                 <p className="text-muted-foreground mb-4 whitespace-pre-wrap">
                   {problem.description}
                 </p>
-                <div className="text-sm space-y-3">
-                  <p><strong className='text-foreground'>Example:</strong></p>
-                  <pre className='p-2 rounded-md bg-muted/50 text-xs overflow-x-auto'>
-                    <code>
-                      Input: {problem.example.input}<br/>
-                      Output: {problem.example.output}
-                      {problem.example.explanation && <><br/>Explanation: {problem.example.explanation}</>}
-                    </code>
-                  </pre>
+                <div className="text-sm space-y-4">
+                  {problem.examples && problem.examples.map((example, index) => (
+                    <div key={index}>
+                      <p><strong className='text-foreground'>Example {index + 1}:</strong></p>
+                      <pre className='mt-1 p-2 rounded-md bg-muted/50 text-xs whitespace-pre-wrap'>
+                        <code>
+                          Input: {example.input}<br/>
+                          Output: {example.output}
+                          {example.explanation && <><br/>Explanation: {example.explanation}</>}
+                        </code>
+                      </pre>
+                    </div>
+                  ))}
                 </div>
               </CardContent>
             </Card>

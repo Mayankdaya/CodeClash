@@ -20,11 +20,11 @@ const ProblemSchema: z.ZodType<Problem> = z.object({
   id: z.string().describe('A unique identifier for the problem, in kebab-case. e.g., "two-sum"'),
   title: z.string().describe('The title of the coding problem.'),
   description: z.string().describe('A detailed description of the problem. Use newlines (`\\n`) for formatting. Do not use Markdown characters like `#` or `*`.'),
-  example: z.object({
+  examples: z.array(z.object({
     input: z.string().describe('A human-readable string representing an example input for the problem.'),
     output: z.string().describe('The corresponding human-readable output for the example input.'),
     explanation: z.string().optional().describe('An optional explanation of the example.'),
-  }),
+  })).min(2).describe('An array of at least 2 clear examples with human-readable inputs, outputs, and optional explanations.'),
   starterCode: z.string().describe('Boilerplate code in JavaScript for the user to start with. IMPORTANT: The function must be defined as a variable, like `var twoSum = function(nums, target) { ... };`'),
   testCases: z.array(TestCaseSchema).min(3).describe("An array of at least 3 test cases to verify the solution. The 'input' field should be an array of arguments to pass to the function."),
   entryPoint: z.string().describe("The name of the function to be tested, e.g., 'twoSum'."),
@@ -56,7 +56,7 @@ Generate a problem with the following structure:
 - A unique ID in kebab-case.
 - A clear title.
 - A detailed description. Use newlines for spacing and structure. DO NOT use any Markdown formatting like '#' for headers or '*' for lists.
-- One clear example with a human-readable input, output, and an optional explanation.
+- An array of at least 2 clear examples with human-readable inputs, outputs, and optional explanations.
 - Starter code in JavaScript. CRITICAL: The function must be declared as a variable, for example: 'var twoSum = function(nums, target) { ... };' This format is essential for the testing environment.
 - An array of at least 3 test cases, where each 'input' is an array of arguments for the function.
 - The name of the main function to be called for testing (the 'entryPoint').
