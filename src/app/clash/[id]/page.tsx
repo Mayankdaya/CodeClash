@@ -19,7 +19,8 @@ import { Header } from '@/components/Header';
 import { Footer } from '@/components/Footer';
 import AuthGuard from '@/components/AuthGuard';
 import { CodeEditor } from '@/components/CodeEditor';
-import { BookOpen, Code, Send, Users, Timer, Star, ThumbsUp, Video, CameraOff, Loader2 } from 'lucide-react';
+import { UserVideo } from '@/components/UserVideo';
+import { BookOpen, Code, Send, Users, Timer, Star, ThumbsUp, Video, Loader2 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import type { Problem } from '@/lib/problems';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
@@ -62,9 +63,7 @@ export default function ClashPage() {
   const [isRunning, setIsRunning] = useState(false);
   
   const [timeLeft, setTimeLeft] = useState(30 * 60); // 30 minutes
-  const [hasCameraPermission, setHasCameraPermission] = useState<boolean | null>(null);
 
-  const videoRef = useRef<HTMLVideoElement>(null);
   const endOfMessagesRef = useRef<HTMLDivElement>(null);
   const languages = ["javascript", "typescript", "python", "java", "cpp"];
 
@@ -146,48 +145,6 @@ export default function ClashPage() {
     const timer = setInterval(() => setTimeLeft((prev) => prev - 1), 1000);
     return () => clearInterval(timer);
   }, [timeLeft]);
-  
-  // Camera permission
-  useEffect(() => {
-    if (!clashData) return;
-
-    const getCameraPermission = async () => {
-      if (!navigator.mediaDevices?.getUserMedia) {
-        setHasCameraPermission(false);
-        toast({
-          variant: 'destructive',
-          title: 'Unsupported Browser',
-          description: 'Your browser does not support video features.',
-        });
-        return;
-      }
-      try {
-        const stream = await navigator.mediaDevices.getUserMedia({ video: true });
-        setHasCameraPermission(true);
-        if (videoRef.current) {
-          videoRef.current.srcObject = stream;
-        }
-      } catch (error) {
-        console.error('Error accessing camera:', error);
-        setHasCameraPermission(false);
-        toast({
-          variant: 'destructive',
-          title: 'Camera Access Denied',
-          description: 'Please enable camera permissions in your browser settings to use this feature.',
-        });
-      }
-    };
-
-    getCameraPermission();
-
-    return () => {
-      if (videoRef.current?.srcObject) {
-        const stream = videoRef.current.srcObject as MediaStream;
-        stream.getTracks().forEach(track => track.stop());
-        videoRef.current.srcObject = null;
-      }
-    };
-  }, [clashData, toast]);
 
   const handleSendMessage = async () => {
     if (newMessage.trim() === '' || !db || !auth.currentUser || !id) return;
@@ -294,10 +251,10 @@ export default function ClashPage() {
     <AuthGuard>
       <div className="flex flex-col h-dvh bg-transparent text-foreground font-body">
         <Header />
-        <main className="flex-1 flex flex-row gap-6 p-6 min-h-0 overflow-x-auto">
+        <main className="flex-1 flex flex-row gap-6 p-6 overflow-x-auto">
           
           {/* Left Panel */}
-          <div className="flex flex-col gap-6" style={{ minWidth: '350px', flex: '1 1 25%' }}>
+          <div className="flex flex-col gap-6" style={{ minWidth: '350px' }}>
             <Card className="flex-1 flex flex-col bg-card/50 border border-white/10 rounded-2xl min-h-0">
               <CardHeader className="flex-row items-center gap-4">
                 <BookOpen className="h-6 w-6 text-primary" />
@@ -387,7 +344,7 @@ export default function ClashPage() {
           </div>
 
           {/* Right Panel */}
-          <div className="flex flex-col gap-6 min-h-0" style={{ minWidth: '350px', flex: '1 1 25%' }}>
+          <div className="flex flex-col gap-6 min-h-0" style={{ minWidth: '350px' }}>
             <Card className="flex-1 flex flex-col bg-card/50 border border-white/10 rounded-2xl min-h-0">
               <CardHeader className="flex-row items-center gap-4">
                 <Video className="h-6 w-6 text-primary" />
@@ -395,24 +352,7 @@ export default function ClashPage() {
               </CardHeader>
               <CardContent className="flex-1 flex flex-col pt-0 min-h-0">
                 <div className="grid grid-cols-2 gap-2 mb-4">
-                  <div className="relative aspect-video w-full bg-muted/30 rounded-lg flex items-center justify-center overflow-hidden">
-                    <video ref={videoRef} className="w-full h-full object-cover" autoPlay muted playsInline />
-                    
-                    {hasCameraPermission === null && (
-                        <div className="absolute inset-0 flex flex-col items-center justify-center text-center text-muted-foreground p-2 bg-background/80">
-                            <Loader2 className="h-8 w-8 animate-spin mx-auto mb-1" />
-                            <p className="text-xs">Starting camera...</p>
-                        </div>
-                    )}
-                    
-                    {hasCameraPermission === false && (
-                        <div className="absolute inset-0 flex flex-col items-center justify-center text-center text-muted-foreground p-2 bg-background/80">
-                            <CameraOff className="h-8 w-8 mx-auto mb-1" />
-                            <p className="text-xs">Your camera is off</p>
-                        </div>
-                    )}
-                    <div className="absolute bottom-1 left-2 text-xs bg-black/50 text-white px-1.5 py-0.5 rounded">You</div>
-                  </div>
+                  <UserVideo />
                   <div className="relative aspect-video w-full bg-muted/30 rounded-lg flex items-center justify-center overflow-hidden">
                       <Image src={opponent.userAvatar || 'https://placehold.co/600x400.png'} data-ai-hint="person coding" alt={opponent.userName} width={320} height={180} className="w-full h-full object-cover" />
                       <div className="absolute bottom-1 left-2 text-xs bg-black/50 text-white px-1.5 py-0.5 rounded">{opponent.userName}</div>
