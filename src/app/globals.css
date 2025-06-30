@@ -64,7 +64,8 @@
   .dark {
     background-color: hsl(var(--background));
     background-image: 
-      radial-gradient(ellipse 80% 80% at 5% 5%, hsla(340, 85%, 65%, 0.15), transparent),
-      radial-gradient(ellipse 60% 60% at 95% 95%, hsla(170, 80%, 55%, 0.15), transparent);
+      radial-gradient(circle at 15% 50%, hsla(340, 85%, 65%, 0.18), transparent 40%),
+      radial-gradient(circle at 85% 40%, hsla(170, 80%, 55%, 0.18), transparent 40%),
+      radial-gradient(ellipse 50% 80% at 50% 100%, hsla(240, 3.7%, 15.9%, 0.3), transparent);
   }
 }
