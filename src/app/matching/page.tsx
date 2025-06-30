@@ -15,45 +15,16 @@ import { Button } from '@/components/ui/button';
 import { CameraOff, Loader2 } from 'lucide-react';
 import Link from 'next/link';
 import { generateProblem } from '@/ai/flows/generateProblemFlow';
+import { UserVideo } from '@/components/UserVideo';
 
 export default function MatchingPage() {
   const { toast } = useToast();
   const router = useRouter();
   const searchParams = useSearchParams();
-  const videoRef = useRef<HTMLVideoElement>(null);
 
-  const [hasCameraPermission, setHasCameraPermission] = useState<boolean | null>(null);
   const [statusText, setStatusText] = useState('Preparing your challenge...');
   
   const isCreatingClash = useRef(false);
-
-  useEffect(() => {
-    let stream: MediaStream | null = null;
-    const getCameraPermission = async () => {
-      if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
-        setHasCameraPermission(false);
-        toast({
-          variant: 'destructive',
-          title: 'Unsupported Browser',
-          description: 'Your browser does not support video features.',
-        });
-        return;
-      }
-      try {
-        stream = await navigator.mediaDevices.getUserMedia({ video: true });
-        setHasCameraPermission(true);
-        if (videoRef.current) videoRef.current.srcObject = stream;
-      } catch (error) {
-        setHasCameraPermission(false);
-      }
-    };
-    getCameraPermission();
-    return () => {
-      if (stream) {
-        stream.getTracks().forEach(track => track.stop());
-      }
-    };
-  }, [toast]);
   
   useEffect(() => {
     if (isCreatingClash.current) return;
@@ -75,7 +46,8 @@ export default function MatchingPage() {
       try {
         setStatusText('Generating a unique problem with AI...');
 
-        const problem = await generateProblem({ topic: topicName });
+        // Pass a unique seed to bypass caching and ensure a new problem every time.
+        const problem = await generateProblem({ topic: topicName, seed: Date.now().toString() });
         
         if (!problem) {
           toast({
@@ -141,23 +113,8 @@ export default function MatchingPage() {
             </CardHeader>
             <CardContent className="flex flex-col items-center gap-6">
               <div className="aspect-video w-full max-w-md bg-muted/30 rounded-lg flex items-center justify-center overflow-hidden">
-                <video ref={videoRef} className="w-full h-full object-cover" autoPlay muted playsInline />
-                {hasCameraPermission === false && (
-                  <div className="text-center text-muted-foreground p-4">
-                    <CameraOff className="h-12 w-12 mx-auto mb-2" />
-                    <p>Camera access is disabled.</p>
-                  </div>
-                )}
+                <UserVideo />
               </div>
-              
-              {hasCameraPermission === false && (
-                <Alert variant="destructive" className="w-full max-w-md">
-                  <AlertTitle>Camera Access Required</AlertTitle>
-                  <AlertDescription>
-                    Please allow camera access in your browser settings to use this feature.
-                  </AlertDescription>
-                </Alert>
-              )}
 
               <div className="flex items-center gap-4 text-lg text-muted-foreground">
                 <Loader2 className="h-6 w-6 animate-spin" />

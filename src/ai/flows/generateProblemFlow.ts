@@ -32,7 +32,8 @@ const ProblemSchema: z.ZodType<Problem> = z.object({
 export type { Problem };
 
 const GenerateProblemInputSchema = z.object({
-  topic: z.string().describe('The topic for the coding problem, e.g., "Arrays & Hashing", "Dynamic Programming".')
+  topic: z.string().describe('The topic for the coding problem, e.g., "Arrays & Hashing", "Dynamic Programming".'),
+  seed: z.string().optional().describe('A random string to ensure the problem is unique and not from a cache.'),
 });
 export type GenerateProblemInput = z.infer<typeof GenerateProblemInputSchema>;
 
