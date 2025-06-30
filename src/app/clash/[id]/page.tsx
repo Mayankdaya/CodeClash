@@ -201,6 +201,7 @@ export default function ClashPage() {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [consoleTab, setConsoleTab] = useState('test-result');
   const [submissionResult, setSubmissionResult] = useState<{ status: 'Accepted' | 'Wrong Answer' | 'Error'; message: string; } | null>(null);
+  const [problemTab, setProblemTab] = useState('problem');
   
   const [timeLeft, setTimeLeft] = useState(30 * 60); // 30 minutes
 
@@ -505,7 +506,7 @@ export default function ClashPage() {
     <AuthGuard>
       <div className="flex flex-col min-h-dvh bg-transparent text-foreground font-body">
         <Header />
-        <main className="flex-1 flex flex-col p-4 gap-4">
+        <main className="flex-1 flex flex-col p-4">
             <Card className="bg-card/50 border border-white/10 rounded-xl shrink-0">
                 <CardContent className="flex justify-between items-center p-2">
                     <div className='flex items-center gap-4'>
@@ -542,11 +543,11 @@ export default function ClashPage() {
                 <Progress value={progressValue} className="w-full h-1 rounded-none" />
             </Card>
 
-            <div className="flex-1 min-h-0">
+            <div className="flex-1 mt-4 min-h-0">
                 <PanelGroup direction="horizontal">
                     <Panel defaultSize={45} minSize={30}>
                         <div className="h-full flex flex-col bg-card/50 border border-white/10 rounded-xl overflow-hidden">
-                            <Tabs defaultValue="problem" className="flex-1 flex flex-col min-h-0">
+                            <Tabs value={problemTab} onValueChange={setProblemTab} className="flex-1 flex flex-col min-h-0">
                                 <div className="p-2 border-b border-border shrink-0">
                                 <TabsList className="w-full grid grid-cols-2">
                                     <TabsTrigger value="problem"><BookOpen className="mr-2 h-4 w-4"/>Problem</TabsTrigger>
@@ -554,32 +555,33 @@ export default function ClashPage() {
                                 </TabsList>
                                 </div>
                                 <div className="flex-1 min-h-0">
-                                    <TabsContent value="problem" className="m-0 h-full overflow-y-auto p-4 pr-2">
-                                        <h1 className="text-2xl font-bold mb-2">{problem.title}</h1>
-                                        <div className='prose prose-invert max-w-none prose-p:text-muted-foreground prose-strong:text-foreground'>
-                                        <p className="whitespace-pre-wrap">{problem.description}</p>
-                                        {problem.examples && problem.examples.map((example, index) => (
-                                            <div key={index}>
-                                            <p><strong>Example {index + 1}:</strong></p>
-                                            <pre className='mt-2 p-2 rounded-md bg-muted/50 text-base whitespace-pre-wrap font-code not-prose'>
-                                                <code>
-                                                <strong>Input:</strong> {example.input}<br/>
-                                                <strong>Output:</strong> {example.output}
-                                                {example.explanation && <><br/><strong>Explanation:</strong> {example.explanation}</>}
-                                                </code>
-                                            </pre>
+                                    {problemTab === 'problem' ? (
+                                        <div className="h-full overflow-y-auto p-4 pr-2">
+                                            <h1 className="text-2xl font-bold mb-2">{problem.title}</h1>
+                                            <div className='prose prose-invert max-w-none prose-p:text-muted-foreground prose-strong:text-foreground'>
+                                            <p className="whitespace-pre-wrap">{problem.description}</p>
+                                            {problem.examples && problem.examples.map((example, index) => (
+                                                <div key={index}>
+                                                <p><strong>Example {index + 1}:</strong></p>
+                                                <pre className='mt-2 p-2 rounded-md bg-muted/50 text-base whitespace-pre-wrap font-code not-prose'>
+                                                    <code>
+                                                    <strong>Input:</strong> {example.input}<br/>
+                                                    <strong>Output:</strong> {example.output}
+                                                    {example.explanation && <><br/><strong>Explanation:</strong> {example.explanation}</>}
+                                                    </code>
+                                                </pre>
+                                                </div>
+                                            ))}
                                             </div>
-                                        ))}
                                         </div>
-                                    </TabsContent>
-                                    <TabsContent value="solution" className="m-0 h-full p-0">
+                                    ) : (
                                         <CodeEditor
                                             language="javascript"
                                             value={problem.solution || "No solution available."}
                                             onChange={() => {}}
                                             disabled={true}
                                         />
-                                    </TabsContent>
+                                    )}
                                 </div>
                             </Tabs>
                         </div>
