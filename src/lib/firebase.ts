@@ -10,22 +10,8 @@ const firebaseConfig = {
   appId: process.env.NEXT_PUBLIC_FIREBASE_APP_ID,
 };
 
-function initializeFirebase() {
-    if (!firebaseConfig.apiKey || !firebaseConfig.projectId) {
-        console.warn("Firebase configuration is missing or incomplete. Authentication features will be disabled.");
-        return { app: null, auth: null };
-    }
-
-    try {
-        const app = getApps().length === 0 ? initializeApp(firebaseConfig) : getApp();
-        const auth = getAuth(app);
-        return { app, auth };
-    } catch (error) {
-        console.error("Firebase initialization failed:", error);
-        return { app: null, auth: null };
-    }
-}
-
-const { app, auth } = initializeFirebase();
+// Initialize Firebase
+const app = getApps().length > 0 ? getApp() : initializeApp(firebaseConfig);
+const auth = getAuth(app);
 
 export { app, auth };

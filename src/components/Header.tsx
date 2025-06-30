@@ -15,8 +15,6 @@ export function Header() {
   const router = useRouter();
 
   useEffect(() => {
-    if (!auth) return;
-
     const unsubscribe = onAuthStateChanged(auth, (currentUser) => {
       setUser(currentUser);
     });
@@ -24,8 +22,6 @@ export function Header() {
   }, []);
 
   const handleLogout = async () => {
-    if (!auth) return;
-
     await signOut(auth);
     router.push('/');
   };
@@ -43,7 +39,7 @@ export function Header() {
           <Link href="#" className="text-muted-foreground hover:text-foreground transition-colors" prefetch={false}>How it Works</Link>
         </nav>
         <div className="flex items-center gap-4">
-          {auth && user ? (
+          {user ? (
              <DropdownMenu>
               <DropdownMenuTrigger asChild>
                 <Button variant="ghost" className="relative h-10 w-10 rounded-full">

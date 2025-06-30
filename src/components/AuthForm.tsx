@@ -39,14 +39,6 @@ function LoginForm() {
   });
 
   const onSubmit = async (data: LoginFormData) => {
-    if (!auth) {
-        toast({
-            title: "Authentication Error",
-            description: "Firebase is not configured. Please check environment variables.",
-            variant: "destructive",
-        });
-        return;
-    }
     setIsLoading(true);
     try {
       await signInWithEmailAndPassword(auth, data.email, data.password);
@@ -111,14 +103,6 @@ function SignupForm() {
     });
     
     const onSubmit = async (data: SignupFormData) => {
-        if (!auth) {
-            toast({
-                title: "Authentication Error",
-                description: "Firebase is not configured. Please check environment variables.",
-                variant: "destructive",
-            });
-            return;
-        }
         setIsLoading(true);
         try {
             const userCredential = await createUserWithEmailAndPassword(auth, data.email, data.password);
