@@ -9,6 +9,11 @@ export interface Problem {
     explanation?: string;
   };
   starterCode: string;
+  testCases: {
+    input: any[];
+    expected: any;
+  }[];
+  entryPoint: string;
 }
 
 // This file is no longer used for storing problem data, as problems are

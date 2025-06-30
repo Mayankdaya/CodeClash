@@ -179,44 +179,60 @@ export default function ClashPage() {
     // In a real application, this should be done in a sandboxed environment (e.g., a web worker or a secure backend service).
     setTimeout(() => {
         try {
-            // A slightly more robust way to extract function name
-            const funcNameMatch = problem.starterCode.match(/var\s+(\w+)\s*=\s*function/);
-            if (!funcNameMatch) {
-                setOutput('Could not identify the function to test from the starter code.');
+            if (!problem.entryPoint || !problem.testCases || problem.testCases.length === 0) {
+                setOutput('Error: The problem is missing an entry point or test cases. Cannot execute code.');
                 setIsRunning(false);
                 return;
             }
-            const funcName = funcNameMatch[1];
 
-            // This is still unsafe for production.
+            const funcName = problem.entryPoint;
+            
+            // This is still unsafe for production but required for this execution model.
+            // It assumes the user's code makes the function available on the global scope or returns it.
             const userFunc = new Function('return ' + code)()[funcName];
             
-            // This is a placeholder for test cases which would ideally come with the problem definition
-            const testCases = [
-                { args: [[2, 7, 11, 15], 9], expected: [0, 1] },
-                { args: [[3, 2, 4], 6], expected: [1, 2] },
-                { args: [[3, 3], 6], expected: [0, 1] },
-            ];
+            if (typeof userFunc !== 'function') {
+                setOutput(`Error: Could not find function "${funcName}". Make sure your function is defined correctly as a variable (e.g., var ${funcName} = function(...) ...).`);
+                setIsRunning(false);
+                return;
+            }
 
+            const testCases = problem.testCases;
             let results = `Running tests for "${problem.title}"...\n\n`;
             let allPassed = true;
 
             testCases.forEach((testCase, index) => {
-                const result = userFunc(...testCase.args);
+                const result = userFunc(...testCase.input);
                 
-                // Simple array comparison, ignoring order for this specific problem
-                const passed = JSON.stringify(result?.sort((a:number, b:number) => a - b)) === JSON.stringify(testCase.expected.sort((a:number, b:number) => a - b));
+                // Deep comparison for arrays/objects. Also sorts arrays to handle order differences.
+                let processedResult = result;
+                let processedExpected = testCase.expected;
+
+                if (Array.isArray(result) && Array.isArray(testCase.expected)) {
+                    // Create copies before sorting to avoid mutating original data.
+                    // This is a shallow sort, which is fine for arrays of primitives.
+                    try {
+                      processedResult = [...result].sort();
+                      processedExpected = [...testCase.expected].sort();
+                    } catch (e) {
+                      // Sorting might fail if array contains non-sortable items. Fallback to unsorted.
+                    }
+                }
+                
+                const passed = JSON.stringify(processedResult) === JSON.stringify(processedExpected);
+
                 if (!passed) allPassed = false;
 
                 results += `Case ${index + 1}: ${passed ? '✅ Passed' : '❌ Failed'}\n`;
-                results += `  Input:    ${JSON.stringify(testCase.args)}\n`;
+                results += `  Input:    ${JSON.stringify(testCase.input)}\n`;
                 results += `  Output:   ${JSON.stringify(result)}\n`;
                 results += `  Expected: ${JSON.stringify(testCase.expected)}\n\n`;
             });
+
             results += allPassed ? 'All test cases passed!' : 'Some test cases failed.';
             setOutput(results);
         } catch (error: any) {
-            setOutput(`An error occurred:\n${error.name}: ${error.message}`);
+            setOutput(`An error occurred during execution:\n${error.name}: ${error.message}`);
         } finally {
             setIsRunning(false);
         }

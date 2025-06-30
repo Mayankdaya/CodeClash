@@ -74,7 +74,13 @@ export default function MatchingPage() {
       try {
         setStatusText(`Generating a unique problem about ${topicName}...`);
 
-        const problem = await generateProblem({ topic: topicName });
+        const generationPromise = generateProblem({ topic: topicName });
+        
+        const timeoutPromise = new Promise<never>((_, reject) =>
+          setTimeout(() => reject(new Error("Problem generation timed out. The AI may be busy. Please try again.")), 20000) // 20s timeout
+        );
+
+        const problem = await Promise.race([generationPromise, timeoutPromise]);
 
         setStatusText('Match found! Preparing your arena...');
 
@@ -105,9 +111,7 @@ export default function MatchingPage() {
       }
     };
 
-    const timeoutId = setTimeout(createAIGeneratedMatch, 1000);
-
-    return () => clearTimeout(timeoutId);
+    createAIGeneratedMatch();
 
   }, [searchParams, router, toast]);
 
