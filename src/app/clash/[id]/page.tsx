@@ -17,12 +17,30 @@ import { Footer } from '@/components/Footer';
 import AuthGuard from '@/components/AuthGuard';
 import { useToast } from '@/hooks/use-toast';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
+import { cn } from '@/lib/utils';
+
+interface Message {
+  id: number;
+  sender: string;
+  text: string;
+  avatar: string;
+  isMe: boolean;
+}
+
+const initialMessages: Message[] = [
+    { id: 1, sender: 'Alice', text: 'Hey everyone! Good luck!', avatar: 'https://placehold.co/32x32.png', isMe: false, },
+    { id: 2, sender: 'You', text: "You too! Let's do this.", avatar: 'https://placehold.co/32x32.png', isMe: true, },
+];
 
 export default function ClashPage({ params }: { params: { id: string } }) {
   const [timeLeft, setTimeLeft] = useState(30 * 60); // 30 minutes in seconds
   const videoRef = useRef<HTMLVideoElement>(null);
   const { toast } = useToast();
   const [hasCameraPermission, setHasCameraPermission] = useState<boolean | null>(null);
+
+  const [messages, setMessages] = useState<Message[]>(initialMessages);
+  const [newMessage, setNewMessage] = useState('');
+  const endOfMessagesRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     if (timeLeft <= 0) return;
@@ -71,6 +89,38 @@ export default function ClashPage({ params }: { params: { id: string } }) {
       }
     }
   }, [toast]);
+  
+  useEffect(() => {
+    endOfMessagesRef.current?.scrollIntoView({ behavior: 'smooth' });
+
+    const lastMessage = messages[messages.length - 1];
+    if (lastMessage?.isMe) {
+      const timer = setTimeout(() => {
+        const reply: Message = {
+          id: messages.length + 1,
+          sender: 'Alice',
+          text: "That's a good point! I'm working on the edge cases.",
+          avatar: 'https://placehold.co/32x32.png',
+          isMe: false,
+        };
+        setMessages((prev) => [...prev, reply]);
+      }, 1500);
+      return () => clearTimeout(timer);
+    }
+  }, [messages]);
+
+  const handleSendMessage = () => {
+    if (newMessage.trim() === '') return;
+    const message: Message = {
+      id: messages.length + 1,
+      sender: 'You',
+      text: newMessage.trim(),
+      avatar: 'https://placehold.co/32x32.png',
+      isMe: true,
+    };
+    setMessages([...messages, message]);
+    setNewMessage('');
+  };
 
   const formatTime = (seconds: number) => {
     const minutes = Math.floor(seconds / 60);
@@ -195,33 +245,55 @@ Output: [1,2]</code></pre>
                       <TabsTrigger value="participants">Participants (3)</TabsTrigger>
                     </TabsList>
                     <TabsContent value="chat" className="mt-4 flex flex-col h-[calc(100vh-32rem)]">
-                      <ScrollArea className="flex-grow pr-4">
+                       <ScrollArea className="flex-grow pr-4">
                         <div className="space-y-4 text-sm">
-                          <div className="flex items-start gap-3">
-                            <Avatar className="h-8 w-8">
-                              <AvatarImage src="https://placehold.co/32x32.png" data-ai-hint="woman portrait" />
-                              <AvatarFallback>AL</AvatarFallback>
-                            </Avatar>
-                            <div>
-                              <p className="font-bold">Alice</p>
-                              <p className="p-2 rounded-lg bg-muted/50">Hey everyone! Good luck!</p>
+                          {messages.map((message) => (
+                            <div
+                              key={message.id}
+                              className={cn(
+                                'flex items-start gap-3',
+                                message.isMe && 'flex-row-reverse'
+                              )}
+                            >
+                              <Avatar className="h-8 w-8">
+                                <AvatarImage src={message.avatar} data-ai-hint={message.isMe ? "man portrait" : "woman portrait"}/>
+                                <AvatarFallback>
+                                  {message.sender.substring(0, 2)}
+                                </AvatarFallback>
+                              </Avatar>
+                              <div className={cn(message.isMe && 'text-right')}>
+                                <p className="font-bold">{message.sender}</p>
+                                <p
+                                  className={cn(
+                                    'p-2 rounded-lg',
+                                    message.isMe
+                                      ? 'bg-primary/80 text-primary-foreground'
+                                      : 'bg-muted/50'
+                                  )}
+                                >
+                                  {message.text}
+                                </p>
+                              </div>
                             </div>
-                          </div>
-                          <div className="flex items-start gap-3 flex-row-reverse">
-                            <Avatar className="h-8 w-8">
-                              <AvatarImage src="https://placehold.co/32x32.png" data-ai-hint="man portrait" />
-                              <AvatarFallback>ME</AvatarFallback>
-                            </Avatar>
-                            <div className='text-right'>
-                              <p className="font-bold">You</p>
-                              <p className="p-2 rounded-lg bg-primary/80 text-primary-foreground">You too! Let's do this.</p>
-                            </div>
-                          </div>
+                          ))}
+                           <div ref={endOfMessagesRef} />
                         </div>
                       </ScrollArea>
                       <div className="mt-4 flex gap-2">
-                        <Input placeholder="Send a message..." />
-                        <Button variant="secondary" size="icon"><Send className="h-4 w-4"/></Button>
+                         <Input
+                          placeholder="Send a message..."
+                          value={newMessage}
+                          onChange={(e) => setNewMessage(e.target.value)}
+                          onKeyDown={(e) => {
+                            if (e.key === 'Enter' && !e.shiftKey) {
+                              e.preventDefault();
+                              handleSendMessage();
+                            }
+                          }}
+                        />
+                        <Button variant="secondary" size="icon" onClick={handleSendMessage} disabled={!newMessage.trim()}>
+                          <Send className="h-4 w-4" />
+                        </Button>
                       </div>
                     </TabsContent>
                     <TabsContent value="participants" className="mt-4">
@@ -279,4 +351,5 @@ Output: [1,2]</code></pre>
       </div>
     </AuthGuard>
   );
-}
+
+    
