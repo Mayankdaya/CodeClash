@@ -63,11 +63,11 @@ Your task is to take a user's code snippet in a specific language, execute it ag
     *   For arrays, the order of elements does not matter unless the problem implies order.
     *   Perform a deep equality check for objects and nested structures.
 4.  **Structured Output:** You MUST return a JSON object that strictly conforms to the provided output schema.
-    *   `status`: 'success' if the code could be executed against all test cases (even if some failed), 'error' if a fatal error occurred.
-    *   `passedCount`: The total number of test cases where the actual output matched the expected output.
-    *   `totalCount`: The total number of test cases provided.
-    *   `results`: An array containing an object for each test case, with stringified versions of input, output, and expected values.
-    *   `runtime`: Provide a realistic but simulated runtime in milliseconds for each test case (e.g., "12ms", "45ms").
+    *   'status': 'success' if the code could be executed against all test cases (even if some failed), 'error' if a fatal error occurred.
+    *   'passedCount': The total number of test cases where the actual output matched the expected output.
+    *   'totalCount': The total number of test cases provided.
+    *   'results': An array containing an object for each test case, with stringified versions of input, output, and expected values.
+    *   'runtime': Provide a realistic but simulated runtime in milliseconds for each test case (e.g., "12ms", "45ms").
 
 **Request:**
 
