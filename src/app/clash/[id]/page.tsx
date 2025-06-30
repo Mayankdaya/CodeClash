@@ -235,8 +235,7 @@ export default function ClashPage() {
             return;
         }
 
-        const workerCode = `
-            self.onmessage = (e) => {
+        const workerCode = `self.onmessage = (e) => {
                 const { code, testCases, entryPoint } = e.data;
                 try {
                     const userFunction = new Function(code + '; return ' + entryPoint)();
@@ -253,7 +252,7 @@ export default function ClashPage() {
                             const inputClone = JSON.parse(JSON.stringify(tc.input));
                             output = userFunction(...inputClone);
                         } catch (err) {
-                            output = err.message;
+                            output = err instanceof Error ? err.message : String(err);
                             errorOccurred = true;
                         }
                         const endTime = performance.now();
@@ -265,17 +264,16 @@ export default function ClashPage() {
                             output: JSON.stringify(output),
                             expected: JSON.stringify(tc.expected),
                             passed,
-                            runtime: \`\${(endTime - startTime).toFixed(2)}ms\`,
+                            runtime: (endTime - startTime).toFixed(2) + 'ms',
                         };
                     });
                     
                     self.postMessage({ status: 'success', results });
 
                 } catch (err) {
-                    self.postMessage({ status: 'error', message: err.message });
+                    self.postMessage({ status: 'error', message: err instanceof Error ? err.message : String(err) });
                 }
-            };
-        `;
+            };`;
 
         const blob = new Blob([workerCode], { type: 'application/javascript' });
         const workerUrl = URL.createObjectURL(blob);
