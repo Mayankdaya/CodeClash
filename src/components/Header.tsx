@@ -4,7 +4,8 @@ import { useState, useEffect } from 'react';
 import Link from "next/link";
 import { useRouter } from 'next/navigation';
 import { onAuthStateChanged, signOut, User } from 'firebase/auth';
-import { auth } from '@/lib/firebase';
+import { auth, rtdb } from '@/lib/firebase';
+import { ref, onValue, set, onDisconnect } from "firebase/database";
 import { Button } from "@/components/ui/button";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel, DropdownMenuSeparator, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
@@ -21,6 +22,34 @@ export function Header() {
     });
     return () => unsubscribe();
   }, []);
+
+  useEffect(() => {
+    if (!user || !rtdb) return;
+
+    const userStatusRef = ref(rtdb, `/status/${user.uid}`);
+    const isOfflineForDatabase = {
+      state: 'offline',
+      last_changed: Date.now(),
+    };
+    const isOnlineForDatabase = {
+      state: 'online',
+      last_changed: Date.now(),
+    };
+
+    const connectedRef = ref(rtdb, '.info/connected');
+    const unsubscribe = onValue(connectedRef, (snap) => {
+      if (snap.val() === true) {
+        onDisconnect(userStatusRef).set(isOfflineForDatabase).then(() => {
+          set(userStatusRef, isOnlineForDatabase);
+        });
+      }
+    });
+
+    return () => {
+      unsubscribe();
+      set(userStatusRef, isOfflineForDatabase);
+    };
+  }, [user]);
 
   const handleLogout = async () => {
     if (!auth) return;

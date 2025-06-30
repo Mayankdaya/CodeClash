@@ -1,5 +1,6 @@
 'use client';
 
+import { useState, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
 import { Header } from "@/components/Header";
@@ -7,6 +8,8 @@ import { Footer } from "@/components/Footer";
 import { ArrowRight, Coins, Columns, GitMerge, Link as LinkIcon, List, MoveHorizontal, Search, ToyBrick } from "lucide-react";
 import Link from "next/link";
 import AuthGuard from "@/components/AuthGuard";
+import { rtdb } from "@/lib/firebase";
+import { ref, onValue } from "firebase/database";
 
 const topics = [
   {
@@ -60,6 +63,27 @@ const topics = [
 ];
 
 export default function LobbyPage() {
+  const [onlineUsersCount, setOnlineUsersCount] = useState(0);
+
+  useEffect(() => {
+    if (!rtdb) return;
+
+    const statusRef = ref(rtdb, 'status');
+    const unsubscribe = onValue(statusRef, (snapshot) => {
+      if (snapshot.exists()) {
+        const statuses = snapshot.val();
+        const onlineCount = Object.values(statuses).filter(
+          (status: any) => status.state === 'online'
+        ).length;
+        setOnlineUsersCount(onlineCount);
+      } else {
+        setOnlineUsersCount(0);
+      }
+    });
+
+    return () => unsubscribe();
+  }, []);
+  
   return (
     <AuthGuard>
       <div className="flex flex-col min-h-dvh bg-transparent text-foreground font-body">
@@ -69,6 +93,15 @@ export default function LobbyPage() {
             <div className="text-center mb-12">
               <h1 className="text-4xl font-extrabold tracking-tight sm:text-5xl">Choose Your Challenge</h1>
               <p className="mt-4 text-lg text-muted-foreground">Select a topic to find an opponent.</p>
+              {onlineUsersCount > 0 && (
+                <div className="mt-4 inline-flex items-center gap-2 rounded-full bg-green-500/20 px-4 py-1 text-sm font-medium text-green-300">
+                  <span className="relative flex h-3 w-3">
+                    <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-green-400 opacity-75"></span>
+                    <span className="relative inline-flex rounded-full h-3 w-3 bg-green-500"></span>
+                  </span>
+                  {onlineUsersCount} {onlineUsersCount === 1 ? 'player' : 'players'} online
+                </div>
+              )}
             </div>
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
               {topics.map((topic) => (
