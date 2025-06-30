@@ -328,14 +328,15 @@ export default function ClashPage() {
             </div>
 
             {/* Middle Panel */}
-            <div className="w-full lg:w-1/2 flex flex-col">
+            <div className="w-full lg:w-1/2 flex flex-col min-h-0">
               <Card className="bg-card/50 backdrop-blur-lg border border-white/10 rounded-2xl flex-grow flex flex-col">
                 <CardHeader className="flex-row items-center gap-4">
                   <Code className="h-6 w-6 text-primary" />
                   <CardTitle>Solution</CardTitle>
                 </CardHeader>
                 <CardContent className="flex-grow flex flex-col min-h-0 p-0">
-                   <div className="h-3/5 flex flex-col p-6 pb-0">
+                   {/* Editor Pane */}
+                   <div className="flex-grow-[3] flex flex-col p-6 pb-0 min-h-0">
                      <Textarea
                         placeholder="Enter your code here..."
                         className="flex-grow w-full p-4 bg-muted/30 border-white/10 font-code text-base resize-none"
@@ -343,7 +344,7 @@ export default function ClashPage() {
                         onChange={(e) => setCode(e.target.value)}
                         disabled={isRunning}
                       />
-                      <div className='flex justify-end mt-4 gap-2'>
+                      <div className='flex justify-end mt-4 gap-2 flex-shrink-0'>
                           <Button variant="secondary" onClick={handleRunCode} disabled={isRunning}>
                               {isRunning && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
                               Run Code
@@ -351,8 +352,9 @@ export default function ClashPage() {
                           <Button className="bg-green-600 hover:bg-green-700 text-white" onClick={handleSubmitCode} disabled={isRunning}>Submit</Button>
                       </div>
                    </div>
-                   <div className="h-2/5 border-t border-border/50 pt-4 px-6 pb-6 flex flex-col">
-                      <h3 className="text-lg font-semibold mb-2">Console</h3>
+                   {/* Console Pane */}
+                   <div className="flex-grow-[2] border-t border-border/50 pt-4 px-6 pb-6 flex flex-col min-h-0">
+                      <h3 className="text-lg font-semibold mb-2 flex-shrink-0">Console</h3>
                       <ScrollArea className="flex-grow bg-muted/30 p-4 rounded-md font-code text-sm">
                           <pre className="whitespace-pre-wrap">
                               <code>{output}</code>
