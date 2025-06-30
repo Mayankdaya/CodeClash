@@ -11,7 +11,7 @@ import { useRouter } from 'next/navigation';
 
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Button } from '@/components/ui/button';
-import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
+import { Card, CardContent } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Progress } from '@/components/ui/progress';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
@@ -20,7 +20,7 @@ import { Footer } from '@/components/Footer';
 import AuthGuard from '@/components/AuthGuard';
 import { CodeEditor } from '@/components/CodeEditor';
 import { UserVideo } from '@/components/UserVideo';
-import { BookOpen, Code, Send, Timer, Video, Loader2, Lightbulb, CheckCircle2, XCircle, KeySquare, MessageSquare, TestTube2, Terminal } from 'lucide-react';
+import { BookOpen, Code, Send, Timer, Loader2, Lightbulb, CheckCircle2, XCircle, KeySquare, MessageSquare, TestTube2, Terminal } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import type { Problem } from '@/lib/problems';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
@@ -78,11 +78,13 @@ const executeInWorker = (code: string, entryPoint: string, testCases: TestCase[]
                 if (isArray1 && isArray2) {
                     if (obj1.length !== obj2.length) return false;
                     try {
+                      // Attempt to sort and compare for order-agnostic comparison
                       const sortFunc = (a, b) => JSON.stringify(a).localeCompare(JSON.stringify(b));
                       const sorted1 = [...obj1].sort(sortFunc);
                       const sorted2 = [...obj2].sort(sortFunc);
                       return JSON.stringify(sorted1) === JSON.stringify(sorted2);
                     } catch (e) {
+                      // Fallback to strict order comparison if sorting fails (e.g., complex objects)
                       return JSON.stringify(obj1) === JSON.stringify(obj2);
                     }
                 }
@@ -219,14 +221,19 @@ export default function ClashPage() {
       if (docSnap.exists()) {
         const data = docSnap.data() as ClashData;
         
+        // This is a critical step. The test cases from Firestore are strings.
+        // We need to parse them back into their original types (arrays, objects, etc.)
+        // before they can be used by the execution engine.
         if (data.problem && data.problem.testCases) {
            const parsedTestCases = (data.problem.testCases as any[]).map(tc => {
                 try {
+                    // Smartly parse input and expected. Assumes they were stringified.
                     const parsedInput = typeof tc.input === 'string' ? JSON.parse(tc.input) : tc.input;
                     const parsedExpected = typeof tc.expected === 'string' ? JSON.parse(tc.expected) : tc.expected;
                     return { ...tc, input: parsedInput, expected: parsedExpected };
                 } catch (e) {
                     console.error("Failed to parse test case:", tc, e);
+                    // Return as-is if parsing fails, so we can debug it.
                     return { ...tc, input: tc.input, expected: tc.expected };
                 }
             });
