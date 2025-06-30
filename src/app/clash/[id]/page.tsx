@@ -66,7 +66,7 @@ type TestCase = Problem['testCases'][0];
 const executeInWorker = (code: string, entryPoint: string, testCases: TestCase[]): Promise<ExecuteCodeOutput> => {
     return new Promise((resolve) => {
         const workerCode = `
-            const_deepEqual = (obj1, obj2) => {
+            const deepEqual = (obj1, obj2) => {
                 if (obj1 === obj2) return true;
                 if (typeof obj1 !== 'object' || obj1 === null || typeof obj2 !== 'object' || obj2 === null) {
                     return false;
@@ -75,7 +75,7 @@ const executeInWorker = (code: string, entryPoint: string, testCases: TestCase[]
                 const keys2 = Object.keys(obj2);
                 if (keys1.length !== keys2.length) return false;
                 for (let key of keys1) {
-                    if (!keys2.includes(key) || !const_deepEqual(obj1[key], obj2[key])) {
+                    if (!keys2.includes(key) || !deepEqual(obj1[key], obj2[key])) {
                         return false;
                     }
                 }
@@ -88,11 +88,20 @@ const executeInWorker = (code: string, entryPoint: string, testCases: TestCase[]
                 let passedCount = 0;
                 
                 try {
+                    // We redefine console.log to capture logs if needed, but for now we won't use it.
+                    const consoleLogs = [];
+                    const originalLog = console.log;
+                    console.log = (...args) => {
+                        consoleLogs.push(args.map(arg => JSON.stringify(arg)).join(' '));
+                    };
+
                     eval(code);
                     const userFunc = self[entryPoint];
                     
+                    console.log = originalLog;
+
                     if (typeof userFunc !== 'function') {
-                      throw new Error("Function '" + entryPoint + "' not found in the provided code.");
+                      throw new Error("Entry point function '" + entryPoint + "' not found in your code.");
                     }
 
                     for (let i = 0; i < testCases.length; i++) {
@@ -101,6 +110,7 @@ const executeInWorker = (code: string, entryPoint: string, testCases: TestCase[]
                         let output, error = null;
                         
                         try {
+                            // Deep clone input to prevent modification
                             const inputClone = JSON.parse(JSON.stringify(tc.input));
                             output = userFunc(...inputClone);
                         } catch (err) {
@@ -108,7 +118,7 @@ const executeInWorker = (code: string, entryPoint: string, testCases: TestCase[]
                         }
 
                         const endTime = performance.now();
-                        const passed = !error && const_deepEqual(output, tc.expected);
+                        const passed = !error && deepEqual(output, tc.expected);
                         if (passed) passedCount++;
 
                         results.push({
@@ -188,14 +198,17 @@ export default function ClashPage() {
       if (docSnap.exists()) {
         const data = docSnap.data() as ClashData;
         
+        // The problem's test cases are stored as stringified JSON. We need to parse them.
         if (data.problem && data.problem.testCases) {
           const parsedTestCases = data.problem.testCases.map(tc => {
             try {
+              // The input is a stringified array of arguments, e.g., "[[1,2,3], 5]"
               const parsedInput = JSON.parse(tc.input);
               return { ...tc, input: parsedInput };
             } catch (e) {
-              console.error("Failed to parse test case input:", e);
-              return tc; 
+              console.error("Failed to parse test case input:", tc.input, e);
+              // Return a placeholder or skip if invalid
+              return { ...tc, input: [] }; 
             }
           });
           data.problem = { ...data.problem, testCases: parsedTestCases };
@@ -327,7 +340,7 @@ export default function ClashPage() {
           code,
           language,
           entryPoint: problem.entryPoint,
-          testCases: testCasesToRun,
+          testCases: testCasesToRun.map(tc => ({...tc, input: JSON.stringify(tc.input)})),
         });
       }
 
@@ -455,7 +468,7 @@ export default function ClashPage() {
                     <div tabIndex={0}>{button}</div>
                 </TooltipTrigger>
                 <TooltipContent>
-                    <p>Execution for {language} is powered by AI.</p>
+                    <p>Submission for {language} is powered by AI.</p>
                 </TooltipContent>
             </Tooltip>
           </TooltipProvider>
@@ -532,7 +545,7 @@ export default function ClashPage() {
                 </Select>
               </CardHeader>
               <CardContent className="flex-1 flex flex-col p-0 min-h-0">
-                <div className="flex flex-col min-h-0" style={{flexBasis: '60%'}}>
+                <div className="flex flex-col min-h-0" style={{flexBasis: '50%'}}>
                     <div className="p-6 pt-0 flex-1 flex flex-col min-h-0">
                       <div className="flex-1 w-full rounded-md min-h-0 relative">
                         {isTranslatingCode && (
@@ -559,7 +572,7 @@ export default function ClashPage() {
                       </div>
                     </div>
                 </div>
-                <div className="border-t border-border/50 flex flex-col min-h-0" style={{flexBasis: '40%'}}>
+                <div className="border-t border-border/50 flex flex-col min-h-0" style={{flexBasis: '50%'}}>
                     <Tabs value={consoleTab} onValueChange={setConsoleTab} className="flex-1 flex flex-col p-6 min-h-0">
                         <TabsList className="grid w-full grid-cols-2">
                             <TabsTrigger value="test-result">Test Result</TabsTrigger>
@@ -567,16 +580,16 @@ export default function ClashPage() {
                         </TabsList>
                         <TabsContent value="test-result" className="flex-1 mt-4 overflow-auto rounded-md bg-muted/30 p-4">
                             {typeof output === 'string' ? (
-                                <pre className="whitespace-pre-wrap font-code text-sm"><code>{output}</code></pre>
+                                <pre className="whitespace-pre-wrap font-code text-base"><code>{output}</code></pre>
                             ) : (
-                                <div className="space-y-4 font-code text-sm">
+                                <div className="space-y-4 font-code text-base">
                                     {output.map((res, index) => (
                                         <div key={index} className="border-b border-border/50 pb-2 last:border-b-0">
                                             <div className="flex items-center gap-2 font-bold mb-2">
                                                 {res.passed ? <CheckCircle2 className="h-5 w-5 text-green-500" /> : <XCircle className="h-5 w-5 text-red-500" />}
                                                 <span className={cn(res.passed ? "text-green-400" : "text-red-400")}>Case {res.case}: {res.passed ? 'Passed' : 'Failed'}</span>
                                             </div>
-                                            <div className='space-y-1 pl-7 text-xs'>
+                                            <div className='space-y-1 pl-7 text-sm'>
                                               <p><span className="text-muted-foreground w-20 inline-block">Input:</span> {res.input}</p>
                                               <p><span className="text-muted-foreground w-20 inline-block">Output:</span> {res.output}</p>
                                               <p><span className="text-muted-foreground w-20 inline-block">Expected:</span> {res.expected}</p>
@@ -587,7 +600,7 @@ export default function ClashPage() {
                             )}
                         </TabsContent>
                         <TabsContent value="testcases" className="flex-1 mt-4 overflow-auto rounded-md bg-muted/30 p-4">
-                          <div className="space-y-4 font-code text-sm">
+                          <div className="space-y-4 font-code text-base">
                               {problem?.testCases.slice(0, 3).map((tc, index) => (
                                   <div key={index} className="border-b border-border/50 pb-3 last:border-b-0">
                                       <p className="font-bold mb-2">Case {index + 1}</p>
