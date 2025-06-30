@@ -59,9 +59,22 @@ export default function MatchingPage() {
           return;
         }
         
-        // Firestore doesn't support nested arrays well. Stringify test case inputs and expected outputs.
+        // Firestore doesn't like undefined values. Sanitize the problem object.
+        const sanitizedExamples = problem.examples.map(ex => {
+          const newExample: { input: string; output: string; explanation?: string } = {
+            input: ex.input,
+            output: ex.output,
+          };
+          if (ex.explanation) {
+            newExample.explanation = ex.explanation;
+          }
+          return newExample;
+        });
+
+        // Stringify test case inputs and expected outputs for Firestore compatibility.
         const problemToStore = {
             ...problem,
+            examples: sanitizedExamples,
             testCases: problem.testCases.map(tc => ({
                 input: JSON.stringify(tc.input),
                 expected: JSON.stringify(tc.expected),
@@ -89,7 +102,7 @@ export default function MatchingPage() {
         console.error("Error creating match:", error);
         toast({
           title: "Matchmaking Error",
-          description: "Could not create a match. Please try again.",
+          description: "Could not create a match. Please try again. " + (error.message || ''),
           variant: "destructive"
         });
         isCreatingClash.current = false;
