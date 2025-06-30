@@ -355,9 +355,10 @@ export default function ClashPage() {
                 </CardHeader>
                 <CardContent className="flex-1 flex flex-col p-0 min-h-0">
                    <div className="flex-1 flex flex-col min-h-0">
-                      <div className="p-6 pt-0 flex-grow-[7] flex flex-col min-h-0">
+                      <div className="p-6 pt-0 flex flex-col min-h-0" style={{ flexBasis: '70%' }}>
                         <div className="flex-1 w-full rounded-md">
                           <CodeEditor
+                            key={language}
                             language={language}
                             value={code}
                             onChange={(value) => setCode(value || '')}
@@ -372,7 +373,7 @@ export default function ClashPage() {
                           <Button className="bg-green-600 hover:bg-green-700 text-white" onClick={handleSubmitCode} disabled={isRunning}>Submit</Button>
                         </div>
                       </div>
-                      <div className="border-t border-border/50 p-6 flex-grow-[3] flex flex-col min-h-0">
+                      <div className="border-t border-border/50 p-6 flex flex-col min-h-0" style={{ flexBasis: '30%' }}>
                           <h3 className="text-lg font-semibold mb-2">Console</h3>
                           <ScrollArea className="flex-1 bg-muted/30 p-4 rounded-md font-code text-sm min-h-0">
                               <pre className="whitespace-pre-wrap">
