@@ -20,7 +20,7 @@ import { Footer } from '@/components/Footer';
 import AuthGuard from '@/components/AuthGuard';
 import { CodeEditor } from '@/components/CodeEditor';
 import { UserVideo } from '@/components/UserVideo';
-import { BookOpen, Code, Send, Users, Timer, Star, ThumbsUp, Video, Loader2, Lightbulb, CheckCircle2, XCircle, KeySquare, MessageSquare } from 'lucide-react';
+import { BookOpen, Code, Send, Timer, Video, Loader2, Lightbulb, CheckCircle2, XCircle, KeySquare } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import type { Problem } from '@/lib/problems';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
@@ -103,6 +103,7 @@ const executeInWorker = (code: string, entryPoint: string, testCases: TestCase[]
             const smartParse = (value) => {
                 if (typeof value !== 'string') return value;
                 try {
+                  // Attempt to parse if it looks like a JSON object or array.
                   if ((value.startsWith('[') && value.endsWith(']')) || (value.startsWith('{') && value.endsWith('}'))) {
                     return JSON.parse(value);
                   }
@@ -118,13 +119,10 @@ const executeInWorker = (code: string, entryPoint: string, testCases: TestCase[]
                 let passedCount = 0;
                 
                 try {
-                    const userFuncBody = 'const ' + entryPoint + ' = ' + code;
-                    eval(userFuncBody);
-
-                    const userFunc = self[entryPoint];
+                    const userFunc = eval(code);
 
                     if (typeof userFunc !== 'function') {
-                      throw new Error("Entry point function '" + entryPoint + "' not found in your code.");
+                      throw new Error("Entry point function '" + entryPoint + "' not found or is not a function in your code.");
                     }
 
                     for (let i = 0; i < testCases.length; i++) {
@@ -582,7 +580,7 @@ export default function ClashPage() {
                 </TabsList>
               </div>
 
-              <TabsContent value="code" className="flex-1 flex flex-col p-0 min-h-0">
+              <TabsContent value="code" className="flex-1 flex flex-col p-0 m-0 min-h-0">
                 <div className="flex-1 flex flex-col min-h-0" style={{flexBasis: '60%', flexGrow: 1}}>
                     <div className="p-2 border-b border-border flex items-center justify-end">
                       <Select value={language} onValueChange={handleLanguageChange} disabled={isRunning || isSubmitting || isTranslatingCode}>
@@ -712,7 +710,7 @@ export default function ClashPage() {
                                 <p className="font-bold">{message.senderName}</p>
                                 <p
                                   className={cn(
-                                    'p-2 rounded-lg',
+                                    'p-2 rounded-lg mt-1',
                                     isMe
                                       ? 'bg-primary/80 text-primary-foreground'
                                       : 'bg-muted/50'
