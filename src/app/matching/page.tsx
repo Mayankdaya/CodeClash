@@ -3,7 +3,7 @@
 
 import { useState, useEffect, useRef } from 'react';
 import { useSearchParams, useRouter } from 'next/navigation';
-import { collection, query, where, limit, getDocs, addDoc, doc, onSnapshot, updateDoc, Unsubscribe } from 'firebase/firestore';
+import { collection, query, where, limit, getDocs, addDoc, doc, onSnapshot, updateDoc, deleteDoc, type Unsubscribe } from 'firebase/firestore';
 import { useToast } from '@/hooks/use-toast';
 import { Header } from '@/components/Header';
 import { Footer } from '@/components/Footer';
@@ -22,11 +22,10 @@ export default function MatchingPage() {
   const videoRef = useRef<HTMLVideoElement>(null);
 
   const [hasCameraPermission, setHasCameraPermission] = useState<boolean | null>(null);
-  const [isSearching, setIsSearching] = useState(false);
-  const [queueDocId, setQueueDocId] = useState<string | null>(null);
+  const queueDocIdRef = useRef<string | null>(null);
+  const unsubscribeRef = useRef<Unsubscribe | null>(null);
 
   useEffect(() => {
-    // Camera permission logic
     const getCameraPermission = async () => {
       if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
         setHasCameraPermission(false);
@@ -59,8 +58,6 @@ export default function MatchingPage() {
   }, [toast]);
   
   useEffect(() => {
-    let unsubscribe: Unsubscribe | null = null;
-    
     const findMatch = async () => {
       const currentUser = auth?.currentUser;
       const topicId = searchParams.get('topic');
@@ -73,20 +70,16 @@ export default function MatchingPage() {
         return;
       }
 
-      setIsSearching(true);
       const queueRef = collection(db, 'matchmakingQueue');
       
-      // Simplified query to find any pending match for the topic
       const q = query(
         queueRef,
         where('topicId', '==', topicId),
         where('status', '==', 'pending'),
-        limit(10) // Fetch a few potential matches
+        limit(10)
       );
 
       const querySnapshot = await getDocs(q);
-
-      // Find an opponent who is not the current user on the client-side
       const opponentQueueDoc = querySnapshot.docs.find(doc => doc.data().userId !== currentUser.uid);
 
       if (opponentQueueDoc) {
@@ -120,10 +113,10 @@ export default function MatchingPage() {
           status: 'pending',
           createdAt: new Date()
         });
-        setQueueDocId(myQueueDoc.id);
+        queueDocIdRef.current = myQueueDoc.id;
 
-        unsubscribe = onSnapshot(doc(db, 'matchmakingQueue', myQueueDoc.id), (docSnap) => {
-          if (docSnap.data()?.status === 'matched') {
+        unsubscribeRef.current = onSnapshot(doc(db, 'matchmakingQueue', myQueueDoc.id), (docSnap) => {
+          if (docSnap.exists() && docSnap.data()?.status === 'matched') {
             router.push(`/clash/${docSnap.data()?.clashId}`);
           }
         });
@@ -141,8 +134,13 @@ export default function MatchingPage() {
     });
     
     return () => {
-      if (unsubscribe) unsubscribe();
-      // Optional: Clean up my document from the queue if I navigate away
+      if (unsubscribeRef.current) {
+        unsubscribeRef.current();
+      }
+      if (queueDocIdRef.current && db) {
+        const docRef = doc(db, 'matchmakingQueue', queueDocIdRef.current);
+        deleteDoc(docRef);
+      }
     };
 
   }, [searchParams, router, toast]);
