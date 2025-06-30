@@ -42,7 +42,7 @@ export const problemsByTopic: Record<string, Problem[]> = {
       example: {
         input: 'nums = [1,2,3,1], k = 3',
         output: 'true',
-        explanation: 'The number 1 appears at index 0 and index 3. The absolute difference between the indices is 3, which is less than or equal to k.',
+        explanation: 'The number 1 appears at indices 0 and 3. Since |3 - 0| = 3, which is <= k, we return true.',
       },
       starterCode: 'var containsNearbyDuplicate = function(nums, k) {\n    // your code here\n};',
       testCases: [
