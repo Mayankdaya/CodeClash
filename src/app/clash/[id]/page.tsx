@@ -24,7 +24,6 @@ import { BookOpen, Code, Send, Users, Timer, Star, ThumbsUp, Video, CameraOff, L
 import { cn } from '@/lib/utils';
 import type { Problem } from '@/lib/problems';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { ScrollArea } from '@/components/ui/scroll-area';
 
 interface Participant {
   userId: string;
@@ -151,11 +150,14 @@ export default function ClashPage() {
   
   // Camera permission
   useEffect(() => {
-    if (!clashData) return; // Don't run until clash data is loaded
-
     const getCameraPermission = async () => {
       if (!navigator.mediaDevices?.getUserMedia) {
         setHasCameraPermission(false);
+        toast({
+          variant: 'destructive',
+          title: 'Unsupported Browser',
+          description: 'Your browser does not support video features.',
+        });
         return;
       }
       try {
@@ -165,21 +167,26 @@ export default function ClashPage() {
           videoRef.current.srcObject = stream;
         }
       } catch (error) {
+        console.error('Error accessing camera:', error);
         setHasCameraPermission(false);
+        toast({
+          variant: 'destructive',
+          title: 'Camera Access Denied',
+          description: 'Please enable camera permissions in your browser settings to use this feature.',
+        });
       }
     };
 
     getCameraPermission();
 
     return () => {
-      // The stream is on the videoRef.current, so we can access it here for cleanup.
       if (videoRef.current?.srcObject) {
         const stream = videoRef.current.srcObject as MediaStream;
         stream.getTracks().forEach(track => track.stop());
         videoRef.current.srcObject = null;
       }
     };
-  }, [clashData]); // Dependency on clashData ensures this runs after the main component is rendered
+  }, [toast]);
 
   const handleSendMessage = async () => {
     if (newMessage.trim() === '' || !db || !auth.currentUser || !id) return;
@@ -289,7 +296,7 @@ export default function ClashPage() {
         <main className="flex-1 flex flex-row gap-6 p-6 min-h-0 overflow-x-auto">
           
           {/* Left Panel */}
-          <div className="w-1/4 flex-shrink-0 flex flex-col gap-6" style={{ minWidth: '350px' }}>
+          <div className="flex flex-col gap-6" style={{ minWidth: '350px', flex: '1 1 25%' }}>
             <Card className="flex-1 flex flex-col bg-card/50 border border-white/10 rounded-2xl min-h-0">
               <CardHeader className="flex-row items-center gap-4">
                 <BookOpen className="h-6 w-6 text-primary" />
@@ -325,7 +332,7 @@ export default function ClashPage() {
           </div>
 
           {/* Middle Panel */}
-          <div className="w-1/2 flex-shrink-0 flex flex-col min-h-0" style={{ minWidth: '600px' }}>
+          <div className="flex flex-col min-h-0" style={{ minWidth: '600px', flex: '1 1 50%' }}>
             <Card className="flex-1 flex flex-col bg-card/50 border border-white/10 rounded-2xl min-h-0">
               <CardHeader className="flex-row items-center justify-between gap-4">
                 <div className='flex items-center gap-4'>
@@ -368,18 +375,18 @@ export default function ClashPage() {
                 </div>
                 <div className="border-t border-border/50 p-6 flex flex-col min-h-0" style={{flexBasis: '30%'}}>
                     <h3 className="text-lg font-semibold mb-2">Console</h3>
-                    <ScrollArea className="flex-1 bg-muted/30 p-4 rounded-md font-code text-sm min-h-0">
+                    <div className="flex-1 bg-muted/30 p-4 rounded-md font-code text-sm min-h-0 overflow-auto">
                         <pre className="whitespace-pre-wrap">
                             <code>{output}</code>
                         </pre>
-                    </ScrollArea>
+                    </div>
                 </div>
               </CardContent>
             </Card>
           </div>
 
           {/* Right Panel */}
-          <div className="w-1/4 flex-shrink-0 flex flex-col gap-6 min-h-0" style={{ minWidth: '350px' }}>
+          <div className="flex flex-col gap-6 min-h-0" style={{ minWidth: '350px', flex: '1 1 25%' }}>
             <Card className="flex-1 flex flex-col bg-card/50 border border-white/10 rounded-2xl min-h-0">
               <CardHeader className="flex-row items-center gap-4">
                 <Video className="h-6 w-6 text-primary" />
@@ -403,22 +410,13 @@ export default function ClashPage() {
                   </div>
                 </div>
 
-                {hasCameraPermission === false && (
-                    <Alert variant="destructive" className="mb-4">
-                      <AlertTitle>Camera Access Required</AlertTitle>
-                      <AlertDescription>
-                        Please allow camera access in your browser settings to use this feature.
-                      </AlertDescription>
-                    </Alert>
-                )}
-
                 <Tabs defaultValue="chat" className="flex-1 flex flex-col mt-2 min-h-0">
                   <TabsList className="grid w-full grid-cols-2">
                     <TabsTrigger value="chat">Chat</TabsTrigger>
                     <TabsTrigger value="participants">Participants (2)</TabsTrigger>
                   </TabsList>
                   <TabsContent value="chat" className="flex-1 flex flex-col mt-4 min-h-0">
-                    <ScrollArea className="flex-1 pr-4 -mr-4">
+                    <div className="flex-1 pr-4 -mr-4 overflow-y-auto">
                       <div className="space-y-4 text-sm pr-4">
                         {messages.map((message) => {
                           const isMe = message.senderId === auth.currentUser?.uid;
@@ -454,7 +452,7 @@ export default function ClashPage() {
                         })}
                         <div ref={endOfMessagesRef} />
                       </div>
-                    </ScrollArea>
+                    </div>
                     <div className="mt-4 flex gap-2">
                       <Input
                         placeholder="Send a message..."
@@ -473,7 +471,7 @@ export default function ClashPage() {
                     </div>
                   </TabsContent>
                   <TabsContent value="participants" className="flex-1 mt-4 min-h-0">
-                    <ScrollArea className="h-full pr-4 -mr-4">
+                    <div className="h-full pr-4 -mr-4 overflow-y-auto">
                       <div className="space-y-4 pr-4">
                           <div className="flex items-center justify-between">
                             <div className='flex items-center gap-3'>
@@ -502,7 +500,7 @@ export default function ClashPage() {
                               <Button variant="ghost" size="icon" className='h-8 w-8 text-muted-foreground hover:text-green-500'><ThumbsUp className='h-4 w-4'/></Button>
                           </div>
                       </div>
-                    </ScrollArea>
+                    </div>
                   </TabsContent>
                 </Tabs>
               </CardContent>
