@@ -151,6 +151,8 @@ export default function ClashPage() {
   
   // Camera permission
   useEffect(() => {
+    if (!clashData) return; // Don't run until clash data is loaded
+
     const getCameraPermission = async () => {
       if (!navigator.mediaDevices?.getUserMedia) {
         setHasCameraPermission(false);
@@ -159,18 +161,25 @@ export default function ClashPage() {
       try {
         const stream = await navigator.mediaDevices.getUserMedia({ video: true });
         setHasCameraPermission(true);
-        if (videoRef.current) videoRef.current.srcObject = stream;
+        if (videoRef.current) {
+          videoRef.current.srcObject = stream;
+        }
       } catch (error) {
         setHasCameraPermission(false);
       }
     };
+
     getCameraPermission();
+
     return () => {
+      // The stream is on the videoRef.current, so we can access it here for cleanup.
       if (videoRef.current?.srcObject) {
-        (videoRef.current.srcObject as MediaStream).getTracks().forEach(track => track.stop());
+        const stream = videoRef.current.srcObject as MediaStream;
+        stream.getTracks().forEach(track => track.stop());
+        videoRef.current.srcObject = null;
       }
     };
-  }, []);
+  }, [clashData]); // Dependency on clashData ensures this runs after the main component is rendered
 
   const handleSendMessage = async () => {
     if (newMessage.trim() === '' || !db || !auth.currentUser || !id) return;
