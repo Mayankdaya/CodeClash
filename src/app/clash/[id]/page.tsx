@@ -545,7 +545,7 @@ export default function ClashPage() {
           <div className="flex-1 mt-4 min-h-0">
               <PanelGroup direction="horizontal">
                   <Panel defaultSize={45} minSize={30}>
-                      <div className="h-full flex flex-col bg-card/50 border border-white/10 rounded-xl overflow-hidden">
+                       <div className="h-full flex flex-col bg-card/50 border border-white/10 rounded-xl overflow-hidden">
                           <div className="p-2 border-b border-border shrink-0 flex items-center gap-2">
                               <BookOpen className="h-5 w-5"/>
                               <h2 className="font-semibold">Problem</h2>
@@ -649,7 +649,7 @@ export default function ClashPage() {
                                                   <div key={index} className="border-b border-border/50 pb-3 last:border-b-0">
                                                       <p className="font-bold mb-2 text-lg">Case {index + 1}</p>
                                                       <div className="bg-background/40 p-3 mt-1 rounded-md space-y-2">
-                                                          <p><strong className='text-muted-foreground'>Input:</strong> {JSON.stringify(tc.input)}</p>
+                                                          <p><strong className='text-muted-foreground'>Input:</strong> {Array.isArray(tc.input) ? tc.input.map(i => JSON.stringify(i)).join(', ') : JSON.stringify(tc.input)}</p>
                                                           <p><strong className='text-muted-foreground'>Output:</strong> {JSON.stringify(tc.expected)}</p>
                                                       </div>
                                                   </div>

@@ -1,3 +1,4 @@
+
 'use server';
 /**
  * @fileOverview A flow to generate coding problems using AI.
@@ -12,7 +13,7 @@ import { z } from 'genkit';
 import type { Problem } from '@/lib/problems';
 
 const TestCaseSchema = z.object({
-  input: z.any().describe("An array of arguments for the function. For example, for a function twoSum(nums, target), an input could be [[2, 7, 11, 15], 9]."),
+  input: z.any().describe("An array of arguments for the function. IMPORTANT: Values within this array must be valid JSON primitives, arrays, or objects. They MUST NOT be strings that represent JSON (e.g., use `[1, 2]` instead of `'[1, 2]'`). For a function twoSum(nums, target), an example input is [[2, 7, 11, 15], 9]."),
   expected: z.any().describe("The expected output for the test case."),
 });
 
