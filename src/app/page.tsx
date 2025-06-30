@@ -2,33 +2,13 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { ArrowRight, Code, Users, Trophy } from "lucide-react";
 import Link from "next/link";
+import { Header } from "@/components/Header";
+import { Footer } from "@/components/Footer";
 
 export default function Home() {
   return (
     <div className="flex flex-col min-h-dvh bg-transparent text-foreground font-body">
-      {/* Header */}
-      <header className="sticky top-0 z-50 w-full border-b border-white/10 bg-background/50 backdrop-blur-xl">
-        <div className="container flex h-16 max-w-7xl mx-auto items-center justify-between px-4 sm:px-6 lg:px-8">
-          <Link href="/" className="flex items-center gap-2" prefetch={false}>
-            <Code className="h-6 w-6 text-primary" />
-            <span className="text-xl font-bold tracking-tight">CodeClash</span>
-          </Link>
-          <nav className="hidden md:flex items-center gap-6 text-sm font-medium">
-            <Link href="#" className="text-muted-foreground hover:text-foreground transition-colors" prefetch={false}>Topics</Link>
-            <Link href="#" className="text-muted-foreground hover:text-foreground transition-colors" prefetch={false}>Leaderboards</Link>
-            <Link href="#" className="text-muted-foreground hover:text-foreground transition-colors" prefetch={false}>How it Works</Link>
-          </nav>
-          <div className="flex items-center gap-4">
-            <Button variant="ghost" asChild>
-              <Link href="#">Log In</Link>
-            </Button>
-            <Button className="bg-primary text-primary-foreground hover:bg-primary/90 shadow-lg shadow-primary/30">
-              Start a Clash
-              <ArrowRight className="ml-2 h-4 w-4" />
-            </Button>
-          </div>
-        </div>
-      </header>
+      <Header />
 
       <main className="flex-1">
         {/* Hero Section */}
@@ -45,12 +25,16 @@ export default function Home() {
               Challenge your skills against peers in live coding battles. Select a topic, join a match, and code your way to victory in 30-minute clashes.
             </p>
             <div className="mt-10 flex justify-center items-center gap-4">
-              <Button size="lg" className="bg-primary text-primary-foreground hover:bg-primary/90 shadow-lg shadow-primary/20">
-                Find a Match
-                <ArrowRight className="ml-2 h-4 w-4" />
+              <Button size="lg" className="bg-primary text-primary-foreground hover:bg-primary/90 shadow-lg shadow-primary/20" asChild>
+                <Link href="/lobby">
+                  Find a Match
+                  <ArrowRight className="ml-2 h-4 w-4" />
+                </Link>
               </Button>
-              <Button variant="outline" size="lg" className="border-white/20 bg-white/10 hover:bg-white/20">
-                View Topics
+              <Button variant="outline" size="lg" className="border-white/20 bg-white/10 hover:bg-white/20" asChild>
+                <Link href="/lobby">
+                 View Topics
+                </Link>
               </Button>
             </div>
           </div>
@@ -64,7 +48,7 @@ export default function Home() {
               <p className="mt-4 text-lg text-muted-foreground">Everything you need for a fun and fair coding competition.</p>
             </div>
             <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
-              <Card className="bg-white/5 backdrop-blur-lg border border-white/10 rounded-2xl shadow-lg">
+              <Card className="bg-card/50 backdrop-blur-lg border border-white/10 rounded-2xl shadow-lg">
                 <CardHeader className="items-center">
                   <div className="p-4 bg-primary/10 rounded-full mb-4 ring-1 ring-inset ring-primary/20">
                     <Users className="h-8 w-8 text-primary" />
@@ -75,7 +59,7 @@ export default function Home() {
                   Choose your topic and instantly get matched with 1-3 other developers ready to battle. No sign-up required to jump in.
                 </CardContent>
               </Card>
-              <Card className="bg-white/5 backdrop-blur-lg border border-white/10 rounded-2xl shadow-lg">
+              <Card className="bg-card/50 backdrop-blur-lg border border-white/10 rounded-2xl shadow-lg">
                 <CardHeader className="items-center">
                   <div className="p-4 bg-primary/10 rounded-full mb-4 ring-1 ring-inset ring-primary/20">
                     <Code className="h-8 w-8 text-primary" />
@@ -86,7 +70,7 @@ export default function Home() {
                   Share ideas, chat, and see your opponents' code in real-time. A synchronized editor keeps everyone on the same page.
                 </CardContent>
               </Card>
-              <Card className="bg-white/5 backdrop-blur-lg border border-white/10 rounded-2xl shadow-lg">
+              <Card className="bg-card/50 backdrop-blur-lg border border-white/10 rounded-2xl shadow-lg">
                 <CardHeader className="items-center">
                   <div className="p-4 bg-primary/10 rounded-full mb-4 ring-1 ring-inset ring-primary/20">
                     <Trophy className="h-8 w-8 text-primary" />
@@ -102,16 +86,7 @@ export default function Home() {
         </section>
       </main>
 
-      {/* Footer */}
-      <footer className="w-full py-8 border-t border-white/10">
-        <div className="container max-w-7xl mx-auto px-4 text-center text-sm text-muted-foreground flex justify-between items-center">
-          <p>&copy; 2024 CodeClash. All rights reserved.</p>
-          <div className="flex gap-4">
-            <Link href="#" className="hover:text-foreground">Privacy</Link>
-            <Link href="#" className="hover:text-foreground">Terms</Link>
-          </div>
-        </div>
-      </footer>
+      <Footer />
     </div>
   );
 }
