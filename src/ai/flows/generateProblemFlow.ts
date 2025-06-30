@@ -25,7 +25,7 @@ const ProblemSchema: z.ZodType<Problem> = z.object({
     output: z.string().describe('The corresponding human-readable output for the example input.'),
     explanation: z.string().optional().describe('An optional explanation of the example.'),
   })).min(3).describe('An array of at least 3 clear examples with human-readable inputs, outputs, and optional explanations.'),
-  starterCode: z.string().describe('Boilerplate code in JavaScript for the user to start with. IMPORTANT: The function must be defined as a variable, like `var twoSum = function(nums, target) { ... };`'),
+  starterCode: z.string().describe('Boilerplate code in JavaScript for the user to start with, as a standard function declaration. e.g., "function twoSum(nums, target) { ... }"'),
   testCases: z.array(TestCaseSchema).min(5).describe("An array of at least 5 test cases to verify the solution. The 'input' field should be an array of arguments to pass to the function."),
   entryPoint: z.string().describe("The name of the function to be tested, e.g., 'twoSum'."),
 });
@@ -58,9 +58,9 @@ Generate a problem with the following structure:
 - A clear title.
 - A detailed description. Use newlines for spacing and structure. DO NOT use any Markdown formatting like '#' for headers or '*' for lists.
 - An array of at least 3 clear examples with human-readable inputs, outputs, and optional explanations.
-- Starter code in JavaScript. CRITICAL: The function must be declared as a variable, for example: 'var twoSum = function(nums, target) { ... };' This format is essential for the testing environment.
+- Starter code in JavaScript, as a standard function declaration like 'function twoSum(nums, target) { ... }'. Do not use a variable assignment like 'var twoSum = ...'.
 - An array of at least 5 test cases, where each 'input' is an array of arguments for the function.
-- The name of the main function to be called for testing (the 'entryPoint').
+- The name of the main function to be tested (the 'entryPoint').
 `,
 });
 

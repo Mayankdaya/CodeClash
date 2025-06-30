@@ -36,6 +36,7 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from '@/components/ui/alert-dialog';
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
 
 
 interface Participant {
@@ -87,16 +88,19 @@ const executeInWorker = (code: string, entryPoint: string, testCases: TestCase[]
                 let passedCount = 0;
                 
                 try {
-                    // This is a workaround to make the user's code available in the worker
-                    const userFunc = new Function('return ' + code)();
+                    eval(code);
+                    const userFunc = self[entryPoint];
                     
+                    if (typeof userFunc !== 'function') {
+                      throw new Error("Function '" + entryPoint + "' not found in the provided code.");
+                    }
+
                     for (let i = 0; i < testCases.length; i++) {
                         const tc = testCases[i];
                         const startTime = performance.now();
                         let output, error = null;
                         
                         try {
-                            // Deep copy input to prevent mutation
                             const inputClone = JSON.parse(JSON.stringify(tc.input));
                             output = userFunc(...inputClone);
                         } catch (err) {
@@ -136,7 +140,7 @@ const executeInWorker = (code: string, entryPoint: string, testCases: TestCase[]
         };
 
         worker.onerror = (e) => {
-            resolve({ status: 'error', message: `A worker error occurred: ${e.message}`, passedCount: 0, totalCount: testCases.length, results: [] });
+            resolve({ status: 'error', message: "A worker error occurred: " + e.message, passedCount: 0, totalCount: testCases.length, results: [] });
             worker.terminate();
             URL.revokeObjectURL(workerUrl);
         };
@@ -407,6 +411,58 @@ export default function ClashPage() {
       </div>
     );
   }
+  
+  const RunButton = () => {
+    const isDisabled = isRunning || isSubmitting || isTranslatingCode;
+    const button = (
+        <Button variant="secondary" onClick={handleRunCode} disabled={isDisabled}>
+            {isRunning && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+            Run Code
+        </Button>
+    );
+
+    if (language !== 'javascript') {
+        return (
+          <TooltipProvider>
+            <Tooltip>
+                <TooltipTrigger asChild>
+                    <div tabIndex={0}>{button}</div>
+                </TooltipTrigger>
+                <TooltipContent>
+                    <p>Execution for {language} is powered by AI.</p>
+                </TooltipContent>
+            </Tooltip>
+          </TooltipProvider>
+        );
+    }
+    return button;
+  };
+  
+  const SubmitButton = () => {
+    const isDisabled = isRunning || isSubmitting || isTranslatingCode;
+    const button = (
+        <Button className="bg-green-600 hover:bg-green-700 text-white" onClick={handleSubmitCode} disabled={isDisabled}>
+            {isSubmitting && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+            Submit
+        </Button>
+    );
+
+     if (language !== 'javascript') {
+        return (
+          <TooltipProvider>
+            <Tooltip>
+                <TooltipTrigger asChild>
+                    <div tabIndex={0}>{button}</div>
+                </TooltipTrigger>
+                <TooltipContent>
+                    <p>Execution for {language} is powered by AI.</p>
+                </TooltipContent>
+            </Tooltip>
+          </TooltipProvider>
+        );
+    }
+    return button;
+  }
 
   return (
     <AuthGuard>
@@ -498,14 +554,8 @@ export default function ClashPage() {
                           {isGettingHint ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Lightbulb className="mr-2 h-4 w-4" />}
                           Get Hint
                         </Button>
-                        <Button variant="secondary" onClick={handleRunCode} disabled={isRunning || isSubmitting || isTranslatingCode}>
-                          {isRunning && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-                          Run Code
-                        </Button>
-                        <Button className="bg-green-600 hover:bg-green-700 text-white" onClick={handleSubmitCode} disabled={isRunning || isSubmitting || isTranslatingCode}>
-                          {isSubmitting && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-                          Submit
-                        </Button>
+                        <RunButton />
+                        <SubmitButton />
                       </div>
                     </div>
                 </div>
