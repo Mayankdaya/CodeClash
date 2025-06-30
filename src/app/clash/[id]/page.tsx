@@ -288,26 +288,23 @@ export default function ClashPage() {
                     <BookOpen className="h-6 w-6 text-primary" />
                     <CardTitle>Problem</CardTitle>
                   </CardHeader>
-                  <CardContent className="flex-1 flex flex-col pt-0 min-h-0">
-                    <ScrollArea className="flex-1 w-full">
-                      <div className="pr-4 pb-6">
-                        <h3 className="font-bold text-lg mb-2 capitalize">{problem.title}</h3>
-                        <p className="text-muted-foreground mb-4 whitespace-pre">
-                          {problem.description}
-                        </p>
-                        <div className="text-sm space-y-3">
-                          <p><strong className='text-foreground'>Example:</strong></p>
-                          <pre className='p-2 rounded-md bg-muted/50 text-xs'>
-                            <code>
-                              Input: {problem.example.input}<br/>
-                              Output: {problem.example.output}
-                              {problem.example.explanation && <><br/>Explanation: {problem.example.explanation}</>}
-                            </code>
-                          </pre>
-                        </div>
+                  <CardContent className="flex-1 pt-0 overflow-auto">
+                    <div className="p-6">
+                      <h3 className="font-bold text-lg mb-2 capitalize">{problem.title}</h3>
+                      <p className="text-muted-foreground mb-4 whitespace-pre-wrap">
+                        {problem.description}
+                      </p>
+                      <div className="text-sm space-y-3">
+                        <p><strong className='text-foreground'>Example:</strong></p>
+                        <pre className='p-2 rounded-md bg-muted/50 text-xs'>
+                          <code>
+                            Input: {problem.example.input}<br/>
+                            Output: {problem.example.output}
+                            {problem.example.explanation && <><br/>Explanation: {problem.example.explanation}</>}
+                          </code>
+                        </pre>
                       </div>
-                      <ScrollBar orientation="horizontal" />
-                    </ScrollArea>
+                    </div>
                   </CardContent>
                 </Card>
                 <Card className="bg-card/50 border border-white/10 rounded-2xl">
@@ -344,7 +341,7 @@ export default function ClashPage() {
                     </Select>
                   </CardHeader>
                   <CardContent className="flex-1 flex flex-col p-0 min-h-0">
-                    <div className="flex flex-col min-h-0" style={{flex: '3 1 0%'}}>
+                    <div className="flex flex-col min-h-0" style={{flexBasis: '70%'}}>
                         <div className="p-6 pt-0 flex-1 flex flex-col min-h-0">
                           <div className="flex-1 w-full rounded-md min-h-0">
                             <CodeEditor
@@ -364,7 +361,7 @@ export default function ClashPage() {
                           </div>
                         </div>
                     </div>
-                    <div className="border-t border-border/50 p-6 flex flex-col min-h-0" style={{flex: '2 1 0%'}}>
+                    <div className="border-t border-border/50 p-6 flex flex-col min-h-0" style={{flexBasis: '30%'}}>
                         <h3 className="text-lg font-semibold mb-2">Console</h3>
                         <ScrollArea className="flex-1 bg-muted/30 p-4 rounded-md font-code text-sm min-h-0">
                             <pre className="whitespace-pre-wrap">
