@@ -288,22 +288,20 @@ export default function ClashPage() {
                     <BookOpen className="h-6 w-6 text-primary" />
                     <CardTitle>Problem</CardTitle>
                   </CardHeader>
-                  <CardContent className="flex-1 pt-0 overflow-auto">
-                    <div className="p-6">
-                      <h3 className="font-bold text-lg mb-2 capitalize">{problem.title}</h3>
-                      <p className="text-muted-foreground mb-4 whitespace-pre-wrap">
-                        {problem.description}
-                      </p>
-                      <div className="text-sm space-y-3">
-                        <p><strong className='text-foreground'>Example:</strong></p>
-                        <pre className='p-2 rounded-md bg-muted/50 text-xs'>
-                          <code>
-                            Input: {problem.example.input}<br/>
-                            Output: {problem.example.output}
-                            {problem.example.explanation && <><br/>Explanation: {problem.example.explanation}</>}
-                          </code>
-                        </pre>
-                      </div>
+                  <CardContent className="flex-1 p-6 pt-0 overflow-auto">
+                    <h3 className="font-bold text-lg mb-2 capitalize">{problem.title}</h3>
+                    <p className="text-muted-foreground mb-4 whitespace-pre-wrap">
+                      {problem.description}
+                    </p>
+                    <div className="text-sm space-y-3">
+                      <p><strong className='text-foreground'>Example:</strong></p>
+                      <pre className='p-2 rounded-md bg-muted/50 text-xs'>
+                        <code>
+                          Input: {problem.example.input}<br/>
+                          Output: {problem.example.output}
+                          {problem.example.explanation && <><br/>Explanation: {problem.example.explanation}</>}
+                        </code>
+                      </pre>
                     </div>
                   </CardContent>
                 </Card>
