@@ -24,6 +24,7 @@ import { CodeEditor } from '@/components/CodeEditor';
 import { BookOpen, Code, Send, Users, Timer, Star, ThumbsUp, Video, CameraOff, Loader2 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import type { Problem } from '@/lib/problems';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 
 interface Participant {
   userId: string;
@@ -67,6 +68,7 @@ export default function ClashPage() {
 
   const videoRef = useRef<HTMLVideoElement>(null);
   const endOfMessagesRef = useRef<HTMLDivElement>(null);
+  const languages = ["javascript", "typescript", "python", "java", "cpp"];
 
   // Get clash data and opponent info
   useEffect(() => {
@@ -333,17 +335,30 @@ export default function ClashPage() {
             {/* Middle Panel */}
             <div className="w-full lg:w-1/2 flex flex-col min-h-0">
               <Card className="flex-1 flex flex-col bg-card/50 backdrop-blur-lg border border-white/10 rounded-2xl min-h-0">
-                <CardHeader className="flex-row items-center gap-4">
-                  <Code className="h-6 w-6 text-primary" />
-                  <CardTitle>Solution</CardTitle>
+                <CardHeader className="flex-row items-center justify-between gap-4">
+                  <div className='flex items-center gap-4'>
+                    <Code className="h-6 w-6 text-primary" />
+                    <CardTitle>Solution</CardTitle>
+                  </div>
+                  <Select value={language} onValueChange={setLanguage} disabled={isRunning}>
+                    <SelectTrigger className="w-[180px] h-9">
+                      <SelectValue placeholder="Select Language" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {languages.map((lang) => (
+                          <SelectItem key={lang} value={lang} className='capitalize'>
+                            {lang.charAt(0).toUpperCase() + lang.slice(1)}
+                          </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
                 </CardHeader>
                 <CardContent className="flex-1 flex flex-col p-0 min-h-0">
                    <div className="flex-1 flex flex-col min-h-0">
-                      <div className="p-6 pb-0 flex-grow-[3] flex flex-col min-h-0">
-                        <div className="flex-1 w-full rounded-md overflow-hidden">
+                      <div className="p-6 pt-0 flex-grow-[3] flex flex-col min-h-0">
+                        <div className="flex-1 w-full rounded-md">
                           <CodeEditor
                             language={language}
-                            onLanguageChange={setLanguage}
                             value={code}
                             onChange={(value) => setCode(value || '')}
                             disabled={isRunning}
