@@ -201,7 +201,6 @@ export default function ClashPage() {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [consoleTab, setConsoleTab] = useState('test-result');
   const [submissionResult, setSubmissionResult] = useState<{ status: 'Accepted' | 'Wrong Answer' | 'Error'; message: string; } | null>(null);
-  const [problemTab, setProblemTab] = useState('problem');
   
   const [timeLeft, setTimeLeft] = useState(30 * 60); // 30 minutes
 
@@ -547,44 +546,28 @@ export default function ClashPage() {
               <PanelGroup direction="horizontal">
                   <Panel defaultSize={45} minSize={30}>
                       <div className="h-full flex flex-col bg-card/50 border border-white/10 rounded-xl overflow-hidden">
-                          <Tabs value={problemTab} onValueChange={setProblemTab} className="flex-1 flex flex-col min-h-0">
-                              <div className="p-2 border-b border-border shrink-0">
-                                  <TabsList className="w-full grid grid-cols-2">
-                                      <TabsTrigger value="problem"><BookOpen className="mr-2 h-4 w-4"/>Problem</TabsTrigger>
-                                      {problem.solution && <TabsTrigger value="solution"><KeySquare className="mr-2 h-4 w-4"/>Solution</TabsTrigger>}
-                                  </TabsList>
-                              </div>
-                              <TabsContent value="problem" className="flex-1 min-h-0 m-0 p-0">
-                                  <div className="h-full overflow-y-auto p-4 pr-2">
-                                      <h1 className="text-2xl font-bold mb-2">{problem.title}</h1>
-                                      <div className='prose prose-invert max-w-none prose-p:text-muted-foreground prose-strong:text-foreground'>
-                                      <p className="whitespace-pre-wrap">{problem.description}</p>
-                                      {problem.examples && problem.examples.map((example, index) => (
-                                          <div key={index}>
-                                          <p><strong>Example {index + 1}:</strong></p>
-                                          <pre className='mt-2 p-2 rounded-md bg-muted/50 text-base whitespace-pre-wrap font-code not-prose'>
-                                              <code>
-                                              <strong>Input:</strong> {example.input}<br/>
-                                              <strong>Output:</strong> {example.output}
-                                              {example.explanation && <><br/><strong>Explanation:</strong> {example.explanation}</>}
-                                              </code>
-                                          </pre>
-                                          </div>
-                                      ))}
-                                      </div>
+                          <div className="p-2 border-b border-border shrink-0 flex items-center gap-2">
+                              <BookOpen className="h-5 w-5"/>
+                              <h2 className="font-semibold">Problem</h2>
+                          </div>
+                          <div className="flex-1 min-h-0 overflow-y-auto p-4 pr-2">
+                              <h1 className="text-2xl font-bold mb-2">{problem.title}</h1>
+                              <div className='prose prose-invert max-w-none prose-p:text-muted-foreground prose-strong:text-foreground'>
+                              <p className="whitespace-pre-wrap">{problem.description}</p>
+                              {problem.examples && problem.examples.map((example, index) => (
+                                  <div key={index}>
+                                  <p><strong>Example {index + 1}:</strong></p>
+                                  <pre className='mt-2 p-2 rounded-md bg-muted/50 text-base whitespace-pre-wrap font-code not-prose'>
+                                      <code>
+                                      <strong>Input:</strong> {example.input}<br/>
+                                      <strong>Output:</strong> {example.output}
+                                      {example.explanation && <><br/><strong>Explanation:</strong> {example.explanation}</>}
+                                      </code>
+                                  </pre>
                                   </div>
-                              </TabsContent>
-                              <TabsContent value="solution" className="flex-1 min-h-0 m-0 p-0">
-                                  {problemTab === 'solution' && problem.solution && (
-                                       <CodeEditor
-                                          language="javascript"
-                                          value={problem.solution}
-                                          onChange={() => {}}
-                                          disabled={true}
-                                      />
-                                  )}
-                              </TabsContent>
-                          </Tabs>
+                              ))}
+                              </div>
+                          </div>
                       </div>
                   </Panel>
                   <PanelResizeHandle className="w-2 bg-border/50 hover:bg-primary transition-colors data-[resize-handle-state=drag]:bg-primary" />
