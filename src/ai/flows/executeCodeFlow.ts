@@ -15,7 +15,7 @@ const TestCaseSchema = z.object({
   expected: z.any().describe('The expected output for the test case.'),
 });
 
-export const ExecuteCodeInputSchema = z.object({
+const ExecuteCodeInputSchema = z.object({
   code: z.string().describe('The user-submitted code to execute.'),
   language: z.string().describe('The programming language of the code (e.g., "javascript", "python", "java", "cpp").'),
   entryPoint: z.string().describe('The name of the function to be called and tested.'),
@@ -32,7 +32,7 @@ const TestCaseResultSchema = z.object({
   runtime: z.string().describe('A simulated runtime for the test case, e.g., "15ms".'),
 });
 
-export const ExecuteCodeOutputSchema = z.object({
+const ExecuteCodeOutputSchema = z.object({
   status: z.enum(['success', 'error']).describe('The overall status of the execution.'),
   message: z.string().optional().describe('An error message if the execution failed (e.g., syntax error, compilation error).'),
   passedCount: z.number().describe('The total number of test cases that passed.'),
