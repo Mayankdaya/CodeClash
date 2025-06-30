@@ -81,17 +81,13 @@ export default function ClashPage() {
       if (docSnap.exists()) {
         const data = docSnap.data() as ClashData;
         
-        // The problem's test case inputs are stored as JSON strings in Firestore
-        // to avoid issues with nested arrays. We need to parse them back.
         if (data.problem && data.problem.testCases) {
           const parsedTestCases = data.problem.testCases.map(tc => {
             try {
-              // Ensure we only parse if it's a string, making it idempotent
               const parsedInput = typeof tc.input === 'string' ? JSON.parse(tc.input) : tc.input;
               return { ...tc, input: parsedInput };
             } catch (e) {
               console.error("Failed to parse test case input:", e);
-              // Return original test case if parsing fails
               return tc; 
             }
           });
@@ -196,8 +192,6 @@ export default function ClashPage() {
     setOutput('Running test cases...');
     setIsRunning(true);
     
-    // This is a highly simplified and insecure way to run code.
-    // In a real application, this should be done in a sandboxed environment (e.g., a web worker or a secure backend service).
     setTimeout(() => {
         try {
             if (!problem.entryPoint || !problem.testCases || problem.testCases.length === 0) {
@@ -208,8 +202,6 @@ export default function ClashPage() {
 
             const funcName = problem.entryPoint;
             
-            // This is still unsafe for production but required for this execution model.
-            // It assumes the user's code makes the function available on the global scope or returns it.
             const userFunc = new Function('return ' + code)()[funcName];
             
             if (typeof userFunc !== 'function') {
@@ -225,13 +217,10 @@ export default function ClashPage() {
             testCases.forEach((testCase, index) => {
                 const result = userFunc(...testCase.input);
                 
-                // Deep comparison for arrays/objects. Also sorts arrays to handle order differences.
                 let processedResult = result;
                 let processedExpected = testCase.expected;
 
                 if (Array.isArray(result) && Array.isArray(testCase.expected)) {
-                    // Create copies before sorting to avoid mutating original data.
-                    // This is a shallow sort, which is fine for arrays of primitives.
                     try {
                       processedResult = [...result].sort();
                       processedExpected = [...testCase.expected].sort();
@@ -265,7 +254,6 @@ export default function ClashPage() {
         title: "Code Submitted!",
         description: "Your solution has been submitted for evaluation.",
     });
-    // In a real app, this would save the submission to Firestore and run tests on a server.
   };
 
   const formatTime = (seconds: number) => {
@@ -290,10 +278,10 @@ export default function ClashPage() {
       <div className="flex flex-col h-dvh bg-transparent text-foreground font-body">
         <Header />
         <main className="flex-1 flex flex-col min-h-0">
-          <div className="flex-1 grid grid-cols-1 lg:grid-cols-4 gap-6 container mx-auto py-6 px-4">
+          <div className="flex-1 flex flex-col lg:flex-row gap-6 container mx-auto py-6 px-4 min-h-0">
             
             {/* Left Panel */}
-            <div className="lg:col-span-1 flex flex-col gap-6 min-h-0">
+            <div className="w-full lg:w-1/4 flex flex-col gap-6 min-h-0">
               <Card className="flex-1 flex flex-col bg-card/50 border border-white/10 rounded-2xl min-h-0">
                 <CardHeader className="flex-row items-center gap-4">
                   <BookOpen className="h-6 w-6 text-primary" />
@@ -333,7 +321,7 @@ export default function ClashPage() {
             </div>
 
             {/* Middle Panel */}
-            <div className="lg:col-span-2 flex flex-col min-h-0">
+            <div className="w-full lg:w-1/2 flex flex-col min-h-0">
               <Card className="flex-1 flex flex-col bg-card/50 border border-white/10 rounded-2xl min-h-0">
                 <CardHeader className="flex-row items-center justify-between gap-4">
                   <div className='flex items-center gap-4'>
@@ -353,8 +341,8 @@ export default function ClashPage() {
                     </SelectContent>
                   </Select>
                 </CardHeader>
-                <CardContent className="flex-1 grid p-0 min-h-0" style={{ gridTemplateRows: 'minmax(0, 3fr) minmax(0, 2fr)' }}>
-                   <div className="p-6 pt-0 flex flex-col min-h-0">
+                <CardContent className="flex-1 flex flex-col p-0 min-h-0">
+                   <div className="p-6 pt-0 flex flex-col min-h-0" style={{flexBasis: '70%'}}>
                     <div className="flex-1 w-full rounded-md min-h-0">
                       <CodeEditor
                         key={language}
@@ -372,7 +360,7 @@ export default function ClashPage() {
                       <Button className="bg-green-600 hover:bg-green-700 text-white" onClick={handleSubmitCode} disabled={isRunning}>Submit</Button>
                     </div>
                    </div>
-                   <div className="border-t border-border/50 p-6 flex flex-col min-h-0">
+                   <div className="border-t border-border/50 p-6 flex flex-col min-h-0" style={{flexBasis: '30%'}}>
                       <h3 className="text-lg font-semibold mb-2">Console</h3>
                       <ScrollArea className="flex-1 bg-muted/30 p-4 rounded-md font-code text-sm min-h-0">
                           <pre className="whitespace-pre-wrap">
@@ -385,7 +373,7 @@ export default function ClashPage() {
             </div>
 
             {/* Right Panel */}
-            <div className="lg:col-span-1 flex flex-col gap-6 min-h-0">
+            <div className="w-full lg:w-1/4 flex flex-col gap-6 min-h-0">
               <Card className="flex-1 flex flex-col bg-card/50 border border-white/10 rounded-2xl min-h-0">
                 <CardHeader className="flex-row items-center gap-4">
                   <Video className="h-6 w-6 text-primary" />
@@ -521,5 +509,3 @@ export default function ClashPage() {
     </AuthGuard>
   );
 }
-
-    
