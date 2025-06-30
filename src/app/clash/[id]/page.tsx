@@ -1,6 +1,8 @@
+
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
+import Image from 'next/image';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -9,13 +11,18 @@ import { Progress } from '@/components/ui/progress';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Textarea } from '@/components/ui/textarea';
-import { BookOpen, Code, MessageSquare, Send, Users, Timer, Star, ThumbsUp } from 'lucide-react';
+import { BookOpen, Code, Send, Users, Timer, Star, ThumbsUp, Video, CameraOff } from 'lucide-react';
 import { Header } from '@/components/Header';
 import { Footer } from '@/components/Footer';
 import AuthGuard from '@/components/AuthGuard';
+import { useToast } from '@/hooks/use-toast';
+import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 
 export default function ClashPage({ params }: { params: { id: string } }) {
   const [timeLeft, setTimeLeft] = useState(30 * 60); // 30 minutes in seconds
+  const videoRef = useRef<HTMLVideoElement>(null);
+  const { toast } = useToast();
+  const [hasCameraPermission, setHasCameraPermission] = useState<boolean | null>(null);
 
   useEffect(() => {
     if (timeLeft <= 0) return;
@@ -24,6 +31,46 @@ export default function ClashPage({ params }: { params: { id: string } }) {
     }, 1000);
     return () => clearInterval(timer);
   }, [timeLeft]);
+  
+  useEffect(() => {
+    const getCameraPermission = async () => {
+      if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+        console.error('Camera API is not available in this browser.');
+        setHasCameraPermission(false);
+        toast({
+          variant: 'destructive',
+          title: 'Unsupported Browser',
+          description: 'Your browser does not support video features.',
+        });
+        return;
+      }
+
+      try {
+        const stream = await navigator.mediaDevices.getUserMedia({ video: true });
+        setHasCameraPermission(true);
+        if (videoRef.current) {
+          videoRef.current.srcObject = stream;
+        }
+      } catch (error) {
+        console.error('Error accessing camera:', error);
+        setHasCameraPermission(false);
+        toast({
+          variant: 'destructive',
+          title: 'Camera Access Denied',
+          description: 'Please enable camera permissions in your browser settings.',
+        });
+      }
+    };
+
+    getCameraPermission();
+
+    return () => {
+      if (videoRef.current && videoRef.current.srcObject) {
+        const stream = videoRef.current.srcObject as MediaStream;
+        stream.getTracks().forEach(track => track.stop());
+      }
+    }
+  }, [toast]);
 
   const formatTime = (seconds: number) => {
     const minutes = Math.floor(seconds / 60);
@@ -112,16 +159,42 @@ Output: [1,2]</code></pre>
             <div className="lg:col-span-3 flex flex-col gap-6">
               <Card className="bg-card/50 backdrop-blur-lg border border-white/10 rounded-2xl flex-grow">
                 <CardHeader className="flex-row items-center gap-4">
-                  <Users className="h-6 w-6 text-primary" />
-                  <CardTitle>Clash Room</CardTitle>
+                  <Video className="h-6 w-6 text-primary" />
+                  <CardTitle>Video & Chat</CardTitle>
                 </CardHeader>
                 <CardContent>
+                  <div className="grid grid-cols-2 gap-2 mb-4">
+                    <div className="relative aspect-video w-full bg-muted/30 rounded-lg flex items-center justify-center overflow-hidden">
+                      <video ref={videoRef} className="w-full h-full object-cover" autoPlay muted playsInline />
+                      {hasCameraPermission === false && (
+                          <div className="absolute inset-0 flex flex-col items-center justify-center text-center text-muted-foreground p-2 bg-background/80">
+                              <CameraOff className="h-8 w-8 mx-auto mb-1" />
+                              <p className="text-xs">Your camera is off</p>
+                          </div>
+                      )}
+                      <div className="absolute bottom-1 left-2 text-xs bg-black/50 text-white px-1.5 py-0.5 rounded">You</div>
+                    </div>
+                     <div className="relative aspect-video w-full bg-muted/30 rounded-lg flex items-center justify-center overflow-hidden">
+                        <Image src="https://placehold.co/320x180.png" data-ai-hint="man coding" alt="Opponent" width={320} height={180} className="w-full h-full object-cover" />
+                        <div className="absolute bottom-1 left-2 text-xs bg-black/50 text-white px-1.5 py-0.5 rounded">ByteKnight</div>
+                    </div>
+                  </div>
+
+                   {hasCameraPermission === false && (
+                      <Alert variant="destructive" className="mb-4">
+                        <AlertTitle>Camera Access Required</AlertTitle>
+                        <AlertDescription>
+                          Please allow camera access in your browser settings to use this feature.
+                        </AlertDescription>
+                      </Alert>
+                  )}
+
                   <Tabs defaultValue="chat">
                     <TabsList className="grid w-full grid-cols-2">
                       <TabsTrigger value="chat">Chat</TabsTrigger>
                       <TabsTrigger value="participants">Participants (3)</TabsTrigger>
                     </TabsList>
-                    <TabsContent value="chat" className="mt-4 flex flex-col h-[calc(100vh-22rem)]">
+                    <TabsContent value="chat" className="mt-4 flex flex-col h-[calc(100vh-32rem)]">
                       <ScrollArea className="flex-grow pr-4">
                         <div className="space-y-4 text-sm">
                           <div className="flex items-start gap-3">
@@ -152,7 +225,7 @@ Output: [1,2]</code></pre>
                       </div>
                     </TabsContent>
                     <TabsContent value="participants" className="mt-4">
-                      <ScrollArea className="h-[calc(100vh-22rem)] pr-4">
+                      <ScrollArea className="h-[calc(100vh-32rem)] pr-4">
                         <div className="space-y-4">
                             <div className="flex items-center justify-between">
                               <div className='flex items-center gap-3'>
