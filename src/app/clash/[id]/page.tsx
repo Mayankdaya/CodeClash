@@ -633,35 +633,35 @@ export default function ClashPage() {
                         <TabsTrigger value="testcases"><TestTube2 className="mr-2 h-4 w-4"/>Testcases</TabsTrigger>
                         <TabsTrigger value="chat"><MessageSquare className="mr-2 h-4 w-4"/>Chat & Video</TabsTrigger>
                     </TabsList>
-                    <TabsContent value="test-result" className="flex-1 mt-2 overflow-auto rounded-md bg-muted/30 p-2">
+                    <TabsContent value="test-result" className="flex-1 mt-2 overflow-auto rounded-md bg-muted/30 p-4">
                         {typeof output === 'string' ? (
-                            <pre className="whitespace-pre-wrap font-code text-sm"><code>{output}</code></pre>
+                            <pre className="whitespace-pre-wrap font-code text-base"><code>{output}</code></pre>
                         ) : (
-                            <div className="space-y-2 font-code">
+                            <div className="space-y-4 font-code">
                                 {output.map((res, index) => (
-                                    <div key={index} className="border-b border-border/50 pb-2 last:border-b-0">
-                                        <div className="flex items-center gap-2 font-bold mb-2 text-base">
+                                    <div key={index} className="border-b border-border/50 pb-3 last:border-b-0">
+                                        <div className="flex items-center gap-2 font-bold mb-2 text-lg">
                                             {res.passed ? <CheckCircle2 className="h-5 w-5 text-green-500" /> : <XCircle className="h-5 w-5 text-red-500" />}
                                             <span className={cn(res.passed ? "text-green-400" : "text-red-400")}>Case {res.case}: {res.passed ? 'Passed' : 'Failed'}</span>
                                         </div>
-                                        <div className='space-y-1 pl-6 text-sm'>
-                                          <p><span className="text-muted-foreground w-20 inline-block">Input:</span> {res.input}</p>
-                                          <p><span className="text-muted-foreground w-20 inline-block">Output:</span> {res.output}</p>
-                                          {!res.passed && <p><span className="text-muted-foreground w-20 inline-block">Expected:</span> {res.expected}</p>}
+                                        <div className='space-y-2 pl-7 text-base'>
+                                          <p><span className="text-muted-foreground w-24 inline-block font-semibold">Input:</span> {res.input}</p>
+                                          <p><span className="text-muted-foreground w-24 inline-block font-semibold">Output:</span> {res.output}</p>
+                                          {!res.passed && <p><span className="text-muted-foreground w-24 inline-block font-semibold">Expected:</span> {res.expected}</p>}
                                         </div>
                                     </div>
                                 ))}
                             </div>
                         )}
                     </TabsContent>
-                    <TabsContent value="testcases" className="flex-1 mt-2 overflow-auto rounded-md bg-muted/30 p-2">
-                      <div className="space-y-2 font-code text-sm">
+                    <TabsContent value="testcases" className="flex-1 mt-2 overflow-auto rounded-md bg-muted/30 p-4">
+                      <div className="space-y-4 font-code text-base">
                           {problem?.testCases.slice(0, 3).map((tc, index) => (
-                              <div key={index} className="border-b border-border/50 pb-2 last:border-b-0">
-                                  <p className="font-bold mb-2">Case {index + 1}</p>
-                                  <div className="bg-background/40 p-2 mt-1 rounded-md space-y-1">
-                                      <p><span className='text-muted-foreground'>Input:</span> {JSON.stringify(tc.input)}</p>
-                                      <p><span className='text-muted-foreground'>Output:</span> {JSON.stringify(tc.expected)}</p>
+                              <div key={index} className="border-b border-border/50 pb-3 last:border-b-0">
+                                  <p className="font-bold mb-2 text-lg">Case {index + 1}</p>
+                                  <div className="bg-background/40 p-3 mt-1 rounded-md space-y-2">
+                                      <p><span className='text-muted-foreground font-semibold'>Input:</span> {JSON.stringify(tc.input)}</p>
+                                      <p><span className='text-muted-foreground font-semibold'>Output:</span> {JSON.stringify(tc.expected)}</p>
                                   </div>
                               </div>
                           ))}
