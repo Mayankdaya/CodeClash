@@ -22,6 +22,7 @@ import { Footer } from '@/components/Footer';
 import AuthGuard from '@/components/AuthGuard';
 import { BookOpen, Code, Send, Users, Timer, Star, ThumbsUp, Video, CameraOff, Loader2 } from 'lucide-react';
 import { cn } from '@/lib/utils';
+import { type Problem, problems } from '@/lib/problems';
 
 interface Participant {
   userId: string;
@@ -49,9 +50,13 @@ export default function ClashPage() {
   const { toast } = useToast();
   
   const [clashData, setClashData] = useState<ClashData | null>(null);
+  const [problem, setProblem] = useState<Problem | null>(null);
   const [opponent, setOpponent] = useState<Participant | null>(null);
   const [messages, setMessages] = useState<Message[]>([]);
   const [newMessage, setNewMessage] = useState('');
+  const [code, setCode] = useState('');
+  const [output, setOutput] = useState('Click "Run Code" to see the output here.');
+  const [isRunning, setIsRunning] = useState(false);
   
   const [timeLeft, setTimeLeft] = useState(30 * 60); // 30 minutes
   const [hasCameraPermission, setHasCameraPermission] = useState<boolean | null>(null);
@@ -70,11 +75,15 @@ export default function ClashPage() {
       if (docSnap.exists()) {
         const data = docSnap.data() as ClashData;
         setClashData(data);
+        
+        const problemData = problems[data.topicId] || problems['arrays-hashing']; // Fallback
+        setProblem(problemData);
+        setCode(problemData.starterCode);
+
         const opponentParticipant = data.participants.find(p => p.userId !== auth.currentUser?.uid);
         if (opponentParticipant) {
           setOpponent(opponentParticipant);
         } else {
-            // Handle case where opponent isn't found (maybe it's a solo session?)
            toast({ title: "Opponent not found", description: "Could not find opponent data in this clash.", variant: 'destructive' });
         }
       } else {
@@ -152,6 +161,67 @@ export default function ClashPage() {
     setNewMessage('');
   };
 
+  const handleRunCode = () => {
+    if (!clashData || !problem) return;
+    
+    setOutput('Running test cases...');
+    setIsRunning(true);
+    
+    // Simulate async execution for user feedback
+    setTimeout(() => {
+        // For now, we only support client-side execution for the "Two Sum" problem
+        if (problem.id !== 'two-sum') {
+            setOutput('Code execution for this problem is not yet supported in this demo.');
+            setIsRunning(false);
+            return;
+        }
+
+        const testCases = [
+            { args: [[2, 7, 11, 15], 9], expected: [0, 1] },
+            { args: [[3, 2, 4], 6], expected: [1, 2] },
+            { args: [[3, 3], 6], expected: [0, 1] },
+        ];
+
+        let results = '';
+        let allPassed = true;
+
+        try {
+            // Unsafe in production. Use a web worker or sandboxed environment for real apps.
+            const userFunc = new Function('nums', 'target', `
+                ${code}
+                return twoSum(nums, target);
+            `);
+
+            testCases.forEach((testCase, index) => {
+                const result = userFunc(...testCase.args);
+                
+                // Simple array comparison, ignoring order
+                const passed = JSON.stringify(result?.sort((a:number, b:number) => a - b)) === JSON.stringify(testCase.expected.sort((a:number, b:number) => a - b));
+                if (!passed) allPassed = false;
+
+                results += `Case ${index + 1}: ${passed ? '✅ Passed' : '❌ Failed'}\n`;
+                results += `  Input:    nums = ${JSON.stringify(testCase.args[0])}, target = ${testCase.args[1]}\n`;
+                results += `  Output:   ${JSON.stringify(result)}\n`;
+                results += `  Expected: ${JSON.stringify(testCase.expected)}\n\n`;
+            });
+            results += allPassed ? 'All test cases passed!' : 'Some test cases failed.';
+            setOutput(results);
+        } catch (error: any) {
+            setOutput(`An error occurred:\n${error.message}`);
+        } finally {
+            setIsRunning(false);
+        }
+    }, 500);
+  };
+  
+  const handleSubmitCode = () => {
+    toast({
+        title: "Code Submitted!",
+        description: "Your solution has been submitted for evaluation.",
+    });
+    // In a real app, this would save the submission to Firestore and run tests on a server.
+  };
+
   const formatTime = (seconds: number) => {
     const minutes = Math.floor(seconds / 60);
     const remainingSeconds = seconds % 60;
@@ -160,7 +230,7 @@ export default function ClashPage() {
 
   const progressValue = (timeLeft / (30 * 60)) * 100;
 
-  if (!clashData || !opponent) {
+  if (!clashData || !opponent || !problem) {
     return (
       <div className="flex h-dvh items-center justify-center">
         <Loader2 className="h-8 w-8 animate-spin" />
@@ -183,28 +253,22 @@ export default function ClashPage() {
                   <CardTitle>Problem</CardTitle>
                 </CardHeader>
                 <CardContent>
-                  <Tabs defaultValue="description">
-                    <TabsList className="grid w-full grid-cols-2">
-                      <TabsTrigger value="description">Description</TabsTrigger>
-                      <TabsTrigger value="submissions">Submissions</TabsTrigger>
-                    </TabsList>
-                    <TabsContent value="description" className="mt-4">
-                      <ScrollArea className="h-[calc(100vh-25rem)] pr-4">
-                        <h3 className="font-bold text-lg mb-2 capitalize">{clashData.topicId.replace('-', ' ')}</h3>
-                        <p className="text-muted-foreground mb-4">
-                          Given an array of integers `nums` and an integer `target`, return indices of the two numbers such that they add up to `target`. You may assume that each input would have exactly one solution, and you may not use the same element twice. You can return the answer in any order.
-                        </p>
-                        <div className="text-sm space-y-3">
-                          <p><strong className='text-foreground'>Example 1:</strong></p>
-                          <pre className='p-2 rounded-md bg-muted/50 text-xs'><code>Input: nums = [2,7,11,15], target = 9
-Output: [0,1]</code></pre>
-                        </div>
-                      </ScrollArea>
-                    </TabsContent>
-                    <TabsContent value="submissions" className="mt-4 text-center text-muted-foreground">
-                      You have no submissions yet.
-                    </TabsContent>
-                  </Tabs>
+                  <ScrollArea className="h-[calc(100vh-25rem)] pr-4">
+                    <h3 className="font-bold text-lg mb-2 capitalize">{problem.title}</h3>
+                    <p className="text-muted-foreground mb-4 whitespace-pre-line">
+                      {problem.description}
+                    </p>
+                    <div className="text-sm space-y-3">
+                      <p><strong className='text-foreground'>Example:</strong></p>
+                      <pre className='p-2 rounded-md bg-muted/50 text-xs'>
+                        <code>
+                          Input: {problem.example.input}<br/>
+                          Output: {problem.example.output}
+                          {problem.example.explanation && <><br/>Explanation: {problem.example.explanation}</>}
+                        </code>
+                      </pre>
+                    </div>
+                  </ScrollArea>
                 </CardContent>
               </Card>
               <Card className="bg-card/50 backdrop-blur-lg border border-white/10 rounded-2xl">
@@ -230,11 +294,25 @@ Output: [0,1]</code></pre>
                   <Textarea
                     placeholder="Enter your code here..."
                     className="flex-grow w-full p-4 bg-muted/30 border-white/10 font-code text-base resize-none"
-                    style={{ minHeight: 'calc(100vh - 20rem)' }}
+                    style={{ minHeight: 'calc(100vh - 32rem)' }}
+                    value={code}
+                    onChange={(e) => setCode(e.target.value)}
+                    disabled={isRunning}
                   />
                   <div className='flex justify-end mt-4 gap-2'>
-                      <Button variant="secondary">Run Code</Button>
-                      <Button className="bg-green-600 hover:bg-green-700 text-white">Submit</Button>
+                      <Button variant="secondary" onClick={handleRunCode} disabled={isRunning}>
+                          {isRunning && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                          Run Code
+                      </Button>
+                      <Button className="bg-green-600 hover:bg-green-700 text-white" onClick={handleSubmitCode} disabled={isRunning}>Submit</Button>
+                  </div>
+                   <div className="mt-4 border-t pt-4">
+                      <h3 className="text-lg font-semibold mb-2">Console</h3>
+                      <ScrollArea className="h-40 bg-muted/30 p-4 rounded-md font-code text-sm">
+                          <pre className="whitespace-pre-wrap">
+                              <code>{output}</code>
+                          </pre>
+                      </ScrollArea>
                   </div>
                 </CardContent>
               </Card>
