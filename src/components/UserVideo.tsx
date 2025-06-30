@@ -1,54 +1,51 @@
+
 'use client';
 
 import { useEffect, useRef, useState } from 'react';
 import { useToast } from '@/hooks/use-toast';
-import { Loader2, CameraOff } from 'lucide-react';
+import { CameraOff, Loader2 } from 'lucide-react';
 
 export function UserVideo() {
   const videoRef = useRef<HTMLVideoElement>(null);
   const { toast } = useToast();
-  const [status, setStatus] = useState<'loading' | 'success' | 'error'>('loading');
+  const [permissionState, setPermissionState] = useState<'loading' | 'granted' | 'denied'>('loading');
 
   useEffect(() => {
     let stream: MediaStream | null = null;
-
-    const getCameraPermission = async () => {
+    
+    const getCamera = async () => {
       if (!navigator.mediaDevices?.getUserMedia) {
-        setStatus('error');
+        console.error("Camera API not supported by this browser.");
+        setPermissionState('denied');
         toast({
-          variant: 'destructive',
-          title: 'Unsupported Browser',
-          description: 'Your browser does not support video features.',
+          variant: "destructive",
+          title: "Unsupported Browser",
+          description: "Your browser does not support the camera API.",
         });
         return;
       }
-
       try {
         stream = await navigator.mediaDevices.getUserMedia({ video: true });
+        setPermissionState('granted');
         if (videoRef.current) {
           videoRef.current.srcObject = stream;
-          await videoRef.current.play();
-          setStatus('success');
         }
-      } catch (error) {
-        console.error('Error accessing camera:', error);
-        setStatus('error');
+      } catch (err) {
+        console.error("Error accessing camera:", err);
+        setPermissionState('denied');
         toast({
-          variant: 'destructive',
-          title: 'Camera Access Denied',
-          description: 'Please enable camera permissions in your browser settings to use this feature.',
+          variant: "destructive",
+          title: "Camera Access Denied",
+          description: "Please enable camera permissions in your browser settings to use this feature.",
         });
       }
     };
 
-    getCameraPermission();
+    getCamera();
 
     return () => {
       if (stream) {
-        stream.getTracks().forEach((track) => track.stop());
-      }
-      if (videoRef.current) {
-        videoRef.current.srcObject = null;
+        stream.getTracks().forEach(track => track.stop());
       }
     };
   }, [toast]);
@@ -61,23 +58,19 @@ export function UserVideo() {
         autoPlay
         playsInline
         muted
-        style={{ display: status === 'success' ? 'block' : 'none' }}
       />
-      
-      {status === 'loading' && (
-        <div className="absolute inset-0 flex flex-col items-center justify-center text-center text-muted-foreground p-2 bg-background/80">
-          <Loader2 className="h-8 w-8 animate-spin mx-auto mb-1" />
+      {permissionState === 'loading' && (
+        <div className="absolute inset-0 flex flex-col items-center justify-center text-center text-muted-foreground p-2 bg-background/50">
+          <Loader2 className="h-8 w-8 animate-spin mx-auto mb-2" />
           <p className="text-xs">Starting camera...</p>
         </div>
       )}
-      
-      {status === 'error' && (
-        <div className="absolute inset-0 flex flex-col items-center justify-center text-center text-muted-foreground p-2 bg-background/80">
-          <CameraOff className="h-8 w-8 mx-auto mb-1" />
-          <p className="text-xs">Your camera is off</p>
+      {permissionState === 'denied' && (
+        <div className="absolute inset-0 flex flex-col items-center justify-center text-center text-muted-foreground p-2 bg-background/50">
+          <CameraOff className="h-8 w-8 mx-auto mb-2" />
+          <p className="text-xs">Camera is off or permission denied</p>
         </div>
       )}
-
       <div className="absolute bottom-1 left-2 text-xs bg-black/50 text-white px-1.5 py-0.5 rounded">You</div>
     </div>
   );
