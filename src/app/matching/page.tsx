@@ -29,7 +29,12 @@ export default function MatchingPage() {
   const [hasCameraPermission, setHasCameraPermission] = useState<boolean | null>(null);
   const [opponent, setOpponent] = useState(opponents[0]);
   const [isLoading, setIsLoading] = useState(false);
-  const [clashId, setClashId] = useState(() => `challenge-${Math.random().toString(36).substring(7)}`);
+  const [clashId, setClashId] = useState('');
+
+  useEffect(() => {
+    // Generate the initial clashId only on the client to avoid hydration mismatch
+    setClashId(`challenge-${Math.random().toString(36).substring(7)}`);
+  }, []);
 
   useEffect(() => {
     const getCameraPermission = async () => {
@@ -158,8 +163,8 @@ export default function MatchingPage() {
                 </>
               )}
             </Button>
-            <Button asChild size="lg" className="text-lg px-8 py-6 w-48 bg-green-600 hover:bg-green-700 text-white" disabled={isLoading}>
-              <Link href={`/clash/${clashId}`}>
+            <Button asChild size="lg" className="text-lg px-8 py-6 w-48 bg-green-600 hover:bg-green-700 text-white" disabled={isLoading || !clashId}>
+              <Link href={clashId ? `/clash/${clashId}` : '#'}>
                 <Swords className="mr-2 h-5 w-5" /> Battle
               </Link>
             </Button>
