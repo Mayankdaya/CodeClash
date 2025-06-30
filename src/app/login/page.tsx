@@ -1,14 +1,17 @@
 'use client';
 
-import { useEffect } from 'react';
-import { useRouter } from 'next/navigation';
+import { AuthForm } from '@/components/AuthForm';
+import { Footer } from '@/components/Footer';
+import { Header } from '@/components/Header';
 
 export default function LoginPage() {
-  const router = useRouter();
-
-  useEffect(() => {
-    router.replace('/');
-  }, [router]);
-
-  return null;
+  return (
+    <div className="flex flex-col min-h-dvh bg-transparent text-foreground font-body">
+      <Header />
+      <main className="flex-1 flex items-center justify-center py-12 px-4">
+        <AuthForm mode="login" />
+      </main>
+      <Footer />
+    </div>
+  );
 }
