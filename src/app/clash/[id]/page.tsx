@@ -286,18 +286,18 @@ export default function ClashPage() {
     <AuthGuard>
       <div className="flex flex-col h-dvh bg-transparent text-foreground font-body">
         <Header />
-        <main className="flex-1 container mx-auto py-6 px-4 flex flex-col">
-          <div className="flex-1 flex flex-col lg:flex-row gap-6">
+        <main className="flex-1 container mx-auto py-6 px-4 flex flex-col min-h-0">
+          <div className="flex-1 flex flex-col lg:flex-row gap-6 min-h-0">
             
             {/* Left Panel */}
             <div className="w-full lg:w-1/4 flex flex-col gap-6">
-              <Card className="flex-1 flex flex-col bg-card/50 backdrop-blur-lg border border-white/10 rounded-2xl">
+              <Card className="flex-1 flex flex-col bg-card/50 backdrop-blur-lg border border-white/10 rounded-2xl min-h-0">
                 <CardHeader className="flex-row items-center gap-4">
                   <BookOpen className="h-6 w-6 text-primary" />
                   <CardTitle>Problem</CardTitle>
                 </CardHeader>
-                <CardContent className="flex-1 flex flex-col pt-0">
-                  <ScrollArea className="h-full">
+                <CardContent className="flex-1 flex flex-col pt-0 min-h-0">
+                  <ScrollArea className="flex-1">
                     <div className="pr-4 pb-6">
                       <h3 className="font-bold text-lg mb-2 capitalize">{problem.title}</h3>
                       <p className="text-muted-foreground mb-4 whitespace-pre-line">
@@ -331,14 +331,14 @@ export default function ClashPage() {
 
             {/* Middle Panel */}
             <div className="w-full lg:w-1/2 flex flex-col">
-              <Card className="flex-1 flex flex-col bg-card/50 backdrop-blur-lg border border-white/10 rounded-2xl">
+              <Card className="flex-1 flex flex-col bg-card/50 backdrop-blur-lg border border-white/10 rounded-2xl min-h-0">
                 <CardHeader className="flex-row items-center gap-4">
                   <Code className="h-6 w-6 text-primary" />
                   <CardTitle>Solution</CardTitle>
                 </CardHeader>
-                <CardContent className="flex-1 grid grid-rows-5 p-0">
+                <CardContent className="flex-1 flex flex-col p-0">
                    {/* Editor Pane */}
-                   <div className="row-span-3 flex flex-col p-6 pb-0">
+                   <div className="flex flex-col p-6 pb-0 flex-grow-[3] min-h-0">
                      <Textarea
                         placeholder="Enter your code here..."
                         className="flex-1 w-full p-4 bg-muted/30 border-white/10 font-code text-base resize-none"
@@ -355,7 +355,7 @@ export default function ClashPage() {
                       </div>
                    </div>
                    {/* Console Pane */}
-                   <div className="row-span-2 border-t border-border/50 p-6 flex flex-col">
+                   <div className="border-t border-border/50 p-6 flex flex-col flex-grow-[2] min-h-0">
                       <h3 className="text-lg font-semibold mb-2">Console</h3>
                       <ScrollArea className="flex-1 bg-muted/30 p-4 rounded-md font-code text-sm">
                           <pre className="whitespace-pre-wrap">
@@ -369,12 +369,12 @@ export default function ClashPage() {
 
             {/* Right Panel */}
             <div className="w-full lg:w-1/4 flex flex-col gap-6">
-              <Card className="flex-1 flex flex-col bg-card/50 backdrop-blur-lg border border-white/10 rounded-2xl">
+              <Card className="flex-1 flex flex-col bg-card/50 backdrop-blur-lg border border-white/10 rounded-2xl min-h-0">
                 <CardHeader className="flex-row items-center gap-4">
                   <Video className="h-6 w-6 text-primary" />
                   <CardTitle>Video & Chat</CardTitle>
                 </CardHeader>
-                <CardContent className="flex-1 flex flex-col pt-0">
+                <CardContent className="flex-1 flex flex-col pt-0 min-h-0">
                   <div className="grid grid-cols-2 gap-2 mb-4">
                     <div className="relative aspect-video w-full bg-muted/30 rounded-lg flex items-center justify-center overflow-hidden">
                       <video ref={videoRef} className="w-full h-full object-cover" autoPlay muted playsInline />
@@ -401,12 +401,12 @@ export default function ClashPage() {
                       </Alert>
                   )}
 
-                  <Tabs defaultValue="chat" className="flex-1 flex flex-col mt-2">
+                  <Tabs defaultValue="chat" className="flex-1 flex flex-col mt-2 min-h-0">
                     <TabsList className="grid w-full grid-cols-2">
                       <TabsTrigger value="chat">Chat</TabsTrigger>
                       <TabsTrigger value="participants">Participants (2)</TabsTrigger>
                     </TabsList>
-                    <TabsContent value="chat" className="flex-1 flex flex-col mt-4">
+                    <TabsContent value="chat" className="flex-1 flex flex-col mt-4 min-h-0">
                        <ScrollArea className="flex-1 pr-4 -mr-4">
                         <div className="space-y-4 text-sm pr-4">
                           {messages.map((message) => {
