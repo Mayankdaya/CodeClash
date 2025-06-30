@@ -59,34 +59,26 @@ export default function MatchingPage() {
           return;
         }
         
-        // Firestore doesn't like undefined values. Sanitize the problem object.
-        const sanitizedExamples = problem.examples.map(ex => {
-          const newExample: { input: string; output: string; explanation?: string } = {
-            input: ex.input,
-            output: ex.output,
-          };
-          if (ex.explanation) {
-            newExample.explanation = ex.explanation;
-          }
-          return newExample;
-        });
-
-        // Stringify test case inputs and expected outputs for Firestore compatibility.
-        const problemToStore = {
+        // Stringify test case inputs/outputs for Firestore. We do this before sanitizing.
+        const problemWithStrTestCases = {
             ...problem,
-            examples: sanitizedExamples,
             testCases: problem.testCases.map(tc => ({
                 input: JSON.stringify(tc.input),
                 expected: JSON.stringify(tc.expected),
             })),
         };
         
+        // Firestore doesn't like undefined values. Sanitize the entire problem object
+        // by converting it to a JSON string and back. This removes any keys
+        // with `undefined` values, no matter how deeply nested.
+        const sanitizedProblem = JSON.parse(JSON.stringify(problemWithStrTestCases));
+        
         setStatusText('Match found! Preparing your arena...');
 
         const clashesRef = collection(db, 'clashes');
         const newClashDoc = await addDoc(clashesRef, {
           topicId,
-          problem: problemToStore,
+          problem: sanitizedProblem,
           participants: [
             { userId: currentUser.uid, userName: currentUser.displayName || 'Anonymous', userAvatar: currentUser.photoURL || `https://placehold.co/100x100.png` },
             { userId: 'bot-123', userName: 'CodeBot', userAvatar: `https://placehold.co/100x100.png` }
