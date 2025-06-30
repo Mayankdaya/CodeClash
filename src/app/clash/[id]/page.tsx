@@ -286,7 +286,7 @@ export default function ClashPage() {
         };
 
         worker.onerror = (e) => {
-            resolve({ status: 'error', message: `A worker error occurred: ${e.message}` });
+            resolve({ status: 'error', message: 'A worker error occurred: ' + e.message });
             worker.terminate();
             URL.revokeObjectURL(workerUrl);
         };
@@ -302,17 +302,21 @@ export default function ClashPage() {
     setIsRunning(true);
     setConsoleTab('test-result');
     setOutput('Running test cases...');
+    
+    try {
+      const runTestCases = problem.testCases.slice(0, 3);
+      const result = await executeCodeInWorker(runTestCases);
 
-    const runTestCases = problem.testCases.slice(0, 3);
-    const result = await executeCodeInWorker(runTestCases);
-
-    if (result.status === 'error') {
-        setOutput(result.message);
-    } else {
-        setOutput(result.results);
+      if (result.status === 'error') {
+          setOutput(result.message);
+      } else {
+          setOutput(result.results);
+      }
+    } catch (error: any) {
+        setOutput('An unexpected error occurred: ' + (error.message || 'Unknown error'));
+    } finally {
+        setIsRunning(false);
     }
-
-    setIsRunning(false);
   };
   
   const handleSubmitCode = async () => {
@@ -323,33 +327,42 @@ export default function ClashPage() {
     setConsoleTab('test-result');
     setOutput('Submitting and running all test cases...');
 
-    const result = await executeCodeInWorker(problem.testCases);
-    
-    if (result.status === 'error') {
-        setOutput(result.message);
+    try {
+      const result = await executeCodeInWorker(problem.testCases);
+      
+      if (result.status === 'error') {
+          setOutput(result.message);
+          setSubmissionResult({
+              status: 'Error',
+              message: 'An error occurred during submission: ' + result.message,
+          });
+      } else {
+          setOutput(result.results);
+          const passedCount = result.results.filter(r => r.passed).length;
+          const totalCount = result.results.length;
+
+          if (passedCount === totalCount) {
+              setSubmissionResult({
+                  status: 'Accepted',
+                  message: `Congratulations! All ${totalCount} test cases passed.`,
+              });
+          } else {
+              setSubmissionResult({
+                  status: 'Wrong Answer',
+                  message: `Your solution failed. Passed ${passedCount} out of ${totalCount} test cases.`,
+              });
+          }
+      }
+    } catch (error: any) {
+        const errorMessage = error.message || 'Unknown error';
+        setOutput('An unexpected error occurred during submission: ' + errorMessage);
         setSubmissionResult({
             status: 'Error',
-            message: `An error occurred during submission: ${result.message}`,
+            message: 'An unexpected framework error occurred: ' + errorMessage,
         });
-    } else {
-        setOutput(result.results);
-        const passedCount = result.results.filter(r => r.passed).length;
-        const totalCount = result.results.length;
-
-        if (passedCount === totalCount) {
-            setSubmissionResult({
-                status: 'Accepted',
-                message: `Congratulations! All ${totalCount} test cases passed.`,
-            });
-        } else {
-            setSubmissionResult({
-                status: 'Wrong Answer',
-                message: `Your solution failed. Passed ${passedCount} out of ${totalCount} test cases.`,
-            });
-        }
+    } finally {
+      setIsSubmitting(false);
     }
-
-    setIsSubmitting(false);
   };
 
   const handleGetHint = async () => {
