@@ -40,15 +40,6 @@ function LoginForm() {
 
   const onSubmit = async (data: LoginFormData) => {
     setIsLoading(true);
-    if (!auth) {
-      toast({
-        title: "Authentication Unavailable",
-        description: "Firebase configuration is missing or incomplete.",
-        variant: "destructive",
-      });
-      setIsLoading(false);
-      return;
-    }
     try {
       await signInWithEmailAndPassword(auth, data.email, data.password);
       router.push('/lobby');
@@ -73,7 +64,7 @@ function LoginForm() {
             <FormItem>
               <FormLabel>Email</FormLabel>
               <FormControl>
-                <Input type="email" placeholder="you@example.com" {...field} disabled={isLoading || !auth} />
+                <Input type="email" placeholder="you@example.com" {...field} disabled={isLoading} />
               </FormControl>
               <FormMessage />
             </FormItem>
@@ -86,13 +77,13 @@ function LoginForm() {
             <FormItem>
               <FormLabel>Password</FormLabel>
               <FormControl>
-                <Input type="password" placeholder="••••••••" {...field} disabled={isLoading || !auth} />
+                <Input type="password" placeholder="••••••••" {...field} disabled={isLoading} />
               </FormControl>
               <FormMessage />
             </FormItem>
           )}
         />
-        <Button type="submit" className="w-full" disabled={isLoading || !auth}>
+        <Button type="submit" className="w-full" disabled={isLoading}>
           {isLoading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
           Log In
           {!isLoading && <ArrowRight className="ml-2 h-4 w-4" />}
@@ -113,15 +104,6 @@ function SignupForm() {
     
     const onSubmit = async (data: SignupFormData) => {
         setIsLoading(true);
-        if (!auth) {
-          toast({
-            title: "Authentication Unavailable",
-            description: "Firebase configuration is missing or incomplete.",
-            variant: "destructive",
-          });
-          setIsLoading(false);
-          return;
-        }
         try {
             const userCredential = await createUserWithEmailAndPassword(auth, data.email, data.password);
             if (userCredential.user) {
@@ -130,7 +112,7 @@ function SignupForm() {
               });
             }
             router.push('/lobby');
-        } catch (error: any) {
+        } catch (error: any)_ {
             toast({
                 title: "Sign Up Failed",
                 description: error.message,
@@ -151,7 +133,7 @@ function SignupForm() {
                 <FormItem>
                   <FormLabel>Username</FormLabel>
                   <FormControl>
-                    <Input placeholder="code_master" {...field} disabled={isLoading || !auth} />
+                    <Input placeholder="code_master" {...field} disabled={isLoading} />
                   </FormControl>
                   <FormMessage />
                 </FormItem>
@@ -164,7 +146,7 @@ function SignupForm() {
                 <FormItem>
                   <FormLabel>Email</FormLabel>
                   <FormControl>
-                    <Input type="email" placeholder="you@example.com" {...field} disabled={isLoading || !auth}/>
+                    <Input type="email" placeholder="you@example.com" {...field} disabled={isLoading}/>
                   </FormControl>
                   <FormMessage />
                 </FormItem>
@@ -177,13 +159,13 @@ function SignupForm() {
                 <FormItem>
                   <FormLabel>Password</FormLabel>
                   <FormControl>
-                    <Input type="password" placeholder="••••••••" {...field} disabled={isLoading || !auth}/>
+                    <Input type="password" placeholder="••••••••" {...field} disabled={isLoading}/>
                   </FormControl>
                   <FormMessage />
                 </FormItem>
               )}
             />
-            <Button type="submit" className="w-full" disabled={isLoading || !auth}>
+            <Button type="submit" className="w-full" disabled={isLoading}>
                 {isLoading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
                 Sign Up
                 {!isLoading && <ArrowRight className="ml-2 h-4 w-4" />}
