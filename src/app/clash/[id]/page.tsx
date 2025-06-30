@@ -3,7 +3,7 @@
 
 import { useState, useEffect, useRef } from 'react';
 import Image from 'next/image';
-import { useRouter } from 'next/navigation';
+import { useRouter, useParams } from 'next/navigation';
 import { doc, getDoc, collection, addDoc, query, orderBy, onSnapshot, serverTimestamp, type DocumentData } from 'firebase/firestore';
 import { auth, db } from '@/lib/firebase';
 import { useToast } from '@/hooks/use-toast';
@@ -43,7 +43,8 @@ interface Message {
   timestamp: any;
 }
 
-export default function ClashPage({ params }: { params: { id: string } }) {
+export default function ClashPage() {
+  const params = useParams<{ id: string }>();
   const router = useRouter();
   const { toast } = useToast();
   
@@ -60,7 +61,7 @@ export default function ClashPage({ params }: { params: { id: string } }) {
 
   // Get clash data and opponent info
   useEffect(() => {
-    if (!db || !auth.currentUser) return;
+    if (!db || !auth.currentUser || !params.id) return;
     
     const getClashData = async () => {
       const clashDocRef = doc(db, 'clashes', params.id);
@@ -86,7 +87,7 @@ export default function ClashPage({ params }: { params: { id: string } }) {
 
   // Chat listener
   useEffect(() => {
-    if (!db) return;
+    if (!db || !params.id) return;
     const chatRef = collection(db, 'clashes', params.id, 'chat');
     const q = query(chatRef, orderBy('timestamp', 'asc'));
 
@@ -138,7 +139,7 @@ export default function ClashPage({ params }: { params: { id: string } }) {
   }, []);
 
   const handleSendMessage = async () => {
-    if (newMessage.trim() === '' || !db || !auth.currentUser) return;
+    if (newMessage.trim() === '' || !db || !auth.currentUser || !params.id) return;
     
     const chatRef = collection(db, 'clashes', params.id, 'chat');
     await addDoc(chatRef, {
