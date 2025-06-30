@@ -290,7 +290,7 @@ export default function ClashPage() {
           <div className="flex-1 flex flex-col lg:flex-row gap-6 min-h-0">
             
             {/* Left Panel */}
-            <div className="w-full lg:w-1/4 flex flex-col gap-6">
+            <div className="w-full lg:w-1/4 flex flex-col gap-6 min-h-0">
               <Card className="flex-1 flex flex-col bg-card/50 backdrop-blur-lg border border-white/10 rounded-2xl min-h-0">
                 <CardHeader className="flex-row items-center gap-4">
                   <BookOpen className="h-6 w-6 text-primary" />
@@ -330,45 +330,48 @@ export default function ClashPage() {
             </div>
 
             {/* Middle Panel */}
-            <div className="w-full lg:w-1/2 flex flex-col">
+            <div className="w-full lg:w-1/2 flex flex-col min-h-0">
               <Card className="flex-1 flex flex-col bg-card/50 backdrop-blur-lg border border-white/10 rounded-2xl min-h-0">
                 <CardHeader className="flex-row items-center gap-4">
                   <Code className="h-6 w-6 text-primary" />
                   <CardTitle>Solution</CardTitle>
                 </CardHeader>
-                <CardContent className="flex-1 flex flex-col p-0">
-                   {/* Editor Pane */}
-                   <div className="flex flex-col p-6 pb-0 flex-grow-[3] min-h-0">
-                     <Textarea
-                        placeholder="Enter your code here..."
-                        className="flex-1 w-full p-4 bg-muted/30 border-white/10 font-code text-base resize-none"
-                        value={code}
-                        onChange={(e) => setCode(e.target.value)}
-                        disabled={isRunning}
-                      />
-                      <div className='flex justify-end mt-4 gap-2'>
-                          <Button variant="secondary" onClick={handleRunCode} disabled={isRunning}>
-                              {isRunning && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-                              Run Code
-                          </Button>
-                          <Button className="bg-green-600 hover:bg-green-700 text-white" onClick={handleSubmitCode} disabled={isRunning}>Submit</Button>
+                <CardContent className="flex-1 flex flex-col p-0 min-h-0">
+                   {/* Editor & Console Container */}
+                   <div className="flex-1 flex flex-col min-h-0">
+                      {/* Editor Pane */}
+                      <div className="flex flex-col p-6 pb-0 flex-grow-[3] min-h-0">
+                        <Textarea
+                            placeholder="Enter your code here..."
+                            className="flex-1 w-full p-4 bg-muted/30 border-white/10 font-code text-base resize-none"
+                            value={code}
+                            onChange={(e) => setCode(e.target.value)}
+                            disabled={isRunning}
+                          />
+                          <div className='flex justify-end mt-4 gap-2'>
+                              <Button variant="secondary" onClick={handleRunCode} disabled={isRunning}>
+                                  {isRunning && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                                  Run Code
+                              </Button>
+                              <Button className="bg-green-600 hover:bg-green-700 text-white" onClick={handleSubmitCode} disabled={isRunning}>Submit</Button>
+                          </div>
+                      </div>
+                      {/* Console Pane */}
+                      <div className="border-t border-border/50 p-6 flex flex-col flex-grow-[2] min-h-0">
+                          <h3 className="text-lg font-semibold mb-2">Console</h3>
+                          <ScrollArea className="flex-1 bg-muted/30 p-4 rounded-md font-code text-sm min-h-0">
+                              <pre className="whitespace-pre-wrap">
+                                  <code>{output}</code>
+                              </pre>
+                          </ScrollArea>
                       </div>
                    </div>
-                   {/* Console Pane */}
-                   <div className="border-t border-border/50 p-6 flex flex-col flex-grow-[2] min-h-0">
-                      <h3 className="text-lg font-semibold mb-2">Console</h3>
-                      <ScrollArea className="flex-1 bg-muted/30 p-4 rounded-md font-code text-sm">
-                          <pre className="whitespace-pre-wrap">
-                              <code>{output}</code>
-                          </pre>
-                      </ScrollArea>
-                  </div>
                 </CardContent>
               </Card>
             </div>
 
             {/* Right Panel */}
-            <div className="w-full lg:w-1/4 flex flex-col gap-6">
+            <div className="w-full lg:w-1/4 flex flex-col gap-6 min-h-0">
               <Card className="flex-1 flex flex-col bg-card/50 backdrop-blur-lg border border-white/10 rounded-2xl min-h-0">
                 <CardHeader className="flex-row items-center gap-4">
                   <Video className="h-6 w-6 text-primary" />
@@ -461,7 +464,7 @@ export default function ClashPage() {
                         </Button>
                       </div>
                     </TabsContent>
-                    <TabsContent value="participants" className="flex-1 mt-4">
+                    <TabsContent value="participants" className="flex-1 mt-4 min-h-0">
                       <ScrollArea className="h-full pr-4 -mr-4">
                         <div className="space-y-4 pr-4">
                             <div className="flex items-center justify-between">
