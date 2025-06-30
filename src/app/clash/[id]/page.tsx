@@ -3,6 +3,7 @@
 
 import { useState, useEffect, useRef } from 'react';
 import Image from 'next/image';
+import { useSearchParams } from 'next/navigation';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -27,18 +28,21 @@ interface Message {
   isMe: boolean;
 }
 
-const initialMessages: Message[] = [
-    { id: 1, sender: 'Alice', text: 'Hey everyone! Good luck!', avatar: 'https://placehold.co/32x32.png', isMe: false, },
-    { id: 2, sender: 'You', text: "You too! Let's do this.", avatar: 'https://placehold.co/32x32.png', isMe: true, },
-];
-
 export default function ClashPage({ params }: { params: { id: string } }) {
+  const searchParams = useSearchParams();
+  const opponentName = searchParams.get('opponentName') || 'ByteKnight';
+  const opponentAvatar = searchParams.get('opponentAvatar') || 'https://placehold.co/600x400.png';
+  const opponentHint = searchParams.get('opponentHint') || 'person coding';
+
   const [timeLeft, setTimeLeft] = useState(30 * 60); // 30 minutes in seconds
   const videoRef = useRef<HTMLVideoElement>(null);
   const { toast } = useToast();
   const [hasCameraPermission, setHasCameraPermission] = useState<boolean | null>(null);
 
-  const [messages, setMessages] = useState<Message[]>(initialMessages);
+  const [messages, setMessages] = useState<Message[]>([
+    { id: 1, sender: opponentName, text: 'Hey! Good luck!', avatar: opponentAvatar, isMe: false, },
+    { id: 2, sender: 'You', text: "You too! Let's do this.", avatar: 'https://placehold.co/32x32.png', isMe: true, },
+  ]);
   const [newMessage, setNewMessage] = useState('');
   const endOfMessagesRef = useRef<HTMLDivElement>(null);
 
@@ -98,16 +102,16 @@ export default function ClashPage({ params }: { params: { id: string } }) {
       const timer = setTimeout(() => {
         const reply: Message = {
           id: messages.length + 1,
-          sender: 'Alice',
+          sender: opponentName,
           text: "That's a good point! I'm working on the edge cases.",
-          avatar: 'https://placehold.co/32x32.png',
+          avatar: opponentAvatar,
           isMe: false,
         };
         setMessages((prev) => [...prev, reply]);
       }, 1500);
       return () => clearTimeout(timer);
     }
-  }, [messages]);
+  }, [messages, opponentName, opponentAvatar]);
 
   const handleSendMessage = () => {
     if (newMessage.trim() === '') return;
@@ -225,8 +229,8 @@ Output: [1,2]</code></pre>
                       <div className="absolute bottom-1 left-2 text-xs bg-black/50 text-white px-1.5 py-0.5 rounded">You</div>
                     </div>
                      <div className="relative aspect-video w-full bg-muted/30 rounded-lg flex items-center justify-center overflow-hidden">
-                        <Image src="https://placehold.co/320x180.png" data-ai-hint="man coding" alt="Opponent" width={320} height={180} className="w-full h-full object-cover" />
-                        <div className="absolute bottom-1 left-2 text-xs bg-black/50 text-white px-1.5 py-0.5 rounded">ByteKnight</div>
+                        <Image src={opponentAvatar} data-ai-hint={opponentHint} alt={opponentName} width={320} height={180} className="w-full h-full object-cover" />
+                        <div className="absolute bottom-1 left-2 text-xs bg-black/50 text-white px-1.5 py-0.5 rounded">{opponentName}</div>
                     </div>
                   </div>
 
@@ -242,7 +246,7 @@ Output: [1,2]</code></pre>
                   <Tabs defaultValue="chat">
                     <TabsList className="grid w-full grid-cols-2">
                       <TabsTrigger value="chat">Chat</TabsTrigger>
-                      <TabsTrigger value="participants">Participants (3)</TabsTrigger>
+                      <TabsTrigger value="participants">Participants (2)</TabsTrigger>
                     </TabsList>
                     <TabsContent value="chat" className="mt-4 flex flex-col h-[calc(100vh-32rem)]">
                        <ScrollArea className="flex-grow pr-4">
@@ -258,7 +262,7 @@ Output: [1,2]</code></pre>
                               <Avatar className="h-8 w-8">
                                 <AvatarImage src={message.avatar} data-ai-hint={message.isMe ? "man portrait" : "woman portrait"}/>
                                 <AvatarFallback>
-                                  {message.sender.substring(0, 2)}
+                                  {message.sender.substring(0, 2).toUpperCase()}
                                 </AvatarFallback>
                               </Avatar>
                               <div className={cn(message.isMe && 'text-right')}>
@@ -314,25 +318,12 @@ Output: [1,2]</code></pre>
                             </div>
                             <div className="flex items-center justify-between">
                               <div className='flex items-center gap-3'>
-                                  <Avatar className="h-10 w-10">
-                                    <AvatarImage src="https://placehold.co/40x40.png" data-ai-hint="woman portrait" />
-                                    <AvatarFallback>AL</AvatarFallback>
-                                  </Avatar>
-                                  <div>
-                                    <p className="font-semibold">Alice</p>
-                                    <p className="text-xs text-muted-foreground">Score: 95</p>
-                                  </div>
-                                </div>
-                              <Button variant="ghost" size="icon" className='h-8 w-8 text-muted-foreground hover:text-green-500'><ThumbsUp className='h-4 w-4'/></Button>
-                            </div>
-                            <div className="flex items-center justify-between">
-                              <div className='flex items-center gap-3'>
                                 <Avatar className="h-10 w-10">
-                                  <AvatarImage src="https://placehold.co/40x40.png" data-ai-hint="person coding" />
-                                  <AvatarFallback>BK</AvatarFallback>
+                                  <AvatarImage src={opponentAvatar} data-ai-hint={opponentHint} />
+                                  <AvatarFallback>{opponentName.substring(0, 2).toUpperCase()}</AvatarFallback>
                                 </Avatar>
                                 <div>
-                                  <p className="font-semibold">ByteKnight</p>
+                                  <p className="font-semibold">{opponentName}</p>
                                   <p className="text-xs text-muted-foreground">Score: 110</p>
                                 </div>
                               </div>
@@ -351,5 +342,4 @@ Output: [1,2]</code></pre>
       </div>
     </AuthGuard>
   );
-
-    
+}

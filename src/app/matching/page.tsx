@@ -164,7 +164,7 @@ export default function MatchingPage() {
               )}
             </Button>
             <Button asChild size="lg" className="text-lg px-8 py-6 w-48 bg-green-600 hover:bg-green-700 text-white" disabled={isLoading || !clashId}>
-              <Link href={clashId ? `/clash/${clashId}` : '#'}>
+              <Link href={clashId ? `/clash/${clashId}?opponentName=${encodeURIComponent(opponent.name)}&opponentAvatar=${encodeURIComponent(opponent.avatar)}&opponentHint=${encodeURIComponent(opponent.hint)}` : '#'}>
                 <Swords className="mr-2 h-5 w-5" /> Battle
               </Link>
             </Button>
