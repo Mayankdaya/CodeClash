@@ -52,20 +52,16 @@ const generateProblemPrompt = ai.definePrompt({
 
 The problem should be self-contained and clearly explained. The difficulty should be easy to medium. The problem, examples, and test cases should be solvable in JavaScript.
 
-CRITICAL: The 'input' values inside 'testCases' MUST be pure JSON arrays of arguments, NOT strings that look like JSON. For example, for a function that takes an array and a number, the value must be '[[1, 2, 3], 42]', NOT '["[1, 2, 3]", "42"]'. The system parses this directly.
+**CRITICAL INSTRUCTIONS:**
+1.  **Output Format:** You MUST return a single JSON object that strictly adheres to the provided schema. ALL fields (\`id\`, \`title\`, \`description\`, \`examples\`, \`starterCode\`, \`solution\`, \`testCases\`, \`entryPoint\`) are mandatory.
+2.  **\`title\` is REQUIRED:** The \`title\` field cannot be omitted. It must be a clear, descriptive title for the problem.
+3.  **\`testCases\` format:** The \`input\` values inside \`testCases\` MUST be pure JSON arrays of arguments, NOT strings that look like JSON. For example, for a function that takes an array and a number, the value must be \`[[1, 2, 3], 42]\`, NOT \`'["[1, 2, 3]", "42"]'\`.
+4.  **No Comments:** The final JSON output must NOT contain any comments.
 
-Topic: {{{topic}}}
-Unique Request Seed: {{{seed}}}
+**Topic:** {{{topic}}}
+**Unique Request Seed:** {{{seed}}}
 
-Generate a problem with the following structure:
-- A unique ID in kebab-case.
-- A clear title.
-- A detailed description. Use newlines for spacing and structure. DO NOT use any Markdown formatting like '#' for headers or '*' for lists.
-- An array of at least 3 clear examples with human-readable inputs, outputs, and optional explanations.
-- Starter code in JavaScript, as a standard function declaration like 'function twoSum(nums, target) { ... }'. Do not use a variable assignment like 'var twoSum = ...'.
-- A correct and optimal solution in JavaScript.
-- An array of at least 5 test cases, where each 'input' is an array of arguments for the function.
-- The name of the main function to be tested (the 'entryPoint').
+Generate a problem with all the required fields.
 `,
 });
 
