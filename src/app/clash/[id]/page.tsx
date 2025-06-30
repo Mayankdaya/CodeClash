@@ -198,7 +198,7 @@ export default function ClashPage() {
   const [language, setLanguage] = useState('javascript');
   const [output, setOutput] = useState<TestCaseResult[] | string>('Click "Run Code" to see the output here.');
   const [isRunning, setIsRunning] = useState(false);
-  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [isSubmitting, setIsSubmitting] = useState(isSubmitting);
   const [consoleTab, setConsoleTab] = useState('test-result');
   const [submissionResult, setSubmissionResult] = useState<{ status: 'Accepted' | 'Wrong Answer' | 'Error'; message: string; } | null>(null);
   
@@ -642,9 +642,9 @@ export default function ClashPage() {
                                             <span className={cn(res.passed ? "text-green-400" : "text-red-400")}>Case {res.case}: {res.passed ? 'Passed' : 'Failed'}</span>
                                         </div>
                                         <div className='space-y-2 pl-7 text-base'>
-                                          <p><span className="text-foreground/70 w-24 inline-block font-semibold">Input:</span> {res.input}</p>
-                                          <p><span className="text-foreground/70 w-24 inline-block font-semibold">Output:</span> {res.output}</p>
-                                          {!res.passed && <p><span className="text-foreground/70 w-24 inline-block font-semibold">Expected:</span> {res.expected}</p>}
+                                          <p><span className="text-muted-foreground w-24 inline-block font-semibold">Input:</span> {res.input}</p>
+                                          <p><span className="text-muted-foreground w-24 inline-block font-semibold">Output:</span> {res.output}</p>
+                                          {!res.passed && <p><span className="text-muted-foreground w-24 inline-block font-semibold">Expected:</span> {res.expected}</p>}
                                         </div>
                                     </div>
                                 ))}
@@ -657,8 +657,8 @@ export default function ClashPage() {
                               <div key={index} className="border-b border-border/50 pb-3 last:border-b-0">
                                   <p className="font-bold mb-2 text-lg">Case {index + 1}</p>
                                   <div className="bg-background/40 p-3 mt-1 rounded-md space-y-2">
-                                      <p><span className='text-foreground/70 font-semibold'>Input:</span> {JSON.stringify(tc.input)}</p>
-                                      <p><span className='text-foreground/70 font-semibold'>Output:</span> {JSON.stringify(tc.expected)}</p>
+                                      <p><span className='text-muted-foreground font-semibold'>Input:</span> {JSON.stringify(tc.input)}</p>
+                                      <p><span className='text-muted-foreground font-semibold'>Output:</span> {JSON.stringify(tc.expected)}</p>
                                   </div>
                               </div>
                           ))}
@@ -757,3 +757,5 @@ export default function ClashPage() {
     </AuthGuard>
   );
 }
+
+    
