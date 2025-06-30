@@ -25,16 +25,16 @@ export type ExecuteCodeInput = z.infer<typeof ExecuteCodeInputSchema>;
 
 const TestCaseResultSchema = z.object({
   case: z.number().describe('The test case number (1-based index).'),
-  input: z.string().describe('The stringified input for the test case.'),
-  output: z.string().describe('The stringified output from the user\'s code.'),
+  input: z.string().describe("The stringified input for the test case."),
+  output: z.string().describe("The stringified output from the user's code."),
   expected: z.string().describe('The stringified expected output.'),
   passed: z.boolean().describe('Whether the code passed this test case.'),
   runtime: z.string().describe('A simulated runtime for the test case, e.g., "15ms".'),
 });
 
 const ExecuteCodeOutputSchema = z.object({
-  status: z.enum(['success', 'error']).describe('The overall status of the execution.'),
-  message: z.string().optional().describe('An error message if the execution failed (e.g., syntax error, compilation error).'),
+  status: z.enum(['success', 'error']).describe("The overall status of the execution."),
+  message: z.string().optional().describe("An error message if the execution failed (e.g., syntax error, compilation error)."),
   passedCount: z.number().describe('The total number of test cases that passed.'),
   totalCount: z.number().describe('The total number of test cases provided.'),
   results: z.array(TestCaseResultSchema).describe('An array of detailed results for each test case.'),
@@ -58,7 +58,7 @@ Your task is to take a user's code snippet in a specific language, execute it ag
 1.  **Analyze and Execute:** Carefully analyze the provided code. Simulate its execution for each test case.
 2.  **Error Handling:**
     *   If there's a syntax error, compilation error, or a runtime error that prevents execution for all test cases (e.g., an infinite loop), set the 'status' to 'error' and provide a concise, helpful 'message' explaining the issue. The 'results' array should be empty.
-    *   If an error occurs for a specific test case, mark that test case as failed.
+    *   If an error occurs for a specific test case, mark that test case as failed. The 'output' for that result should be the error message.
 3.  **Judge Correctness:** For each test case, compare the actual output of the code with the 'expected' output.
     *   For arrays, the order of elements does not matter unless the problem implies order.
     *   Perform a deep equality check for objects and nested structures.
@@ -84,6 +84,7 @@ Your task is to take a user's code snippet in a specific language, execute it ag
 
 Evaluate the code against the test cases and provide the result in the specified JSON format.`,
 });
+
 
 const executeCodeFlow = ai.defineFlow(
   {

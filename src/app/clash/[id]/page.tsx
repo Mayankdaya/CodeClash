@@ -26,7 +26,7 @@ import type { Problem } from '@/lib/problems';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { getHint } from '@/ai/flows/getHintFlow';
 import { translateCode } from '@/ai/flows/translateCodeFlow';
-import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
+import { executeCode, type ExecuteCodeOutput } from '@/ai/flows/executeCodeFlow';
 import {
   AlertDialog,
   AlertDialogAction,
@@ -59,14 +59,7 @@ interface Message {
   timestamp: any;
 }
 
-interface TestCaseResult {
-  case: number;
-  input: string;
-  output: string;
-  expected: string;
-  passed: boolean;
-  runtime: string;
-}
+type TestCaseResult = ExecuteCodeOutput['results'][0];
 
 export default function ClashPage() {
   const params = useParams();
@@ -108,10 +101,12 @@ export default function ClashPage() {
       if (docSnap.exists()) {
         const data = docSnap.data() as ClashData;
         
+        // Firestore stores test case inputs as strings, so we parse them back to objects
         if (data.problem && data.problem.testCases) {
           const parsedTestCases = data.problem.testCases.map(tc => {
             try {
-              const parsedInput = typeof tc.input === 'string' ? JSON.parse(tc.input) : tc.input;
+              // The input from firestore is already a string, no need to check type
+              const parsedInput = JSON.parse(tc.input);
               return { ...tc, input: parsedInput };
             } catch (e) {
               console.error("Failed to parse test case input:", e);
@@ -228,89 +223,25 @@ export default function ClashPage() {
     }
   };
 
-  const executeCodeInWorker = (testCases: Problem['testCases']): Promise<{status: 'success', results: TestCaseResult[]} | {status: 'error', message: string}> => {
-    return new Promise((resolve) => {
-        if (!problem || !code) {
-            resolve({ status: 'error', message: 'Problem or code is missing.' });
-            return;
-        }
-
-        const workerCode = `self.onmessage = (e) => {
-                const { code, testCases, entryPoint } = e.data;
-                try {
-                    const userFunction = new Function(code + '; return ' + entryPoint)();
-
-                    if (typeof userFunction !== 'function') {
-                        throw new Error(entryPoint + ' is not defined or not a function.');
-                    }
-                    
-                    const results = testCases.map((tc, index) => {
-                        const startTime = performance.now();
-                        let output;
-                        let errorOccurred = false;
-                        try {
-                            const inputClone = JSON.parse(JSON.stringify(tc.input));
-                            output = userFunction(...inputClone);
-                        } catch (err) {
-                            output = err instanceof Error ? err.message : String(err);
-                            errorOccurred = true;
-                        }
-                        const endTime = performance.now();
-                        const passed = !errorOccurred && JSON.stringify(output) === JSON.stringify(tc.expected);
-
-                        return {
-                            case: index + 1,
-                            input: JSON.stringify(tc.input),
-                            output: JSON.stringify(output),
-                            expected: JSON.stringify(tc.expected),
-                            passed,
-                            runtime: (endTime - startTime).toFixed(2) + 'ms',
-                        };
-                    });
-                    
-                    self.postMessage({ status: 'success', results });
-
-                } catch (err) {
-                    self.postMessage({ status: 'error', message: err instanceof Error ? err.message : String(err) });
-                }
-            };`;
-
-        const blob = new Blob([workerCode], { type: 'application/javascript' });
-        const workerUrl = URL.createObjectURL(blob);
-        const worker = new Worker(workerUrl);
-
-        worker.onmessage = (e) => {
-            resolve(e.data);
-            worker.terminate();
-            URL.revokeObjectURL(workerUrl);
-        };
-
-        worker.onerror = (e) => {
-            resolve({ status: 'error', message: 'A worker error occurred: ' + e.message });
-            worker.terminate();
-            URL.revokeObjectURL(workerUrl);
-        };
-
-        worker.postMessage({ code, testCases, entryPoint: problem.entryPoint });
-    });
-  };
-
   const handleRunCode = async () => {
-    if (language !== 'javascript') return;
-    if (!problem?.testCases) return;
-
+    if (!problem?.testCases || !code) return;
     setIsRunning(true);
     setConsoleTab('test-result');
     setOutput('Running test cases...');
     
     try {
       const runTestCases = problem.testCases.slice(0, 3);
-      const result = await executeCodeInWorker(runTestCases);
+      const result = await executeCode({
+        code,
+        language,
+        entryPoint: problem.entryPoint,
+        testCases: runTestCases,
+      });
 
       if (result.status === 'error') {
-          setOutput(result.message);
+        setOutput(result.message || 'An unknown execution error occurred.');
       } else {
-          setOutput(result.results);
+        setOutput(result.results);
       }
     } catch (error: any) {
         setOutput('An unexpected error occurred: ' + (error.message || 'Unknown error'));
@@ -320,36 +251,36 @@ export default function ClashPage() {
   };
   
   const handleSubmitCode = async () => {
-    if (language !== 'javascript') return;
-    if (!problem?.testCases) return;
-
+    if (!problem?.testCases || !code) return;
     setIsSubmitting(true);
     setConsoleTab('test-result');
     setOutput('Submitting and running all test cases...');
 
     try {
-      const result = await executeCodeInWorker(problem.testCases);
+      const result = await executeCode({
+        code,
+        language,
+        entryPoint: problem.entryPoint,
+        testCases: problem.testCases,
+      });
       
       if (result.status === 'error') {
-          setOutput(result.message);
+          setOutput(result.message || 'An unknown submission error occurred.');
           setSubmissionResult({
               status: 'Error',
-              message: 'An error occurred during submission: ' + result.message,
+              message: 'An error occurred during submission: ' + (result.message || 'Unknown error'),
           });
       } else {
           setOutput(result.results);
-          const passedCount = result.results.filter(r => r.passed).length;
-          const totalCount = result.results.length;
-
-          if (passedCount === totalCount) {
+          if (result.passedCount === result.totalCount) {
               setSubmissionResult({
                   status: 'Accepted',
-                  message: `Congratulations! All ${totalCount} test cases passed.`,
+                  message: `Congratulations! All ${result.totalCount} test cases passed.`,
               });
           } else {
               setSubmissionResult({
                   status: 'Wrong Answer',
-                  message: `Your solution failed. Passed ${passedCount} out of ${totalCount} test cases.`,
+                  message: `Your solution failed. Passed ${result.passedCount} out of ${result.totalCount} test cases.`,
               });
           }
       }
@@ -489,44 +420,20 @@ export default function ClashPage() {
                           disabled={isRunning || isSubmitting || isTranslatingCode}
                         />
                       </div>
-                      <TooltipProvider delayDuration={100}>
-                        <div className='flex justify-end mt-4 gap-2'>
-                          <Button variant="outline" onClick={handleGetHint} disabled={isRunning || isSubmitting || isGettingHint || isTranslatingCode}>
-                            {isGettingHint ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Lightbulb className="mr-2 h-4 w-4" />}
-                            Get Hint
-                          </Button>
-                          <Tooltip>
-                              <TooltipTrigger asChild>
-                                <span tabIndex={0}>
-                                  <Button variant="secondary" onClick={handleRunCode} disabled={isRunning || isSubmitting || isTranslatingCode || language !== 'javascript'}>
-                                    {isRunning && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-                                    Run Code
-                                  </Button>
-                                </span>
-                              </TooltipTrigger>
-                              {language !== 'javascript' && (
-                                <TooltipContent>
-                                  <p>Execution only available for JavaScript.</p>
-                                </TooltipContent>
-                              )}
-                          </Tooltip>
-                          <Tooltip>
-                              <TooltipTrigger asChild>
-                                  <span tabIndex={0}>
-                                    <Button className="bg-green-600 hover:bg-green-700 text-white" onClick={handleSubmitCode} disabled={isRunning || isSubmitting || isTranslatingCode || language !== 'javascript'}>
-                                      {isSubmitting && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-                                      Submit
-                                    </Button>
-                                  </span>
-                              </TooltipTrigger>
-                              {language !== 'javascript' && (
-                                <TooltipContent>
-                                  <p>Submission only available for JavaScript.</p>
-                                </TooltipContent>
-                              )}
-                          </Tooltip>
-                        </div>
-                      </TooltipProvider>
+                      <div className='flex justify-end mt-4 gap-2'>
+                        <Button variant="outline" onClick={handleGetHint} disabled={isRunning || isSubmitting || isGettingHint || isTranslatingCode}>
+                          {isGettingHint ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Lightbulb className="mr-2 h-4 w-4" />}
+                          Get Hint
+                        </Button>
+                        <Button variant="secondary" onClick={handleRunCode} disabled={isRunning || isSubmitting || isTranslatingCode}>
+                          {isRunning && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                          Run Code
+                        </Button>
+                        <Button className="bg-green-600 hover:bg-green-700 text-white" onClick={handleSubmitCode} disabled={isRunning || isSubmitting || isTranslatingCode}>
+                          {isSubmitting && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                          Submit
+                        </Button>
+                      </div>
                     </div>
                 </div>
                 <div className="border-t border-border/50 flex flex-col min-h-0" style={{flexBasis: '40%'}}>
