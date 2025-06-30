@@ -14,7 +14,7 @@ import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { Button } from '@/components/ui/button';
 import { CameraOff, Loader2 } from 'lucide-react';
 import Link from 'next/link';
-import { problemsByTopic } from '@/lib/problems';
+import { generateProblem } from '@/ai/flows/generateProblemFlow';
 
 export default function MatchingPage() {
   const { toast } = useToast();
@@ -23,11 +23,12 @@ export default function MatchingPage() {
   const videoRef = useRef<HTMLVideoElement>(null);
 
   const [hasCameraPermission, setHasCameraPermission] = useState<boolean | null>(null);
-  const [statusText, setStatusText] = useState('Searching for a clash...');
+  const [statusText, setStatusText] = useState('Preparing your challenge...');
   
   const isCreatingClash = useRef(false);
 
   useEffect(() => {
+    let stream: MediaStream | null = null;
     const getCameraPermission = async () => {
       if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
         setHasCameraPermission(false);
@@ -39,7 +40,7 @@ export default function MatchingPage() {
         return;
       }
       try {
-        const stream = await navigator.mediaDevices.getUserMedia({ video: true });
+        stream = await navigator.mediaDevices.getUserMedia({ video: true });
         setHasCameraPermission(true);
         if (videoRef.current) videoRef.current.srcObject = stream;
       } catch (error) {
@@ -48,8 +49,8 @@ export default function MatchingPage() {
     };
     getCameraPermission();
     return () => {
-      if (videoRef.current && videoRef.current.srcObject) {
-        (videoRef.current.srcObject as MediaStream).getTracks().forEach(track => track.stop());
+      if (stream) {
+        stream.getTracks().forEach(track => track.stop());
       }
     };
   }, [toast]);
@@ -71,22 +72,20 @@ export default function MatchingPage() {
         return;
       }
 
-      const topicProblems = problemsByTopic[topicId];
-      if (!topicProblems || topicProblems.length === 0) {
-        toast({
-          title: "No Problems Available",
-          description: `Sorry, there are no problems for the topic "${topicName}" yet.`,
-          variant: "destructive"
-        });
-        router.push('/lobby');
-        return;
-      }
-
       try {
-        setStatusText('Finding an opponent...');
+        setStatusText('Generating a unique problem with AI...');
 
-        // Select a random problem from the static problem bank
-        const problem = topicProblems[Math.floor(Math.random() * topicProblems.length)];
+        const problem = await generateProblem({ topic: topicName });
+        
+        if (!problem) {
+          toast({
+            title: "Problem Generation Failed",
+            description: "Sorry, we couldn't generate a problem right now. Please try again.",
+            variant: "destructive",
+          });
+          router.push('/lobby');
+          return;
+        }
         
         // Firestore doesn't support nested arrays. Stringify the test case inputs.
         const problemToStore = {
@@ -102,7 +101,7 @@ export default function MatchingPage() {
         const clashesRef = collection(db, 'clashes');
         const newClashDoc = await addDoc(clashesRef, {
           topicId,
-          problem: problemToStore, // Store the modified problem object
+          problem: problemToStore,
           participants: [
             { userId: currentUser.uid, userName: currentUser.displayName || 'Anonymous', userAvatar: currentUser.photoURL || `https://placehold.co/100x100.png` },
             { userId: 'bot-123', userName: 'CodeBot', userAvatar: `https://placehold.co/100x100.png` }
