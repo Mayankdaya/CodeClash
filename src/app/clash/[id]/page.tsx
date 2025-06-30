@@ -25,6 +25,7 @@ import { cn } from '@/lib/utils';
 import type { Problem } from '@/lib/problems';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { getHint } from '@/ai/flows/getHintFlow';
+import { translateCode } from '@/ai/flows/translateCodeFlow';
 import {
   AlertDialog,
   AlertDialogAction,
@@ -69,6 +70,8 @@ export default function ClashPage() {
   const [messages, setMessages] = useState<Message[]>([]);
   const [newMessage, setNewMessage] = useState('');
   const [code, setCode] = useState('');
+  const [starterCodes, setStarterCodes] = useState<Record<string, string>>({});
+  const [isTranslatingCode, setIsTranslatingCode] = useState(false);
   const [language, setLanguage] = useState('javascript');
   const [output, setOutput] = useState('Click "Run Code" to see the output here.');
   const [isRunning, setIsRunning] = useState(false);
@@ -110,6 +113,7 @@ export default function ClashPage() {
         if (data.problem) {
           setProblem(data.problem);
           setCode(data.problem.starterCode);
+          setStarterCodes({ javascript: data.problem.starterCode });
         } else {
           toast({ title: "Problem not found", description: "The problem for this clash is missing.", variant: 'destructive' });
           router.push('/lobby');
@@ -174,20 +178,60 @@ export default function ClashPage() {
     setNewMessage('');
   };
 
+  const handleLanguageChange = async (newLang: string) => {
+    setLanguage(newLang);
+
+    if (newLang !== 'javascript') {
+      setOutput('Code execution is only supported for JavaScript in this environment.');
+    } else {
+      setOutput('Click "Run Code" to see the output here.');
+    }
+    
+    if (starterCodes[newLang]) {
+      setCode(starterCodes[newLang]);
+      return;
+    }
+
+    if (!problem) return;
+
+    setIsTranslatingCode(true);
+    try {
+      const result = await translateCode({
+        sourceCode: problem.starterCode,
+        sourceLanguage: 'javascript',
+        targetLanguage: newLang,
+        entryPoint: problem.entryPoint,
+      });
+      const newCode = result.translatedCode;
+      setCode(newCode);
+      setStarterCodes(prev => ({ ...prev, [newLang]: newCode }));
+    } catch (error) {
+      console.error("Error translating code:", error);
+      toast({
+        title: "Error Translating Code",
+        description: "Could not generate a template for this language. Please try again.",
+        variant: "destructive",
+      });
+      // Revert to JS on failure
+      setLanguage('javascript'); 
+      setCode(problem.starterCode);
+    } finally {
+      setIsTranslatingCode(false);
+    }
+  };
+
   const handleRunCode = () => {
     if (!clashData || !problem) return;
     
     setOutput('Running test cases...');
     setIsRunning(true);
     
-    // Use a timeout to allow the UI to update and prevent blocking
     setTimeout(() => {
         try {
             if (!problem.entryPoint || !problem.testCases || problem.testCases.length === 0) {
                 throw new Error('The problem is missing an entry point or test cases.');
             }
 
-            // Web Worker code as a string
             const workerCode = `
                 self.onmessage = function(e) {
                     const { code, testCases, funcName, problemTitle } = e.data;
@@ -195,13 +239,12 @@ export default function ClashPage() {
                     let allPassed = true;
                     
                     try {
-                        // The user code is expected to define a function on the global scope of the worker (self)
-                        // e.g., var twoSum = function(...) { ... }
-                        eval(code);
+                        // The user code is expected to define a function on the global scope of the worker
+                        eval(code); 
                         const userFunc = self[funcName];
 
                         if (typeof userFunc !== 'function') {
-                            throw new Error('Could not find function "' + funcName + '". Make sure your function is defined correctly as a variable (e.g., var ' + funcName + ' = function(...) ...).');
+                            throw new Error('Could not find function "' + funcName + '". Make sure your function is defined correctly (e.g., as a variable: var ' + funcName + ' = function(...) ...).');
                         }
 
                         results += 'Running tests for "' + problemTitle + '"...\\n\\n';
@@ -253,7 +296,7 @@ export default function ClashPage() {
             };
 
             worker.onerror = (e) => {
-                setOutput('A worker error occurred: ' + e.message);
+                setOutput(\`A worker error occurred: \${e.message}\`);
                 setIsRunning(false);
                 worker.terminate();
                 URL.revokeObjectURL(workerUrl);
@@ -266,8 +309,9 @@ export default function ClashPage() {
                 problemTitle: problem.title,
             });
 
-        } catch (error: any) {
-            setOutput('An error occurred on the main thread: ' + error.message);
+        } catch (error) {
+            const err = error as Error;
+            setOutput(\`An error occurred on the main thread: \${err.message}\`);
             setIsRunning(false);
         }
     }, 100);
@@ -309,6 +353,7 @@ export default function ClashPage() {
   };
 
   const progressValue = (timeLeft / (30 * 60)) * 100;
+  const isJsRunnable = language === 'javascript';
 
   if (!clashData || !opponent || !problem) {
     return (
@@ -373,7 +418,7 @@ export default function ClashPage() {
                   <Code className="h-6 w-6 text-primary" />
                   <CardTitle>Solution</CardTitle>
                 </div>
-                <Select value={language} onValueChange={setLanguage} disabled={isRunning}>
+                <Select value={language} onValueChange={handleLanguageChange} disabled={isRunning || isTranslatingCode}>
                   <SelectTrigger className="w-[180px] h-9">
                     <SelectValue placeholder="Select Language" />
                   </SelectTrigger>
@@ -389,25 +434,31 @@ export default function ClashPage() {
               <CardContent className="flex-1 flex flex-col p-0 min-h-0">
                 <div className="flex flex-col min-h-0" style={{flexBasis: '70%'}}>
                     <div className="p-6 pt-0 flex-1 flex flex-col min-h-0">
-                      <div className="flex-1 w-full rounded-md min-h-0">
+                      <div className="flex-1 w-full rounded-md min-h-0 relative">
+                        {isTranslatingCode && (
+                            <div className="absolute inset-0 bg-slate-900/80 backdrop-blur-sm flex flex-col items-center justify-center z-10 text-foreground rounded-md">
+                                <Loader2 className="h-8 w-8 animate-spin" />
+                                <p className="mt-2 text-sm">Generating {language} template...</p>
+                            </div>
+                        )}
                         <CodeEditor
                           key={language}
                           language={language}
                           value={code}
                           onChange={(value) => setCode(value || '')}
-                          disabled={isRunning}
+                          disabled={isRunning || isTranslatingCode}
                         />
                       </div>
                       <div className='flex justify-end mt-4 gap-2'>
-                        <Button variant="outline" onClick={handleGetHint} disabled={isRunning || isGettingHint}>
+                        <Button variant="outline" onClick={handleGetHint} disabled={isRunning || isGettingHint || isTranslatingCode}>
                           {isGettingHint ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Lightbulb className="mr-2 h-4 w-4" />}
                           Get Hint
                         </Button>
-                        <Button variant="secondary" onClick={handleRunCode} disabled={isRunning}>
+                        <Button variant="secondary" onClick={handleRunCode} disabled={!isJsRunnable || isRunning || isTranslatingCode}>
                           {isRunning && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
                           Run Code
                         </Button>
-                        <Button className="bg-green-600 hover:bg-green-700 text-white" onClick={handleSubmitCode} disabled={isRunning}>Submit</Button>
+                        <Button className="bg-green-600 hover:bg-green-700 text-white" onClick={handleSubmitCode} disabled={!isJsRunnable || isRunning || isTranslatingCode}>Submit</Button>
                       </div>
                     </div>
                 </div>
