@@ -7,7 +7,7 @@ export default function Home() {
   return (
     <div className="flex flex-col min-h-dvh bg-background text-foreground font-body">
       {/* Header */}
-      <header className="sticky top-0 z-50 w-full border-b border-border/40 bg-background/95 backdrop-blur-sm">
+      <header className="sticky top-0 z-50 w-full border-b border-border/40 bg-background/80 backdrop-blur-xl">
         <div className="container flex h-16 max-w-7xl mx-auto items-center justify-between px-4 sm:px-6 lg:px-8">
           <Link href="/" className="flex items-center gap-2" prefetch={false}>
             <Code className="h-6 w-6 text-primary" />
@@ -32,14 +32,14 @@ export default function Home() {
 
       <main className="flex-1">
         {/* Hero Section */}
-        <section className="relative w-full py-20 md:py-32 lg:py-40">
+        <section className="relative w-full py-20 md:py-32 lg:py-40 overflow-hidden">
           <div aria-hidden="true" className="absolute inset-0 -z-10">
             <div className="absolute inset-0 bg-grid-slate-100 [mask-image:linear-gradient(to_bottom,white,transparent)]"></div>
             <div 
-              className="absolute top-0 right-0 w-[50vmax] h-[50vmax] -translate-x-1/4 translate-y-1/4 rounded-full bg-gradient-to-tr from-accent/50 via-primary/20 to-transparent blur-3xl opacity-50"
+              className="absolute -top-1/4 left-1/2 h-[60vmax] w-[60vmax] -translate-x-1/2 rounded-full bg-gradient-to-br from-primary/20 via-accent/20 to-transparent blur-3xl opacity-80" 
             />
             <div 
-              className="absolute bottom-0 left-0 w-[40vmax] h-[40vmax] -translate-x-1/3 -translate-y-1/3 rounded-full bg-gradient-to-bl from-accent/50 via-primary/20 to-transparent blur-3xl opacity-60"
+              className="absolute -bottom-1/4 right-0 h-[50vmax] w-[50vmax] translate-x-1/4 rounded-full bg-gradient-to-tl from-accent/20 via-primary/10 to-transparent blur-3xl opacity-90" 
             />
           </div>
           
@@ -67,17 +67,17 @@ export default function Home() {
         </section>
 
         {/* Features Section */}
-        <section className="py-16 md:py-24 bg-background/50">
+        <section className="py-16 md:py-24">
           <div className="container max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
             <div className="text-center mb-12">
               <h2 className="text-3xl font-bold tracking-tight sm:text-4xl">Why CodeClash?</h2>
               <p className="mt-4 text-lg text-muted-foreground">Everything you need for a fun and fair coding competition.</p>
             </div>
             <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
-              <Card className="bg-card/50 backdrop-blur-sm border-border/50">
+              <Card className="bg-card/60 backdrop-blur-lg border-primary/20 rounded-2xl">
                 <CardHeader className="items-center">
-                  <div className="p-4 bg-accent/20 rounded-full mb-4">
-                    <Users className="h-8 w-8 text-accent" />
+                  <div className="p-4 bg-primary/10 rounded-full mb-4 ring-1 ring-inset ring-primary/20">
+                    <Users className="h-8 w-8 text-primary" />
                   </div>
                   <CardTitle>Instant Matchmaking</CardTitle>
                 </CardHeader>
@@ -85,10 +85,10 @@ export default function Home() {
                   Choose your topic and instantly get matched with 1-3 other developers ready to battle. No sign-up required to jump in.
                 </CardContent>
               </Card>
-              <Card className="bg-card/50 backdrop-blur-sm border-border/50">
+              <Card className="bg-card/60 backdrop-blur-lg border-primary/20 rounded-2xl">
                 <CardHeader className="items-center">
-                  <div className="p-4 bg-accent/20 rounded-full mb-4">
-                    <Code className="h-8 w-8 text-accent" />
+                  <div className="p-4 bg-primary/10 rounded-full mb-4 ring-1 ring-inset ring-primary/20">
+                    <Code className="h-8 w-8 text-primary" />
                   </div>
                   <CardTitle>Real-Time Collaboration</CardTitle>
                 </CardHeader>
@@ -96,10 +96,10 @@ export default function Home() {
                   Share ideas, chat, and see your opponents' code in real-time. A synchronized editor keeps everyone on the same page.
                 </CardContent>
               </Card>
-              <Card className="bg-card/50 backdrop-blur-sm border-border/50">
+              <Card className="bg-card/60 backdrop-blur-lg border-primary/20 rounded-2xl">
                 <CardHeader className="items-center">
-                  <div className="p-4 bg-accent/20 rounded-full mb-4">
-                    <Trophy className="h-8 w-8 text-accent" />
+                  <div className="p-4 bg-primary/10 rounded-full mb-4 ring-1 ring-inset ring-primary/20">
+                    <Trophy className="h-8 w-8 text-primary" />
                   </div>
                   <CardTitle>Gamified Experience</CardTitle>
                 </CardHeader>
