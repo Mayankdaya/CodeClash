@@ -17,11 +17,11 @@ export function Header() {
         </nav>
         <div className="flex items-center gap-4">
           <Button variant="ghost" asChild>
-            <Link href="#">Log In</Link>
+            <Link href="/login">Log In</Link>
           </Button>
           <Button className="bg-primary text-primary-foreground hover:bg-primary/90 shadow-lg shadow-primary/30" asChild>
-            <Link href="/lobby">
-              Start a Clash
+            <Link href="/signup">
+              Sign Up
               <ArrowRight className="ml-2 h-4 w-4" />
             </Link>
           </Button>
