@@ -20,7 +20,7 @@ import { Footer } from '@/components/Footer';
 import AuthGuard from '@/components/AuthGuard';
 import { CodeEditor } from '@/components/CodeEditor';
 import { UserVideo } from '@/components/UserVideo';
-import { BookOpen, Code, Send, Users, Timer, Star, ThumbsUp, Video, Loader2, Lightbulb, CheckCircle2, XCircle } from 'lucide-react';
+import { BookOpen, Code, Send, Users, Timer, Star, ThumbsUp, Video, Loader2, Lightbulb, CheckCircle2, XCircle, KeySquare } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import type { Problem } from '@/lib/problems';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
@@ -125,17 +125,14 @@ const executeInWorker = (code: string, entryPoint: string, testCases: TestCase[]
                         let output, error = null;
                         
                         try {
-                            // Smart parsing of arguments to handle cases where AI stringifies arrays/objects
                             const processedInput = tc.input.map(arg => {
                                 if (typeof arg === 'string') {
-                                    const trimmedArg = arg.trim();
-                                    if ((trimmedArg.startsWith('[') && trimmedArg.endsWith(']')) || (trimmedArg.startsWith('{') && trimmedArg.endsWith('}'))) {
-                                        try {
-                                            return JSON.parse(trimmedArg);
-                                        } catch (e) {
-                                            // Not a valid JSON string, use as is
-                                            return arg;
-                                        }
+                                   try {
+                                        // This will handle "[1,2,3]", "123", "true", etc. correctly
+                                        return JSON.parse(arg);
+                                    } catch (e) {
+                                        // If it's not valid JSON (e.g., a simple string like "bat"), use it as is.
+                                        return arg;
                                     }
                                 }
                                 return arg;
@@ -232,12 +229,12 @@ export default function ClashPage() {
         if (data.problem && data.problem.testCases) {
            const parsedTestCases = (data.problem.testCases as any[]).map(tc => {
                 try {
-                    const parsedInput = JSON.parse(tc.input);
-                    const parsedExpected = JSON.parse(tc.expected);
+                    // Smart parse both input and expected
+                    const parsedInput = typeof tc.input === 'string' ? JSON.parse(tc.input) : tc.input;
+                    const parsedExpected = typeof tc.expected === 'string' ? JSON.parse(tc.expected) : tc.expected;
                     return { input: parsedInput, expected: parsedExpected };
                 } catch (e) {
                     console.error("Failed to parse test case:", tc, e);
-                    // Fallback for potentially malformed data from older clashes
                     return { input: tc.input, expected: tc.expected };
                 }
             });
@@ -520,30 +517,42 @@ export default function ClashPage() {
           {/* Left Panel */}
           <div className="flex flex-col gap-6" style={{ minWidth: '350px' }}>
             <Card className="flex-1 flex flex-col bg-card/50 border border-white/10 rounded-2xl min-h-0">
-               <CardHeader className="flex-row items-center gap-4">
-                <BookOpen className="h-6 w-6 text-primary" />
-                <CardTitle>Problem</CardTitle>
-              </CardHeader>
-              <CardContent className="flex-1 p-6 pt-0 overflow-auto">
-                <h3 className="font-bold text-lg mb-2 capitalize">{problem.title}</h3>
-                <p className="text-muted-foreground mb-4 whitespace-pre-wrap">
-                  {problem.description}
-                </p>
-                <div className="text-sm space-y-4">
-                  {problem.examples && problem.examples.map((example, index) => (
-                    <div key={index}>
-                      <p><strong className='text-foreground'>Example {index + 1}:</strong></p>
-                      <pre className='mt-1 p-2 rounded-md bg-muted/50 text-xs whitespace-pre-wrap'>
-                        <code>
-                          Input: {example.input}<br/>
-                          Output: {example.output}
-                          {example.explanation && <><br/>Explanation: {example.explanation}</>}
-                        </code>
-                      </pre>
-                    </div>
-                  ))}
-                </div>
-              </CardContent>
+              <Tabs defaultValue="problem" className="flex-1 flex flex-col min-h-0">
+                <CardHeader>
+                  <TabsList className="grid w-full grid-cols-2">
+                      <TabsTrigger value="problem"><BookOpen className="mr-2"/>Problem</TabsTrigger>
+                      <TabsTrigger value="solution"><KeySquare className="mr-2"/>Solution</TabsTrigger>
+                  </TabsList>
+                </CardHeader>
+                <TabsContent value="problem" className="flex-1 p-6 pt-0 overflow-auto">
+                  <h3 className="font-bold text-lg mb-2 capitalize">{problem.title}</h3>
+                  <p className="text-muted-foreground mb-4 whitespace-pre-wrap">
+                    {problem.description}
+                  </p>
+                  <div className="text-sm space-y-4">
+                    {problem.examples && problem.examples.map((example, index) => (
+                      <div key={index}>
+                        <p><strong className='text-foreground'>Example {index + 1}:</strong></p>
+                        <pre className='mt-1 p-2 rounded-md bg-muted/50 text-xs whitespace-pre-wrap'>
+                          <code>
+                            Input: {example.input}<br/>
+                            Output: {example.output}
+                            {example.explanation && <><br/>Explanation: {example.explanation}</>}
+                          </code>
+                        </pre>
+                      </div>
+                    ))}
+                  </div>
+                </TabsContent>
+                <TabsContent value="solution" className="flex-1 p-6 pt-0 overflow-auto">
+                   <CodeEditor
+                      language="javascript"
+                      value={problem.solution || "No solution available."}
+                      onChange={() => {}}
+                      disabled={true}
+                    />
+                </TabsContent>
+              </Tabs>
             </Card>
             <Card className="bg-card/50 border border-white/10 rounded-2xl">
               <CardHeader className='flex-row items-center gap-4'>
