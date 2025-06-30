@@ -541,7 +541,7 @@ export default function ClashPage() {
               <Progress value={progressValue} className="w-full h-1 rounded-none" />
         </Card>
 
-        <main className="flex-1 flex gap-2 p-2 overflow-hidden">
+        <main className="flex-1 flex p-2 overflow-hidden">
           <PanelGroup direction="horizontal">
             <Panel defaultSize={45} minSize={30}>
               <Tabs defaultValue="problem" className="h-full flex flex-col min-h-0 bg-card/50 border border-white/10 rounded-xl">
@@ -583,10 +583,10 @@ export default function ClashPage() {
                   )}
               </Tabs>
             </Panel>
-            <PanelResizeHandle className="w-1.5 bg-border rounded-md hover:bg-primary/80 transition-colors" />
+            <PanelResizeHandle className="w-2 bg-primary/50 hover:bg-primary transition-colors" />
             <Panel minSize={30}>
               <PanelGroup direction="vertical">
-                <Panel defaultSize={60} minSize={25}>
+                <Panel defaultSize={40} minSize={25}>
                    <div className="h-full flex flex-col bg-card/50 border border-white/10 rounded-xl min-h-0">
                       <div className="p-2 border-b border-border flex items-center justify-between">
                           <Select value={language} onValueChange={handleLanguageChange} disabled={isRunning || isSubmitting || isTranslatingCode}>
@@ -623,8 +623,8 @@ export default function ClashPage() {
                       </div>
                    </div>
                 </Panel>
-                <PanelResizeHandle className="h-1.5 bg-border rounded-md hover:bg-primary/80 transition-colors" />
-                <Panel defaultSize={40} minSize={25}>
+                <PanelResizeHandle className="h-2 bg-primary/50 hover:bg-primary transition-colors" />
+                <Panel defaultSize={60} minSize={25}>
                    <div className="h-full flex flex-col bg-card/50 border border-white/10 rounded-xl min-h-0">
                       <Tabs value={consoleTab} onValueChange={setConsoleTab} className="flex-1 flex flex-col min-h-0 h-full">
                         <div className='p-2 border-b border-border/50'>
