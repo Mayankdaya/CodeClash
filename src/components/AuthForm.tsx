@@ -1,14 +1,19 @@
 'use client';
 
+import { useState } from 'react';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
 import Link from 'next/link';
+import { useRouter } from 'next/navigation';
+import { createUserWithEmailAndPassword, signInWithEmailAndPassword, updateProfile } from 'firebase/auth';
+import { useToast } from '@/hooks/use-toast';
+import { auth } from '@/lib/firebase';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from '@/components/ui/form';
 import { Input } from '@/components/ui/input';
-import { ArrowRight } from 'lucide-react';
+import { ArrowRight, Loader2 } from 'lucide-react';
 
 const loginSchema = z.object({
   email: z.string().email({ message: "Invalid email address." }),
@@ -25,14 +30,36 @@ type LoginFormData = z.infer<typeof loginSchema>;
 type SignupFormData = z.infer<typeof signupSchema>;
 
 function LoginForm() {
+  const router = useRouter();
+  const { toast } = useToast();
+  const [isLoading, setIsLoading] = useState(false);
   const form = useForm<LoginFormData>({
     resolver: zodResolver(loginSchema),
     defaultValues: { email: '', password: '' },
   });
 
-  const onSubmit = (data: LoginFormData) => {
-    console.log("Login data:", data);
-    // TODO: Implement login logic
+  const onSubmit = async (data: LoginFormData) => {
+    if (!auth) {
+        toast({
+            title: "Authentication Error",
+            description: "Firebase is not configured. Please check environment variables.",
+            variant: "destructive",
+        });
+        return;
+    }
+    setIsLoading(true);
+    try {
+      await signInWithEmailAndPassword(auth, data.email, data.password);
+      router.push('/lobby');
+    } catch (error: any) {
+      toast({
+        title: "Login Failed",
+        description: error.message,
+        variant: "destructive",
+      });
+    } finally {
+      setIsLoading(false);
+    }
   };
 
   return (
@@ -45,7 +72,7 @@ function LoginForm() {
             <FormItem>
               <FormLabel>Email</FormLabel>
               <FormControl>
-                <Input type="email" placeholder="you@example.com" {...field} />
+                <Input type="email" placeholder="you@example.com" {...field} disabled={isLoading} />
               </FormControl>
               <FormMessage />
             </FormItem>
@@ -58,14 +85,16 @@ function LoginForm() {
             <FormItem>
               <FormLabel>Password</FormLabel>
               <FormControl>
-                <Input type="password" placeholder="••••••••" {...field} />
+                <Input type="password" placeholder="••••••••" {...field} disabled={isLoading} />
               </FormControl>
               <FormMessage />
             </FormItem>
           )}
         />
-        <Button type="submit" className="w-full">
-          Log In <ArrowRight className="ml-2 h-4 w-4" />
+        <Button type="submit" className="w-full" disabled={isLoading}>
+          {isLoading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+          Log In
+          {!isLoading && <ArrowRight className="ml-2 h-4 w-4" />}
         </Button>
       </form>
     </Form>
@@ -73,14 +102,41 @@ function LoginForm() {
 }
 
 function SignupForm() {
+    const router = useRouter();
+    const { toast } = useToast();
+    const [isLoading, setIsLoading] = useState(false);
     const form = useForm<SignupFormData>({
         resolver: zodResolver(signupSchema),
         defaultValues: { username: '', email: '', password: '' },
     });
     
-    const onSubmit = (data: SignupFormData) => {
-        console.log("Signup data:", data);
-        // TODO: Implement signup logic
+    const onSubmit = async (data: SignupFormData) => {
+        if (!auth) {
+            toast({
+                title: "Authentication Error",
+                description: "Firebase is not configured. Please check environment variables.",
+                variant: "destructive",
+            });
+            return;
+        }
+        setIsLoading(true);
+        try {
+            const userCredential = await createUserWithEmailAndPassword(auth, data.email, data.password);
+            if (userCredential.user) {
+              await updateProfile(userCredential.user, {
+                  displayName: data.username,
+              });
+            }
+            router.push('/lobby');
+        } catch (error: any) {
+            toast({
+                title: "Sign Up Failed",
+                description: error.message,
+                variant: "destructive",
+            });
+        } finally {
+            setIsLoading(false);
+        }
     };
 
     return (
@@ -93,7 +149,7 @@ function SignupForm() {
                 <FormItem>
                   <FormLabel>Username</FormLabel>
                   <FormControl>
-                    <Input placeholder="code_master" {...field} />
+                    <Input placeholder="code_master" {...field} disabled={isLoading} />
                   </FormControl>
                   <FormMessage />
                 </FormItem>
@@ -106,7 +162,7 @@ function SignupForm() {
                 <FormItem>
                   <FormLabel>Email</FormLabel>
                   <FormControl>
-                    <Input type="email" placeholder="you@example.com" {...field} />
+                    <Input type="email" placeholder="you@example.com" {...field} disabled={isLoading}/>
                   </FormControl>
                   <FormMessage />
                 </FormItem>
@@ -119,14 +175,16 @@ function SignupForm() {
                 <FormItem>
                   <FormLabel>Password</FormLabel>
                   <FormControl>
-                    <Input type="password" placeholder="••••••••" {...field} />
+                    <Input type="password" placeholder="••••••••" {...field} disabled={isLoading}/>
                   </FormControl>
                   <FormMessage />
                 </FormItem>
               )}
             />
-            <Button type="submit" className="w-full">
-              Sign Up <ArrowRight className="ml-2 h-4 w-4" />
+            <Button type="submit" className="w-full" disabled={isLoading}>
+                {isLoading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                Sign Up
+                {!isLoading && <ArrowRight className="ml-2 h-4 w-4" />}
             </Button>
           </form>
         </Form>
