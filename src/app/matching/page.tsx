@@ -88,12 +88,21 @@ export default function MatchingPage() {
         // Select a random problem from the static problem bank
         const problem = topicProblems[Math.floor(Math.random() * topicProblems.length)];
         
+        // Firestore doesn't support nested arrays. Stringify the test case inputs.
+        const problemToStore = {
+            ...problem,
+            testCases: problem.testCases.map(tc => ({
+                ...tc,
+                input: JSON.stringify(tc.input),
+            })),
+        };
+        
         setStatusText('Match found! Preparing your arena...');
 
         const clashesRef = collection(db, 'clashes');
         const newClashDoc = await addDoc(clashesRef, {
           topicId,
-          problem, // Store the full problem object in Firestore
+          problem: problemToStore, // Store the modified problem object
           participants: [
             { userId: currentUser.uid, userName: currentUser.displayName || 'Anonymous', userAvatar: currentUser.photoURL || `https://placehold.co/100x100.png` },
             { userId: 'bot-123', userName: 'CodeBot', userAvatar: `https://placehold.co/100x100.png` }

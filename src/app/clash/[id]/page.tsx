@@ -77,6 +77,24 @@ export default function ClashPage() {
 
       if (docSnap.exists()) {
         const data = docSnap.data() as ClashData;
+        
+        // The problem's test case inputs are stored as JSON strings in Firestore
+        // to avoid issues with nested arrays. We need to parse them back.
+        if (data.problem && data.problem.testCases) {
+          const parsedTestCases = data.problem.testCases.map(tc => {
+            try {
+              // Ensure we only parse if it's a string, making it idempotent
+              const parsedInput = typeof tc.input === 'string' ? JSON.parse(tc.input) : tc.input;
+              return { ...tc, input: parsedInput };
+            } catch (e) {
+              console.error("Failed to parse test case input:", e);
+              // Return original test case if parsing fails
+              return tc; 
+            }
+          });
+          data.problem = { ...data.problem, testCases: parsedTestCases };
+        }
+        
         setClashData(data);
         
         if (data.problem) {
