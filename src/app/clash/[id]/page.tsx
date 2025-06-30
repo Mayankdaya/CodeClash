@@ -99,6 +99,19 @@ const executeInWorker = (code: string, entryPoint: string, testCases: TestCase[]
                 }
                 return true;
             };
+            
+            const smartParse = (value) => {
+                if (typeof value !== 'string') return value;
+                try {
+                  // Attempt to parse if it looks like a JSON object or array
+                  if ((value.startsWith('[') && value.endsWith(']')) || (value.startsWith('{') && value.endsWith('}'))) {
+                    return JSON.parse(value);
+                  }
+                } catch (e) {
+                  // Not a valid JSON string, return as is
+                }
+                return value;
+            };
 
             self.onmessage = function(e) {
                 const { code, entryPoint, testCases } = e.data;
@@ -121,7 +134,9 @@ const executeInWorker = (code: string, entryPoint: string, testCases: TestCase[]
                         let output, error = null;
                         
                         try {
-                            const inputClone = JSON.parse(JSON.stringify(tc.input));
+                            // Smart parse each argument in the input array
+                            const parsedInput = tc.input.map(smartParse);
+                            const inputClone = JSON.parse(JSON.stringify(parsedInput));
                             output = userFunc(...inputClone);
                         } catch (err) {
                             error = err;
@@ -213,10 +228,10 @@ export default function ClashPage() {
                 try {
                     const parsedInput = typeof tc.input === 'string' ? JSON.parse(tc.input) : tc.input;
                     const parsedExpected = typeof tc.expected === 'string' ? JSON.parse(tc.expected) : tc.expected;
-                    return { input: parsedInput, expected: parsedExpected };
+                    return { ...tc, input: parsedInput, expected: parsedExpected };
                 } catch (e) {
                     console.error("Failed to parse test case:", tc, e);
-                    return { input: tc.input, expected: tc.expected };
+                    return { ...tc, input: tc.input, expected: tc.expected };
                 }
             });
             data.problem = { ...data.problem, testCases: parsedTestCases };
@@ -497,10 +512,10 @@ export default function ClashPage() {
           <div className="flex-1 flex flex-col min-h-0">
             <Tabs defaultValue="problem" className="flex-1 flex flex-col bg-card/50 border border-white/10 rounded-2xl min-h-0">
               <div className="p-4 border-b border-border">
-                  <TabsList className="grid w-full grid-cols-3">
+                  <TabsList className={cn("grid w-full", problem.solution ? 'grid-cols-3' : 'grid-cols-2')}>
                       <TabsTrigger value="problem"><BookOpen className="mr-2"/>Problem</TabsTrigger>
                       <TabsTrigger value="code"><Code className="mr-2"/>Code</TabsTrigger>
-                      <TabsTrigger value="solution"><KeySquare className="mr-2"/>Solution</TabsTrigger>
+                      {problem.solution && <TabsTrigger value="solution"><KeySquare className="mr-2"/>Solution</TabsTrigger>}
                   </TabsList>
               </div>
 
@@ -611,16 +626,18 @@ export default function ClashPage() {
                   </div>
               </TabsContent>
 
-              <TabsContent value="solution" className="flex-1 p-4 min-h-0">
-                  <div className="flex-1 w-full h-full rounded-md min-h-0">
-                    <CodeEditor
-                      language="javascript"
-                      value={problem.solution || "No solution available."}
-                      onChange={() => {}}
-                      disabled={true}
-                    />
-                  </div>
-              </TabsContent>
+              {problem.solution && (
+                <TabsContent value="solution" className="flex-1 p-4 min-h-0">
+                    <div className="flex-1 w-full h-full rounded-md min-h-0">
+                      <CodeEditor
+                        language="javascript"
+                        value={problem.solution || "No solution available."}
+                        onChange={() => {}}
+                        disabled={true}
+                      />
+                    </div>
+                </TabsContent>
+              )}
             </Tabs>
           </div>
 
