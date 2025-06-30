@@ -1,3 +1,4 @@
+
 'use server';
 /**
  * @fileOverview A flow to generate a hint for a coding problem.
@@ -10,14 +11,14 @@
 import { ai } from '@/ai/genkit';
 import { z } from 'genkit';
 
-export const GetHintInputSchema = z.object({
+const GetHintInputSchema = z.object({
   problemTitle: z.string().describe('The title of the coding problem.'),
   problemDescription: z.string().describe('The description of the coding problem.'),
   userCode: z.string().describe("The user's current code solution."),
 });
 export type GetHintInput = z.infer<typeof GetHintInputSchema>;
 
-export const GetHintOutputSchema = z.object({
+const GetHintOutputSchema = z.object({
     hint: z.string().describe('A helpful, non-obvious hint to help the user solve the problem. Do not give away the full solution. Focus on the algorithmic approach or a key observation needed.'),
 });
 export type GetHintOutput = z.infer<typeof GetHintOutputSchema>;
