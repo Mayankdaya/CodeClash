@@ -3,7 +3,7 @@
 
 import { useState, useEffect, useRef } from 'react';
 import { useSearchParams, useRouter } from 'next/navigation';
-import { collection, query, where, limit, getDocs, addDoc, doc, onSnapshot, updateDoc, deleteDoc, type Unsubscribe } from 'firebase/firestore';
+import { collection, query, where, limit, getDocs, addDoc, doc, onSnapshot, updateDoc, deleteDoc, type Unsubscribe, serverTimestamp } from 'firebase/firestore';
 import { useToast } from '@/hooks/use-toast';
 import { Header } from '@/components/Header';
 import { Footer } from '@/components/Footer';
@@ -22,8 +22,10 @@ export default function MatchingPage() {
   const videoRef = useRef<HTMLVideoElement>(null);
 
   const [hasCameraPermission, setHasCameraPermission] = useState<boolean | null>(null);
+  
   const queueDocIdRef = useRef<string | null>(null);
   const unsubscribeRef = useRef<Unsubscribe | null>(null);
+  const isMatchedRef = useRef(false);
 
   useEffect(() => {
     const getCameraPermission = async () => {
@@ -84,16 +86,17 @@ export default function MatchingPage() {
 
       if (opponentQueueDoc) {
         // Match found
+        isMatchedRef.current = true;
         const opponentData = opponentQueueDoc.data();
         
         const clashesRef = collection(db, 'clashes');
         const newClashDoc = await addDoc(clashesRef, {
           topicId,
           participants: [
-            { userId: currentUser.uid, userName: currentUser.displayName, userAvatar: currentUser.photoURL },
-            { userId: opponentData.userId, userName: opponentData.userName, userAvatar: opponentData.userAvatar }
+            { userId: currentUser.uid, userName: currentUser.displayName || 'Anonymous', userAvatar: currentUser.photoURL || '' },
+            { userId: opponentData.userId, userName: opponentData.userName || 'Anonymous', userAvatar: opponentData.userAvatar || '' }
           ],
-          createdAt: new Date(),
+          createdAt: serverTimestamp(),
           status: 'active'
         });
 
@@ -107,16 +110,18 @@ export default function MatchingPage() {
         // No match, add to queue
         const myQueueDoc = await addDoc(queueRef, {
           userId: currentUser.uid,
-          userName: currentUser.displayName,
-          userAvatar: currentUser.photoURL,
+          userName: currentUser.displayName || 'Anonymous',
+          userAvatar: currentUser.photoURL || '',
           topicId,
           status: 'pending',
-          createdAt: new Date()
+          createdAt: serverTimestamp()
         });
         queueDocIdRef.current = myQueueDoc.id;
 
         unsubscribeRef.current = onSnapshot(doc(db, 'matchmakingQueue', myQueueDoc.id), (docSnap) => {
           if (docSnap.exists() && docSnap.data()?.status === 'matched') {
+            isMatchedRef.current = true;
+            if(unsubscribeRef.current) unsubscribeRef.current();
             router.push(`/clash/${docSnap.data()?.clashId}`);
           }
         });
@@ -137,7 +142,7 @@ export default function MatchingPage() {
       if (unsubscribeRef.current) {
         unsubscribeRef.current();
       }
-      if (queueDocIdRef.current && db) {
+      if (queueDocIdRef.current && db && !isMatchedRef.current) {
         const docRef = doc(db, 'matchmakingQueue', queueDocIdRef.current);
         deleteDoc(docRef);
       }
