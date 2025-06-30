@@ -294,7 +294,7 @@ export default function ClashPage() {
             
             {/* Left Panel */}
             <div className="w-full lg:w-1/4 flex flex-col gap-6 min-h-0">
-              <Card className="flex-1 flex flex-col bg-card/50 backdrop-blur-lg border border-white/10 rounded-2xl min-h-0">
+              <Card className="flex-1 flex flex-col bg-card/50 border border-white/10 rounded-2xl min-h-0">
                 <CardHeader className="flex-row items-center gap-4">
                   <BookOpen className="h-6 w-6 text-primary" />
                   <CardTitle>Problem</CardTitle>
@@ -320,7 +320,7 @@ export default function ClashPage() {
                   </ScrollArea>
                 </CardContent>
               </Card>
-              <Card className="bg-card/50 backdrop-blur-lg border border-white/10 rounded-2xl">
+              <Card className="bg-card/50 border border-white/10 rounded-2xl">
                 <CardHeader className='flex-row items-center gap-4'>
                   <Timer className='h-6 w-6 text-primary' />
                   <CardTitle>Time Remaining</CardTitle>
@@ -334,7 +334,7 @@ export default function ClashPage() {
 
             {/* Middle Panel */}
             <div className="w-full lg:w-1/2 flex flex-col min-h-0">
-              <Card className="flex-1 flex flex-col bg-card/50 backdrop-blur-lg border border-white/10 rounded-2xl min-h-0">
+              <Card className="flex-1 flex flex-col bg-card/50 border border-white/10 rounded-2xl min-h-0">
                 <CardHeader className="flex-row items-center justify-between gap-4">
                   <div className='flex items-center gap-4'>
                     <Code className="h-6 w-6 text-primary" />
@@ -387,7 +387,7 @@ export default function ClashPage() {
 
             {/* Right Panel */}
             <div className="w-full lg:w-1/4 flex flex-col gap-6 min-h-0">
-              <Card className="flex-1 flex flex-col bg-card/50 backdrop-blur-lg border border-white/10 rounded-2xl min-h-0">
+              <Card className="flex-1 flex flex-col bg-card/50 border border-white/10 rounded-2xl min-h-0">
                 <CardHeader className="flex-row items-center gap-4">
                   <Video className="h-6 w-6 text-primary" />
                   <CardTitle>Video & Chat</CardTitle>
@@ -522,5 +522,3 @@ export default function ClashPage() {
     </AuthGuard>
   );
 }
-
-    
