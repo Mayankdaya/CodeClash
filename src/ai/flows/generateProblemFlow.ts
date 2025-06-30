@@ -19,7 +19,7 @@ const TestCaseSchema = z.object({
 const ProblemSchema: z.ZodType<Problem> = z.object({
   id: z.string().describe('A unique identifier for the problem, in kebab-case. e.g., "two-sum"'),
   title: z.string().describe('The title of the coding problem.'),
-  description: z.string().describe('A detailed description of the problem, formatted with Markdown (`\\n` for new lines).'),
+  description: z.string().describe('A detailed description of the problem. Use newlines (`\\n`) for formatting. Do not use Markdown characters like `#` or `*`.'),
   example: z.object({
     input: z.string().describe('A human-readable string representing an example input for the problem.'),
     output: z.string().describe('The corresponding human-readable output for the example input.'),
@@ -55,7 +55,7 @@ Topic: {{{topic}}}
 Generate a problem with the following structure:
 - A unique ID in kebab-case.
 - A clear title.
-- A detailed description using Markdown for formatting.
+- A detailed description. Use newlines for spacing and structure. DO NOT use any Markdown formatting like '#' for headers or '*' for lists.
 - One clear example with a human-readable input, output, and an optional explanation.
 - Starter code in JavaScript. CRITICAL: The function must be declared as a variable, for example: 'var twoSum = function(nums, target) { ... };' This format is essential for the testing environment.
 - An array of at least 3 test cases, where each 'input' is an array of arguments for the function.
