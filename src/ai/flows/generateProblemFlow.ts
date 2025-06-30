@@ -12,7 +12,7 @@ import { z } from 'genkit';
 import type { Problem } from '@/lib/problems';
 
 const TestCaseSchema = z.object({
-  input: z.array(z.any()).describe("An array of arguments for the function. For example, for a function twoSum(nums, target), an input could be [[2, 7, 11, 15], 9]."),
+  input: z.any().describe("An array of arguments for the function. For example, for a function twoSum(nums, target), an input could be [[2, 7, 11, 15], 9]."),
   expected: z.any().describe("The expected output for the test case."),
 });
 
