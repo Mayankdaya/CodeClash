@@ -14,6 +14,7 @@ import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { Button } from '@/components/ui/button';
 import { CameraOff, Loader2 } from 'lucide-react';
 import Link from 'next/link';
+import { problems } from '@/lib/problems';
 
 export default function MatchingPage() {
   const { toast } = useToast();
@@ -74,9 +75,19 @@ export default function MatchingPage() {
       }
 
       try {
+        const topicProblems = problems[topicId];
+        if (!topicProblems || topicProblems.length === 0) {
+            toast({ title: "No problems found", description: "There are no problems available for this topic yet.", variant: "destructive" });
+            router.push('/lobby');
+            return;
+        }
+
+        const randomProblem = topicProblems[Math.floor(Math.random() * topicProblems.length)];
+
         const clashesRef = collection(db, 'clashes');
         const newClashDoc = await addDoc(clashesRef, {
           topicId,
+          problemId: randomProblem.id,
           participants: [
             { userId: currentUser.uid, userName: currentUser.displayName || 'Anonymous', userAvatar: currentUser.photoURL || 'https://placehold.co/100x100.png' },
             { userId: 'bot-123', userName: 'CodeBot', userAvatar: 'https://placehold.co/100x100.png' }

@@ -3,7 +3,7 @@
 
 import { useState, useEffect, useRef } from 'react';
 import Image from 'next/image';
-import { useRouter, useParams } from 'next/navigation';
+import { useParams } from 'next/navigation';
 import { doc, getDoc, collection, addDoc, query, orderBy, onSnapshot, serverTimestamp, type DocumentData } from 'firebase/firestore';
 import { auth, db } from '@/lib/firebase';
 import { useToast } from '@/hooks/use-toast';
@@ -23,6 +23,7 @@ import AuthGuard from '@/components/AuthGuard';
 import { BookOpen, Code, Send, Users, Timer, Star, ThumbsUp, Video, CameraOff, Loader2 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { type Problem, problems } from '@/lib/problems';
+import { useRouter } from 'next/navigation';
 
 interface Participant {
   userId: string;
@@ -32,6 +33,7 @@ interface Participant {
 
 interface ClashData {
   topicId: string;
+  problemId: string;
   participants: Participant[];
 }
 
@@ -45,7 +47,8 @@ interface Message {
 }
 
 export default function ClashPage() {
-  const params = useParams<{ id: string }>();
+  const params = useParams();
+  const id = params.id as string;
   const router = useRouter();
   const { toast } = useToast();
   
@@ -66,19 +69,29 @@ export default function ClashPage() {
 
   // Get clash data and opponent info
   useEffect(() => {
-    if (!db || !auth.currentUser || !params.id) return;
+    if (!db || !auth.currentUser || !id) return;
     
     const getClashData = async () => {
-      const clashDocRef = doc(db, 'clashes', params.id);
+      const clashDocRef = doc(db, 'clashes', id);
       const docSnap = await getDoc(clashDocRef);
 
       if (docSnap.exists()) {
         const data = docSnap.data() as ClashData;
         setClashData(data);
         
-        const problemData = problems[data.topicId] || problems['arrays-hashing']; // Fallback
-        setProblem(problemData);
-        setCode(problemData.starterCode);
+        const problemArray = problems[data.topicId] || [];
+        const problemData = problemArray.find(p => p.id === data.problemId);
+
+        if (problemData) {
+          setProblem(problemData);
+          setCode(problemData.starterCode);
+        } else {
+          // Fallback if problem not found
+          const fallbackProblem = problems['arrays-hashing'][0];
+          setProblem(fallbackProblem);
+          setCode(fallbackProblem.starterCode);
+          toast({ title: "Problem not found", description: "The specified problem couldn't be found. Loading a default.", variant: 'destructive' });
+        }
 
         const opponentParticipant = data.participants.find(p => p.userId !== auth.currentUser?.uid);
         if (opponentParticipant) {
@@ -92,12 +105,12 @@ export default function ClashPage() {
       }
     };
     getClashData();
-  }, [params.id, router, toast]);
+  }, [id, router, toast]);
 
   // Chat listener
   useEffect(() => {
-    if (!db || !params.id) return;
-    const chatRef = collection(db, 'clashes', params.id, 'chat');
+    if (!db || !id) return;
+    const chatRef = collection(db, 'clashes', id, 'chat');
     const q = query(chatRef, orderBy('timestamp', 'asc'));
 
     const unsubscribe = onSnapshot(q, (querySnapshot) => {
@@ -109,7 +122,7 @@ export default function ClashPage() {
     });
 
     return () => unsubscribe();
-  }, [params.id]);
+  }, [id]);
 
 
   // Scroll to bottom of chat
@@ -148,9 +161,9 @@ export default function ClashPage() {
   }, []);
 
   const handleSendMessage = async () => {
-    if (newMessage.trim() === '' || !db || !auth.currentUser || !params.id) return;
+    if (newMessage.trim() === '' || !db || !auth.currentUser || !id) return;
     
-    const chatRef = collection(db, 'clashes', params.id, 'chat');
+    const chatRef = collection(db, 'clashes', id, 'chat');
     await addDoc(chatRef, {
       text: newMessage.trim(),
       senderId: auth.currentUser.uid,
