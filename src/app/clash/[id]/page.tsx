@@ -20,7 +20,7 @@ import { Footer } from '@/components/Footer';
 import AuthGuard from '@/components/AuthGuard';
 import { CodeEditor } from '@/components/CodeEditor';
 import { UserVideo } from '@/components/UserVideo';
-import { BookOpen, Code, Send, Timer, Video, Loader2, Lightbulb, CheckCircle2, XCircle, KeySquare } from 'lucide-react';
+import { BookOpen, Code, Send, Timer, Video, Loader2, Lightbulb, CheckCircle2, XCircle, KeySquare, MessageSquare, TestTube2, Terminal } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import type { Problem } from '@/lib/problems';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
@@ -440,7 +440,7 @@ export default function ClashPage() {
 
   if (!clashData || !opponent || !problem) {
     return (
-      <div className="flex h-dvh items-center justify-center">
+      <div className="flex h-dvh items-center justify-center bg-background">
         <Loader2 className="h-8 w-8 animate-spin" />
         <p className="ml-4">Loading your clash...</p>
       </div>
@@ -452,7 +452,7 @@ export default function ClashPage() {
     const button = (
         <Button variant="secondary" onClick={handleRunCode} disabled={isDisabled}>
             {isRunning && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-            Run Code
+            Run
         </Button>
     );
 
@@ -503,39 +503,7 @@ export default function ClashPage() {
     <AuthGuard>
       <div className="flex flex-col h-dvh bg-transparent text-foreground font-body">
         <Header />
-        <main className="flex-1 flex flex-row gap-6 p-6 overflow-hidden">
-          
-          {/* Left Panel: Problem Description */}
-          <Card className="w-2/5 flex flex-col min-h-0 bg-card/50 border border-white/10 rounded-2xl">
-            <CardHeader className="border-b border-border">
-              <CardTitle className="capitalize flex items-center gap-3">
-                <BookOpen className="h-6 w-6 text-primary"/>
-                {problem.title}
-              </CardTitle>
-            </CardHeader>
-            <CardContent className="flex-1 overflow-auto pt-6 pr-2">
-                <div className='prose prose-invert max-w-none prose-p:text-muted-foreground prose-strong:text-foreground'>
-                  <p className="whitespace-pre-wrap">{problem.description}</p>
-                  
-                  {problem.examples && problem.examples.map((example, index) => (
-                    <div key={index}>
-                      <p><strong>Example {index + 1}:</strong></p>
-                      <pre className='mt-2 p-3 rounded-md bg-muted/50 text-sm whitespace-pre-wrap font-code not-prose'>
-                        <code>
-                          <strong>Input:</strong> {example.input}<br/>
-                          <strong>Output:</strong> {example.output}
-                          {example.explanation && <><br/><strong>Explanation:</strong> {example.explanation}</>}
-                        </code>
-                      </pre>
-                    </div>
-                  ))}
-                </div>
-            </CardContent>
-          </Card>
-
-          {/* Right Panel: Workspace */}
-          <div className="flex-1 flex flex-col gap-4 min-h-0">
-            <Card className="bg-card/50 border border-white/10 rounded-2xl">
+        <Card className="m-4 bg-card/50 border border-white/10 rounded-xl">
               <CardContent className="flex justify-between items-center p-3">
                 <div className='flex items-center gap-4'>
                   <div className='flex items-center gap-3'>
@@ -569,181 +537,177 @@ export default function ClashPage() {
                 </div>
               </CardContent>
               <Progress value={progressValue} className="w-full h-1 rounded-none" />
-            </Card>
+        </Card>
 
-            <Tabs defaultValue="code" className="flex-1 flex flex-col bg-card/50 border border-white/10 rounded-2xl min-h-0">
-              <div className="p-2 border-b border-border">
-                <TabsList>
-                  <TabsTrigger value="code"><Code className="mr-2"/>Code</TabsTrigger>
-                  {problem.solution && <TabsTrigger value="solution"><KeySquare className="mr-2"/>Solution</TabsTrigger>}
-                  <TabsTrigger value="chat"><Video className="mr-2"/>Chat & Video</TabsTrigger>
+        <main className="flex-1 flex flex-row gap-4 px-4 pb-4 overflow-hidden">
+          
+          {/* Left Panel: Problem & Solution */}
+          <Tabs defaultValue="problem" className="w-2/5 flex flex-col min-h-0 bg-card/50 border border-white/10 rounded-xl">
+             <div className="p-2 border-b border-border">
+                <TabsList className="w-full grid grid-cols-2">
+                  <TabsTrigger value="problem"><BookOpen className="mr-2 h-4 w-4"/>Problem</TabsTrigger>
+                  {problem.solution && <TabsTrigger value="solution"><KeySquare className="mr-2 h-4 w-4"/>Solution</TabsTrigger>}
                 </TabsList>
               </div>
-
-              <TabsContent value="code" className="flex-1 flex flex-col p-0 m-0 min-h-0">
-                <div className="flex-1 flex flex-col min-h-0" style={{flexBasis: '60%', flexGrow: 1}}>
-                    <div className="p-2 border-b border-border flex items-center justify-end">
-                      <Select value={language} onValueChange={handleLanguageChange} disabled={isRunning || isSubmitting || isTranslatingCode}>
-                        <SelectTrigger className="w-[180px] h-9">
-                          <SelectValue placeholder="Select Language" />
-                        </SelectTrigger>
-                        <SelectContent>
-                          {languages.map((lang) => (
-                              <SelectItem key={lang} value={lang} className='capitalize'>
-                                {lang.charAt(0).toUpperCase() + lang.slice(1)}
-                              </SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
-                    </div>
-                    <div className="p-4 flex-1 flex flex-col min-h-0">
-                      <div className="flex-1 w-full rounded-md min-h-0 relative">
-                        {isTranslatingCode && (
-                            <div className="absolute inset-0 bg-slate-900/80 backdrop-blur-sm flex flex-col items-center justify-center z-10 text-foreground rounded-md">
-                                <Loader2 className="h-8 w-8 animate-spin" />
-                                <p className="mt-2 text-sm">Generating {language} template...</p>
-                            </div>
-                        )}
-                        <CodeEditor
-                          key={language}
-                          language={language}
-                          value={code}
-                          onChange={(value) => setCode(value || '')}
-                          disabled={isRunning || isSubmitting || isTranslatingCode}
-                        />
-                      </div>
-                      <div className='flex justify-end mt-4 gap-2'>
-                        <Button variant="outline" onClick={handleGetHint} disabled={isRunning || isSubmitting || isGettingHint || isTranslatingCode}>
-                          {isGettingHint ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Lightbulb className="mr-2 h-4 w-4" />}
-                          Get Hint
-                        </Button>
-                        <RunButton />
-                        <SubmitButton />
-                      </div>
-                    </div>
-                </div>
-                <div className="border-t border-border/50 flex flex-col min-h-0" style={{flexBasis: '40%', flexGrow: 1}}>
-                    <Tabs value={consoleTab} onValueChange={setConsoleTab} className="flex-1 flex flex-col p-2 min-h-0">
-                        <TabsList className="grid w-full grid-cols-2">
-                            <TabsTrigger value="test-result">Test Result</TabsTrigger>
-                            <TabsTrigger value="testcases">Testcases</TabsTrigger>
-                        </TabsList>
-                        <TabsContent value="test-result" className="flex-1 mt-2 overflow-auto rounded-md bg-muted/30 p-4">
-                            {typeof output === 'string' ? (
-                                <pre className="whitespace-pre-wrap font-code text-base"><code>{output}</code></pre>
-                            ) : (
-                                <div className="space-y-4 font-code">
-                                    {output.map((res, index) => (
-                                        <div key={index} className="border-b border-border/50 pb-2 last:border-b-0">
-                                            <div className="flex items-center gap-2 font-bold mb-2 text-lg">
-                                                {res.passed ? <CheckCircle2 className="h-6 w-6 text-green-500" /> : <XCircle className="h-6 w-6 text-red-500" />}
-                                                <span className={cn(res.passed ? "text-green-400" : "text-red-400")}>Case {res.case}: {res.passed ? 'Passed' : 'Failed'}</span>
-                                            </div>
-                                            <div className='space-y-1 pl-8 text-base'>
-                                              <p><span className="text-muted-foreground w-24 inline-block">Input:</span> {res.input}</p>
-                                              <p><span className="text-muted-foreground w-24 inline-block">Output:</span> {res.output}</p>
-                                              <p><span className="text-muted-foreground w-24 inline-block">Expected:</span> {res.expected}</p>
-                                            </div>
-                                        </div>
-                                    ))}
-                                </div>
-                            )}
-                        </TabsContent>
-                        <TabsContent value="testcases" className="flex-1 mt-2 overflow-auto rounded-md bg-muted/30 p-4">
-                          <div className="space-y-4 font-code text-base">
-                              {problem?.testCases.slice(0, 3).map((tc, index) => (
-                                  <div key={index} className="border-b border-border/50 pb-3 last:border-b-0">
-                                      <p className="font-bold mb-2">Case {index + 1}</p>
-                                      <div className="bg-background/40 p-3 mt-1 rounded-md space-y-1">
-                                          <p><span className='text-muted-foreground'>Input:</span> {JSON.stringify(tc.input)}</p>
-                                          <p><span className='text-muted-foreground'>Output:</span> {JSON.stringify(tc.expected)}</p>
-                                      </div>
-                                  </div>
-                              ))}
-                          </div>
-                        </TabsContent>
-                    </Tabs>
-                </div>
-              </TabsContent>
               
-              {problem.solution && (
-                <TabsContent value="solution" className="flex-1 p-4 min-h-0">
-                  <div className="flex-1 w-full h-full rounded-md min-h-0">
-                    <CodeEditor
-                      language="javascript"
-                      value={problem.solution || "No solution available."}
-                      onChange={() => {}}
-                      disabled={true}
-                    />
+              <TabsContent value="problem" className="flex-1 overflow-y-auto p-6 pr-2 m-0">
+                  <h1 className="text-2xl font-bold mb-4">{problem.title}</h1>
+                  <div className='prose prose-invert max-w-none prose-p:text-muted-foreground prose-strong:text-foreground'>
+                    <p className="whitespace-pre-wrap">{problem.description}</p>
+                    {problem.examples && problem.examples.map((example, index) => (
+                      <div key={index}>
+                        <p><strong>Example {index + 1}:</strong></p>
+                        <pre className='mt-2 p-3 rounded-md bg-muted/50 text-base whitespace-pre-wrap font-code not-prose'>
+                          <code>
+                            <strong>Input:</strong> {example.input}<br/>
+                            <strong>Output:</strong> {example.output}
+                            {example.explanation && <><br/><strong>Explanation:</strong> {example.explanation}</>}
+                          </code>
+                        </pre>
+                      </div>
+                    ))}
                   </div>
+              </TabsContent>
+
+              {problem.solution && (
+                <TabsContent value="solution" className="flex-1 p-0 m-0 min-h-0">
+                  <CodeEditor
+                    language="javascript"
+                    value={problem.solution || "No solution available."}
+                    onChange={() => {}}
+                    disabled={true}
+                  />
                 </TabsContent>
               )}
+          </Tabs>
 
-              <TabsContent value="chat" className="flex-1 flex flex-col p-4 min-h-0">
-                <div className="grid grid-cols-2 gap-4 mb-4">
-                  <UserVideo />
-                  <div className="relative aspect-video w-full bg-muted/30 rounded-lg flex items-center justify-center overflow-hidden">
-                      <Image src={opponent.userAvatar || 'https://placehold.co/600x400.png'} data-ai-hint="person coding" alt={opponent.userName} width={320} height={180} className="w-full h-full object-cover" />
-                      <div className="absolute bottom-1 left-2 text-xs bg-black/50 text-white px-1.5 py-0.5 rounded">{opponent.userName}</div>
-                  </div>
+          {/* Right Panel: Workspace */}
+          <div className="w-3/5 flex flex-col gap-4 min-h-0">
+             <div className="flex-1 flex flex-col bg-card/50 border border-white/10 rounded-xl min-h-0">
+                <div className="p-2 border-b border-border flex items-center justify-between">
+                    <Select value={language} onValueChange={handleLanguageChange} disabled={isRunning || isSubmitting || isTranslatingCode}>
+                      <SelectTrigger className="w-[180px] h-9">
+                        <SelectValue placeholder="Select Language" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {languages.map((lang) => (
+                            <SelectItem key={lang} value={lang} className='capitalize'>
+                              {lang.charAt(0).toUpperCase() + lang.slice(1)}
+                            </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                    <Button variant="outline" size="sm" onClick={handleGetHint} disabled={isRunning || isSubmitting || isGettingHint || isTranslatingCode}>
+                      {isGettingHint ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Lightbulb className="mr-2 h-4 w-4" />}
+                      Hint
+                    </Button>
                 </div>
-                <div className="flex-1 flex flex-col mt-2 min-h-0 border-t pt-4">
-                    <div className="flex-1 pr-4 -mr-4 overflow-y-auto">
-                      <div className="space-y-4 text-sm pr-4">
-                        {messages.map((message) => {
-                          const isMe = message.senderId === auth.currentUser?.uid;
-                          return (
-                            <div
-                              key={message.id}
-                              className={cn(
-                                'flex items-start gap-3',
-                                isMe && 'flex-row-reverse'
-                              )}
-                            >
-                              <Avatar className="h-8 w-8">
-                                <AvatarImage src={message.senderAvatar} data-ai-hint={isMe ? "man portrait" : "woman portrait"}/>
-                                <AvatarFallback>
-                                  {message.senderName.substring(0, 2).toUpperCase()}
-                                </AvatarFallback>
-                              </Avatar>
-                              <div className={cn(isMe && 'text-right')}>
-                                <p className="font-bold">{message.senderName}</p>
-                                <p
-                                  className={cn(
-                                    'p-2 rounded-lg mt-1',
-                                    isMe
-                                      ? 'bg-primary/80 text-primary-foreground'
-                                      : 'bg-muted/50'
-                                  )}
-                                >
-                                  {message.text}
-                                </p>
-                              </div>
-                            </div>
-                          );
-                        })}
-                        <div ref={endOfMessagesRef} />
+                <div className="flex-1 min-h-0 relative">
+                  {isTranslatingCode && (
+                      <div className="absolute inset-0 bg-slate-900/80 backdrop-blur-sm flex flex-col items-center justify-center z-10 text-foreground rounded-md">
+                          <Loader2 className="h-8 w-8 animate-spin" />
+                          <p className="mt-2 text-sm">Generating {language} template...</p>
                       </div>
+                  )}
+                  <CodeEditor
+                    key={language}
+                    language={language}
+                    value={code}
+                    onChange={(value) => setCode(value || '')}
+                    disabled={isRunning || isSubmitting || isTranslatingCode}
+                  />
+                </div>
+             </div>
+             
+             <div className="h-2/5 flex flex-col bg-card/50 border border-white/10 rounded-xl min-h-0">
+                <Tabs value={consoleTab} onValueChange={setConsoleTab} className="flex-1 flex flex-col p-2 min-h-0">
+                    <TabsList className="grid w-full grid-cols-3">
+                        <TabsTrigger value="test-result"><Terminal className="mr-2 h-4 w-4"/>Test Result</TabsTrigger>
+                        <TabsTrigger value="testcases"><TestTube2 className="mr-2 h-4 w-4"/>Testcases</TabsTrigger>
+                        <TabsTrigger value="chat"><MessageSquare className="mr-2 h-4 w-4"/>Chat & Video</TabsTrigger>
+                    </TabsList>
+                    <TabsContent value="test-result" className="flex-1 mt-2 overflow-auto rounded-md bg-muted/30 p-4">
+                        {typeof output === 'string' ? (
+                            <pre className="whitespace-pre-wrap font-code text-base"><code>{output}</code></pre>
+                        ) : (
+                            <div className="space-y-4 font-code">
+                                {output.map((res, index) => (
+                                    <div key={index} className="border-b border-border/50 pb-2 last:border-b-0">
+                                        <div className="flex items-center gap-2 font-bold mb-2 text-lg">
+                                            {res.passed ? <CheckCircle2 className="h-6 w-6 text-green-500" /> : <XCircle className="h-6 w-6 text-red-500" />}
+                                            <span className={cn(res.passed ? "text-green-400" : "text-red-400")}>Case {res.case}: {res.passed ? 'Passed' : 'Failed'}</span>
+                                        </div>
+                                        <div className='space-y-1 pl-8 text-base'>
+                                          <p><span className="text-muted-foreground w-24 inline-block">Input:</span> {res.input}</p>
+                                          <p><span className="text-muted-foreground w-24 inline-block">Output:</span> {res.output}</p>
+                                          {!res.passed && <p><span className="text-muted-foreground w-24 inline-block">Expected:</span> {res.expected}</p>}
+                                        </div>
+                                    </div>
+                                ))}
+                            </div>
+                        )}
+                    </TabsContent>
+                    <TabsContent value="testcases" className="flex-1 mt-2 overflow-auto rounded-md bg-muted/30 p-4">
+                      <div className="space-y-4 font-code text-base">
+                          {problem?.testCases.slice(0, 3).map((tc, index) => (
+                              <div key={index} className="border-b border-border/50 pb-3 last:border-b-0">
+                                  <p className="font-bold mb-2">Case {index + 1}</p>
+                                  <div className="bg-background/40 p-3 mt-1 rounded-md space-y-1">
+                                      <p><span className='text-muted-foreground'>Input:</span> {JSON.stringify(tc.input)}</p>
+                                      <p><span className='text-muted-foreground'>Output:</span> {JSON.stringify(tc.expected)}</p>
+                                  </div>
+                              </div>
+                          ))}
+                      </div>
+                    </TabsContent>
+                    <TabsContent value="chat" className="flex-1 mt-2 flex flex-col min-h-0">
+                      <div className="grid grid-cols-2 gap-2 mb-2">
+                        <UserVideo />
+                        <div className="relative aspect-video w-full bg-muted/30 rounded-lg flex items-center justify-center overflow-hidden">
+                            <Image src={opponent.userAvatar || 'https://placehold.co/600x400.png'} data-ai-hint="person coding" alt={opponent.userName} width={320} height={180} className="w-full h-full object-cover" />
+                            <div className="absolute bottom-1 left-2 text-xs bg-black/50 text-white px-1.5 py-0.5 rounded">{opponent.userName}</div>
+                        </div>
+                      </div>
+                      <div className="flex-1 flex flex-col min-h-0 border-t pt-2">
+                          <div className="flex-1 pr-2 -mr-2 overflow-y-auto">
+                            <div className="space-y-4 text-sm pr-2">
+                              {messages.map((message) => {
+                                const isMe = message.senderId === auth.currentUser?.uid;
+                                return (
+                                  <div key={message.id} className={cn('flex items-start gap-3', isMe && 'flex-row-reverse')}>
+                                    <Avatar className="h-8 w-8">
+                                      <AvatarImage src={message.senderAvatar} data-ai-hint={isMe ? "man portrait" : "woman portrait"}/>
+                                      <AvatarFallback>{message.senderName.substring(0, 2).toUpperCase()}</AvatarFallback>
+                                    </Avatar>
+                                    <div className={cn(isMe && 'text-right')}>
+                                      <p className="font-bold">{message.senderName}</p>
+                                      <p className={cn('p-2 rounded-lg mt-1', isMe ? 'bg-primary/80 text-primary-foreground' : 'bg-muted/50')}>
+                                        {message.text}
+                                      </p>
+                                    </div>
+                                  </div>
+                                );
+                              })}
+                              <div ref={endOfMessagesRef} />
+                            </div>
+                          </div>
+                          <div className="mt-2 flex gap-2">
+                            <Input placeholder="Send a message..." value={newMessage} onChange={(e) => setNewMessage(e.target.value)}
+                              onKeyDown={(e) => {
+                                if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); handleSendMessage(); }
+                              }}/>
+                            <Button variant="secondary" size="icon" onClick={handleSendMessage} disabled={!newMessage.trim()}>
+                              <Send className="h-4 w-4" />
+                            </Button>
+                          </div>
+                        </div>
+                    </TabsContent>
+                    <div className='flex justify-end mt-4 gap-2'>
+                        <RunButton />
+                        <SubmitButton />
                     </div>
-                    <div className="mt-4 flex gap-2">
-                      <Input
-                        placeholder="Send a message..."
-                        value={newMessage}
-                        onChange={(e) => setNewMessage(e.target.value)}
-                        onKeyDown={(e) => {
-                          if (e.key === 'Enter' && !e.shiftKey) {
-                            e.preventDefault();
-                            handleSendMessage();
-                          }
-                        }}
-                      />
-                      <Button variant="secondary" size="icon" onClick={handleSendMessage} disabled={!newMessage.trim()}>
-                        <Send className="h-4 w-4" />
-                      </Button>
-                    </div>
-                  </div>
-              </TabsContent>
-            </Tabs>
+                </Tabs>
+             </div>
           </div>
         </main>
         
