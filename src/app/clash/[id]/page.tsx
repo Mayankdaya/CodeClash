@@ -20,10 +20,21 @@ import { Footer } from '@/components/Footer';
 import AuthGuard from '@/components/AuthGuard';
 import { CodeEditor } from '@/components/CodeEditor';
 import { UserVideo } from '@/components/UserVideo';
-import { BookOpen, Code, Send, Users, Timer, Star, ThumbsUp, Video, Loader2 } from 'lucide-react';
+import { BookOpen, Code, Send, Users, Timer, Star, ThumbsUp, Video, Loader2, Lightbulb } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import type { Problem } from '@/lib/problems';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { getHint } from '@/ai/flows/getHintFlow';
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from '@/components/ui/alert-dialog';
+
 
 interface Participant {
   userId: string;
@@ -63,6 +74,9 @@ export default function ClashPage() {
   const [isRunning, setIsRunning] = useState(false);
   
   const [timeLeft, setTimeLeft] = useState(30 * 60); // 30 minutes
+
+  const [isGettingHint, setIsGettingHint] = useState(false);
+  const [hint, setHint] = useState<string | null>(null);
 
   const endOfMessagesRef = useRef<HTMLDivElement>(null);
   const languages = ["javascript", "typescript", "python", "java", "cpp"];
@@ -230,6 +244,28 @@ export default function ClashPage() {
     });
   };
 
+  const handleGetHint = async () => {
+    if (!problem || !code) return;
+    setIsGettingHint(true);
+    try {
+        const result = await getHint({
+            problemTitle: problem.title,
+            problemDescription: problem.description,
+            userCode: code,
+        });
+        setHint(result.hint);
+    } catch (error) {
+        console.error("Error getting hint:", error);
+        toast({
+            title: "Error",
+            description: "Could not fetch a hint at this time.",
+            variant: "destructive",
+        });
+    } finally {
+        setIsGettingHint(false);
+    }
+  };
+
   const formatTime = (seconds: number) => {
     const minutes = Math.floor(seconds / 60);
     const remainingSeconds = seconds % 60;
@@ -315,7 +351,6 @@ export default function ClashPage() {
                     <div className="p-6 pt-0 flex-1 flex flex-col min-h-0">
                       <div className="flex-1 w-full rounded-md min-h-0">
                         <CodeEditor
-                          key={language}
                           language={language}
                           value={code}
                           onChange={(value) => setCode(value || '')}
@@ -323,6 +358,10 @@ export default function ClashPage() {
                         />
                       </div>
                       <div className='flex justify-end mt-4 gap-2'>
+                        <Button variant="outline" onClick={handleGetHint} disabled={isRunning || isGettingHint}>
+                          {isGettingHint ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Lightbulb className="mr-2 h-4 w-4" />}
+                          Get Hint
+                        </Button>
                         <Button variant="secondary" onClick={handleRunCode} disabled={isRunning}>
                           {isRunning && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
                           Run Code
@@ -457,6 +496,19 @@ export default function ClashPage() {
           </div>
         </main>
         <Footer />
+        <AlertDialog open={!!hint} onOpenChange={(open) => !open && setHint(null)}>
+          <AlertDialogContent>
+              <AlertDialogHeader>
+                  <AlertDialogTitle>Here's a Hint!</AlertDialogTitle>
+                  <AlertDialogDescription>
+                      {hint}
+                  </AlertDialogDescription>
+              </AlertDialogHeader>
+              <AlertDialogFooter>
+                  <AlertDialogAction onClick={() => setHint(null)}>Got it!</AlertDialogAction>
+              </AlertDialogFooter>
+          </AlertDialogContent>
+      </AlertDialog>
       </div>
     </AuthGuard>
   );

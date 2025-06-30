@@ -15,6 +15,7 @@ export function CodeEditor({ value, onChange, disabled, language }: CodeEditorPr
   return (
     <div className="relative w-full h-full bg-[#1e1e1e] rounded-md border border-input overflow-hidden">
       <Editor
+        key={language}
         height="100%"
         width="100%"
         language={language}
