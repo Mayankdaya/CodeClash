@@ -198,7 +198,7 @@ export default function ClashPage() {
   const [language, setLanguage] = useState('javascript');
   const [output, setOutput] = useState<TestCaseResult[] | string>('Click "Run Code" to see the output here.');
   const [isRunning, setIsRunning] = useState(false);
-  const [isSubmitting, setIsSubmitting] = useState(isSubmitting);
+  const [isSubmitting, setIsSubmitting] = useState(false);
   const [consoleTab, setConsoleTab] = useState('test-result');
   const [submissionResult, setSubmissionResult] = useState<{ status: 'Accepted' | 'Wrong Answer' | 'Error'; message: string; } | null>(null);
   
@@ -757,5 +757,3 @@ export default function ClashPage() {
     </AuthGuard>
   );
 }
-
-    
