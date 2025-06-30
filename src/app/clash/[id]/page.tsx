@@ -303,7 +303,7 @@ export default function ClashPage() {
                   <ScrollArea className="flex-1">
                     <div className="pr-4 pb-6">
                       <h3 className="font-bold text-lg mb-2 capitalize">{problem.title}</h3>
-                      <p className="text-muted-foreground mb-4 whitespace-pre-line">
+                      <p className="text-muted-foreground mb-4 whitespace-pre-wrap">
                         {problem.description}
                       </p>
                       <div className="text-sm space-y-3">
@@ -353,7 +353,7 @@ export default function ClashPage() {
                     </SelectContent>
                   </Select>
                 </CardHeader>
-                <CardContent className="flex-1 grid p-0 min-h-0" style={{ gridTemplateRows: '3fr 2fr' }}>
+                <CardContent className="flex-1 grid p-0 min-h-0" style={{ gridTemplateRows: 'minmax(0, 3fr) minmax(0, 2fr)' }}>
                    <div className="p-6 pt-0 flex flex-col min-h-0">
                     <div className="flex-1 w-full rounded-md min-h-0">
                       <CodeEditor
@@ -521,3 +521,5 @@ export default function ClashPage() {
     </AuthGuard>
   );
 }
+
+    
