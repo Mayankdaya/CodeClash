@@ -1,6 +1,6 @@
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { ArrowRight, Code, Users, Trophy, GitMerge, List, Swords } from "lucide-react";
+import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
+import { ArrowRight, Code, Users, Trophy, GitMerge, List, Swords, MoveHorizontal, Coins } from "lucide-react";
 import Link from "next/link";
 import { Header } from "@/components/Header";
 import { Footer } from "@/components/Footer";
@@ -29,6 +29,29 @@ const howItWorksSteps = [
   },
 ];
 
+const featuredTopics = [
+  {
+    icon: List,
+    title: "Arrays & Hashing",
+    description: "Master problems involving data structures, and algorithms for arrays and hashing.",
+  },
+  {
+    icon: MoveHorizontal,
+    title: "Two Pointers",
+    description: "Solve challenges efficiently by using two pointers to iterate through data structures.",
+  },
+  {
+    icon: GitMerge,
+    title: "Trees",
+    description: "Navigate hierarchical data structures to solve tree traversal and manipulation problems.",
+  },
+  {
+    icon: Coins,
+    title: "Dynamic Programming",
+    description: "Break down complex problems into simpler subproblems with DP.",
+  },
+];
+
 
 export default function Home() {
   return (
@@ -40,13 +63,13 @@ export default function Home() {
         <section className="relative w-full py-32 md:py-48 lg:py-56 overflow-hidden">
           <Spotlight
             className="-top-40 left-0 md:left-60 md:-top-20"
-            fill="white"
+            fill="hsl(340 85% 65%)"
           />
           <div className="container max-w-5xl mx-auto text-center px-4 relative z-10">
             <h1 className="text-4xl font-extrabold tracking-tight sm:text-6xl md:text-7xl lg:text-8xl">
               The Ultimate Real-Time
               <br />
-              <span className="bg-gradient-to-r from-primary via-accent to-accent bg-clip-text text-transparent">
+              <span className="bg-gradient-to-r from-primary to-accent bg-clip-text text-transparent">
                 Coding Arena
               </span>
             </h1>
@@ -132,6 +155,35 @@ export default function Home() {
                   </div>
                 ))}
               </div>
+            </div>
+          </div>
+        </section>
+
+        {/* Featured Topics Section */}
+        <section className="py-16 md:py-24">
+          <div className="container max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+            <div className="text-center mb-16">
+              <h2 className="text-4xl font-bold tracking-tight sm:text-5xl">Explore Popular Topics</h2>
+              <p className="mt-4 text-lg text-muted-foreground">Practice your skills on a wide variety of challenges.</p>
+            </div>
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-8">
+              {featuredTopics.map((topic) => (
+                <Card key={topic.title} className="bg-card/50 backdrop-blur-lg border border-white/10 rounded-2xl shadow-lg flex flex-col text-center items-center p-6 transition-all duration-300 hover:shadow-primary/20 hover:-translate-y-2">
+                  <div className="p-4 bg-primary/10 rounded-full mb-4 ring-2 ring-inset ring-primary/20">
+                    <topic.icon className="h-8 w-8 text-primary" />
+                  </div>
+                  <CardTitle className="text-xl mb-2">{topic.title}</CardTitle>
+                  <CardDescription>{topic.description}</CardDescription>
+                </Card>
+              ))}
+            </div>
+            <div className="text-center mt-16">
+              <Button size="lg" variant="outline" asChild>
+                <Link href="/lobby">
+                  See All Topics
+                  <ArrowRight className="ml-2 h-5 w-5" />
+                </Link>
+              </Button>
             </div>
           </div>
         </section>
