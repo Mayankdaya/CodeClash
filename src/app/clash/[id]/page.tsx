@@ -68,26 +68,27 @@ const executeInWorker = (code: string, entryPoint: string, testCases: TestCase[]
         const workerCode = `
             const deepEqual = (obj1, obj2) => {
                 if (obj1 === obj2) return true;
+                if (typeof obj1 !== 'object' || obj1 === null || typeof obj2 !== 'object' || obj2 === null) {
+                    return false;
+                }
 
-                // For array comparison, sort and then compare for anagram-style problems
-                const isArray = Array.isArray(obj1) && Array.isArray(obj2);
-                if (isArray) {
+                const isArray1 = Array.isArray(obj1);
+                const isArray2 = Array.isArray(obj2);
+
+                if (isArray1 && isArray2) {
                     if (obj1.length !== obj2.length) return false;
                     try {
-                      // Handle cases where array order doesn't matter by sorting
                       const sortFunc = (a, b) => JSON.stringify(a).localeCompare(JSON.stringify(b));
                       const sorted1 = [...obj1].sort(sortFunc);
                       const sorted2 = [...obj2].sort(sortFunc);
                       return JSON.stringify(sorted1) === JSON.stringify(sorted2);
                     } catch (e) {
-                      // Fallback for non-sortable complex objects in array
                       return JSON.stringify(obj1) === JSON.stringify(obj2);
                     }
                 }
+                
+                if (isArray1 !== isArray2) return false;
 
-                if (typeof obj1 !== 'object' || obj1 === null || typeof obj2 !== 'object' || obj2 === null) {
-                    return false;
-                }
                 const keys1 = Object.keys(obj1);
                 const keys2 = Object.keys(obj2);
                 if (keys1.length !== keys2.length) return false;
@@ -105,16 +106,10 @@ const executeInWorker = (code: string, entryPoint: string, testCases: TestCase[]
                 let passedCount = 0;
                 
                 try {
-                    const consoleLogs = [];
-                    const originalLog = console.log;
-                    console.log = (...args) => {
-                        consoleLogs.push(args.map(arg => JSON.stringify(arg)).join(' '));
-                    };
+                    const userFuncBody = 'const ' + entryPoint + ' = ' + code;
+                    eval(userFuncBody);
 
-                    eval('const ' + entryPoint + ' = ' + code);
                     const userFunc = self[entryPoint];
-                    
-                    console.log = originalLog;
 
                     if (typeof userFunc !== 'function') {
                       throw new Error("Entry point function '" + entryPoint + "' not found in your code.");
@@ -126,19 +121,7 @@ const executeInWorker = (code: string, entryPoint: string, testCases: TestCase[]
                         let output, error = null;
                         
                         try {
-                            // Smart parsing for inputs that might be stringified JSON
-                            const processedInput = tc.input.map(arg => {
-                                if (typeof arg === 'string') {
-                                   try {
-                                        return JSON.parse(arg);
-                                    } catch (e) {
-                                        return arg; // Use as is if not valid JSON
-                                    }
-                                }
-                                return arg;
-                            });
-
-                            const inputClone = JSON.parse(JSON.stringify(processedInput));
+                            const inputClone = JSON.parse(JSON.stringify(tc.input));
                             output = userFunc(...inputClone);
                         } catch (err) {
                             error = err;
@@ -212,7 +195,7 @@ export default function ClashPage() {
   const [hint, setHint] = useState<string | null>(null);
 
   const endOfMessagesRef = useRef<HTMLDivElement>(null);
-  const languages = ["javascript", "typescript", "python", "java", "cpp"];
+  const languages = ["javascript", "python", "java", "cpp"];
 
   // Get clash data and opponent info
   useEffect(() => {
@@ -225,17 +208,14 @@ export default function ClashPage() {
       if (docSnap.exists()) {
         const data = docSnap.data() as ClashData;
         
-        // The problem's test cases are stored as stringified JSON. We need to parse them.
         if (data.problem && data.problem.testCases) {
            const parsedTestCases = (data.problem.testCases as any[]).map(tc => {
                 try {
-                    // Smart parse both input and expected
                     const parsedInput = typeof tc.input === 'string' ? JSON.parse(tc.input) : tc.input;
                     const parsedExpected = typeof tc.expected === 'string' ? JSON.parse(tc.expected) : tc.expected;
                     return { input: parsedInput, expected: parsedExpected };
                 } catch (e) {
                     console.error("Failed to parse test case:", tc, e);
-                    // Fallback to original values if parsing fails
                     return { input: tc.input, expected: tc.expected };
                 }
             });
@@ -342,7 +322,6 @@ export default function ClashPage() {
         description: "Could not generate a template for this language. Please try again.",
         variant: "destructive",
       });
-      // Revert to JS on failure
       if(starterCodes.javascript) {
         setLanguage('javascript'); 
         setCode(starterCodes.javascript);
@@ -365,7 +344,7 @@ export default function ClashPage() {
     try {
       let result: ExecuteCodeOutput;
       if (language === 'javascript') {
-        const userFunctionCode = code.substring(code.indexOf('{') + 1, code.lastIndexOf('}'));
+        const userFunctionCode = `(function() { ${code} return ${problem.entryPoint}; })()`;
         result = await executeInWorker(userFunctionCode, problem.entryPoint, testCasesToRun);
       } else {
         result = await executeCode({
@@ -515,9 +494,8 @@ export default function ClashPage() {
         <Header />
         <main className="flex-1 flex flex-row gap-6 p-6 overflow-hidden">
           
-          {/* Main Content */}
           <div className="flex-1 flex flex-col min-h-0">
-            <Tabs defaultValue="code" className="flex-1 flex flex-col bg-card/50 border border-white/10 rounded-2xl min-h-0">
+            <Tabs defaultValue="problem" className="flex-1 flex flex-col bg-card/50 border border-white/10 rounded-2xl min-h-0">
               <div className="p-4 border-b border-border">
                   <TabsList className="grid w-full grid-cols-3">
                       <TabsTrigger value="problem"><BookOpen className="mr-2"/>Problem</TabsTrigger>
@@ -634,17 +612,18 @@ export default function ClashPage() {
               </TabsContent>
 
               <TabsContent value="solution" className="flex-1 p-4 min-h-0">
-                  <CodeEditor
-                    language="javascript"
-                    value={problem.solution || "No solution available."}
-                    onChange={() => {}}
-                    disabled={true}
-                  />
+                  <div className="flex-1 w-full h-full rounded-md min-h-0">
+                    <CodeEditor
+                      language="javascript"
+                      value={problem.solution || "No solution available."}
+                      onChange={() => {}}
+                      disabled={true}
+                    />
+                  </div>
               </TabsContent>
             </Tabs>
           </div>
 
-          {/* Right Sidebar */}
           <div className="flex flex-col gap-6 w-[350px] min-w-[350px]">
             <Card className="flex-1 flex flex-col bg-card/50 border border-white/10 rounded-2xl min-h-0">
               <CardHeader className="flex-row items-center gap-4">
@@ -806,5 +785,3 @@ export default function ClashPage() {
     </AuthGuard>
   );
 }
-
-    
