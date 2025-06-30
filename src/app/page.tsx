@@ -4,6 +4,7 @@ import { ArrowRight, Code, Users, Trophy, GitMerge, List, Swords } from "lucide-
 import Link from "next/link";
 import { Header } from "@/components/Header";
 import { Footer } from "@/components/Footer";
+import { Spotlight } from "@/components/ui/spotlight";
 
 const howItWorksSteps = [
   {
@@ -37,7 +38,11 @@ export default function Home() {
       <main className="flex-1">
         {/* Hero Section */}
         <section className="relative w-full py-32 md:py-48 lg:py-56 overflow-hidden">
-          <div className="container max-w-5xl mx-auto text-center px-4">
+          <Spotlight
+            className="-top-40 left-0 md:left-60 md:-top-20"
+            fill="white"
+          />
+          <div className="container max-w-5xl mx-auto text-center px-4 relative z-10">
             <h1 className="text-4xl font-extrabold tracking-tight sm:text-6xl md:text-7xl lg:text-8xl">
               The Ultimate Real-Time
               <br />
