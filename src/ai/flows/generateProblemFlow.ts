@@ -52,6 +52,8 @@ const generateProblemPrompt = ai.definePrompt({
 
 The problem should be self-contained and clearly explained. The difficulty should be easy to medium. The problem, examples, and test cases should be solvable in JavaScript.
 
+CRITICAL: The 'input' values inside 'testCases' MUST be pure JSON arrays of arguments, NOT strings that look like JSON. For example, for a function that takes an array and a number, the value must be '[[1, 2, 3], 42]', NOT '["[1, 2, 3]", "42"]'. The system parses this directly.
+
 Topic: {{{topic}}}
 Unique Request Seed: {{{seed}}}
 

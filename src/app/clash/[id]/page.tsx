@@ -180,6 +180,15 @@ const executeInWorker = (code: string, entryPoint: string, testCases: TestCase[]
     });
 };
 
+const formatInputForDisplay = (input: any) => {
+    if (!Array.isArray(input)) {
+        return JSON.stringify(input);
+    }
+    const s = JSON.stringify(input);
+    // Remove outer brackets and add space after commas for readability
+    return s.substring(1, s.length - 1).replace(/,/g, ', ');
+};
+
 
 export default function ClashPage() {
   const params = useParams();
@@ -224,11 +233,31 @@ export default function ClashPage() {
         if (data.problem && data.problem.testCases) {
            const parsedTestCases = (data.problem.testCases as any[]).map(tc => {
                 try {
-                    const parsedInput = typeof tc.input === 'string' ? JSON.parse(tc.input) : tc.input;
+                    // First, parse the full input/expected strings from Firestore
+                    let parsedInput = typeof tc.input === 'string' ? JSON.parse(tc.input) : tc.input;
                     const parsedExpected = typeof tc.expected === 'string' ? JSON.parse(tc.expected) : tc.expected;
+
+                    // Then, if the input is an array, try to parse each argument inside it
+                    // This cleans up cases where the AI might have returned a stringified array/object
+                    if (Array.isArray(parsedInput)) {
+                      parsedInput = parsedInput.map(arg => {
+                        if (typeof arg === 'string') {
+                          try {
+                            // If it's a string that can be parsed, parse it.
+                            return JSON.parse(arg);
+                          } catch (e) {
+                            // Otherwise, leave it as a string.
+                            return arg;
+                          }
+                        }
+                        return arg;
+                      });
+                    }
+                    
                     return { ...tc, input: parsedInput, expected: parsedExpected };
                 } catch (e) {
                     console.error("Failed to parse test case:", tc, e);
+                    // Return the original test case if parsing fails
                     return { ...tc, input: tc.input, expected: tc.expected };
                 }
             });
@@ -649,7 +678,7 @@ export default function ClashPage() {
                                                   <div key={index} className="border-b border-border/50 pb-3 last:border-b-0">
                                                       <p className="font-bold mb-2 text-lg">Case {index + 1}</p>
                                                       <div className="bg-background/40 p-3 mt-1 rounded-md space-y-2">
-                                                          <p><strong className='text-muted-foreground'>Input:</strong> {Array.isArray(tc.input) ? tc.input.map(i => JSON.stringify(i)).join(', ') : JSON.stringify(tc.input)}</p>
+                                                          <p><strong className='text-muted-foreground'>Input:</strong> {formatInputForDisplay(tc.input)}</p>
                                                           <p><strong className='text-muted-foreground'>Output:</strong> {JSON.stringify(tc.expected)}</p>
                                                       </div>
                                                   </div>
