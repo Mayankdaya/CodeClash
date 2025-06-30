@@ -58,6 +58,7 @@ export default function ClashPage() {
   const [messages, setMessages] = useState<Message[]>([]);
   const [newMessage, setNewMessage] = useState('');
   const [code, setCode] = useState('');
+  const [language, setLanguage] = useState('javascript');
   const [output, setOutput] = useState('Click "Run Code" to see the output here.');
   const [isRunning, setIsRunning] = useState(false);
   
@@ -337,27 +338,26 @@ export default function ClashPage() {
                   <CardTitle>Solution</CardTitle>
                 </CardHeader>
                 <CardContent className="flex-1 flex flex-col p-0 min-h-0">
-                   {/* Editor & Console Container */}
                    <div className="flex-1 flex flex-col min-h-0">
-                      {/* Editor Pane */}
-                      <div className="flex flex-col p-6 pb-0 flex-grow-[3] min-h-0">
-                        <div className="flex-1 w-full rounded-md overflow-hidden border border-input">
+                      <div className="p-6 pb-0 flex-grow-[3] flex flex-col min-h-0">
+                        <div className="flex-1 w-full rounded-md overflow-hidden">
                           <CodeEditor
+                            language={language}
+                            onLanguageChange={setLanguage}
                             value={code}
                             onChange={(value) => setCode(value || '')}
                             disabled={isRunning}
                           />
                         </div>
-                          <div className='flex justify-end mt-4 gap-2'>
-                              <Button variant="secondary" onClick={handleRunCode} disabled={isRunning}>
-                                  {isRunning && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-                                  Run Code
-                              </Button>
-                              <Button className="bg-green-600 hover:bg-green-700 text-white" onClick={handleSubmitCode} disabled={isRunning}>Submit</Button>
-                          </div>
+                        <div className='flex justify-end mt-4 gap-2'>
+                          <Button variant="secondary" onClick={handleRunCode} disabled={isRunning}>
+                            {isRunning && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                            Run Code
+                          </Button>
+                          <Button className="bg-green-600 hover:bg-green-700 text-white" onClick={handleSubmitCode} disabled={isRunning}>Submit</Button>
+                        </div>
                       </div>
-                      {/* Console Pane */}
-                      <div className="border-t border-border/50 p-6 flex flex-col flex-grow-[2] min-h-0">
+                      <div className="border-t border-border/50 p-6 flex-grow-[2] flex flex-col min-h-0">
                           <h3 className="text-lg font-semibold mb-2">Console</h3>
                           <ScrollArea className="flex-1 bg-muted/30 p-4 rounded-md font-code text-sm min-h-0">
                               <pre className="whitespace-pre-wrap">
