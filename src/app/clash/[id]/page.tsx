@@ -289,10 +289,10 @@ export default function ClashPage() {
                     <CardTitle>Problem</CardTitle>
                   </CardHeader>
                   <CardContent className="flex-1 flex flex-col pt-0 min-h-0">
-                    <ScrollArea className="flex-1">
+                    <ScrollArea className="flex-1 w-full">
                       <div className="pr-4 pb-6">
                         <h3 className="font-bold text-lg mb-2 capitalize">{problem.title}</h3>
-                        <p className="text-muted-foreground mb-4 whitespace-pre-wrap">
+                        <p className="text-muted-foreground mb-4 whitespace-pre">
                           {problem.description}
                         </p>
                         <div className="text-sm space-y-3">
@@ -306,6 +306,7 @@ export default function ClashPage() {
                           </pre>
                         </div>
                       </div>
+                      <ScrollBar orientation="horizontal" />
                     </ScrollArea>
                   </CardContent>
                 </Card>
