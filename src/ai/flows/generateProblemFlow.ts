@@ -24,9 +24,9 @@ const ProblemSchema: z.ZodType<Problem> = z.object({
     input: z.string().describe('A human-readable string representing an example input for the problem.'),
     output: z.string().describe('The corresponding human-readable output for the example input.'),
     explanation: z.string().optional().describe('An optional explanation of the example.'),
-  })).min(2).describe('An array of at least 2 clear examples with human-readable inputs, outputs, and optional explanations.'),
+  })).min(3).describe('An array of at least 3 clear examples with human-readable inputs, outputs, and optional explanations.'),
   starterCode: z.string().describe('Boilerplate code in JavaScript for the user to start with. IMPORTANT: The function must be defined as a variable, like `var twoSum = function(nums, target) { ... };`'),
-  testCases: z.array(TestCaseSchema).min(3).describe("An array of at least 3 test cases to verify the solution. The 'input' field should be an array of arguments to pass to the function."),
+  testCases: z.array(TestCaseSchema).min(5).describe("An array of at least 5 test cases to verify the solution. The 'input' field should be an array of arguments to pass to the function."),
   entryPoint: z.string().describe("The name of the function to be tested, e.g., 'twoSum'."),
 });
 export type { Problem };
@@ -51,14 +51,15 @@ const generateProblemPrompt = ai.definePrompt({
 The problem should be self-contained and clearly explained. The difficulty should be easy to medium. The problem, examples, and test cases should be solvable in JavaScript.
 
 Topic: {{{topic}}}
+Unique Request Seed: {{{seed}}}
 
 Generate a problem with the following structure:
 - A unique ID in kebab-case.
 - A clear title.
 - A detailed description. Use newlines for spacing and structure. DO NOT use any Markdown formatting like '#' for headers or '*' for lists.
-- An array of at least 2 clear examples with human-readable inputs, outputs, and optional explanations.
+- An array of at least 3 clear examples with human-readable inputs, outputs, and optional explanations.
 - Starter code in JavaScript. CRITICAL: The function must be declared as a variable, for example: 'var twoSum = function(nums, target) { ... };' This format is essential for the testing environment.
-- An array of at least 3 test cases, where each 'input' is an array of arguments for the function.
+- An array of at least 5 test cases, where each 'input' is an array of arguments for the function.
 - The name of the main function to be called for testing (the 'entryPoint').
 `,
 });
