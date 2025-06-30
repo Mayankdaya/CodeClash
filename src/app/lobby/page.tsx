@@ -13,49 +13,49 @@ const topics = [
     icon: List,
     title: "Arrays & Hashing",
     description: "Master problems involving data structures, and algorithms for arrays and hashing.",
-    href: "/clash/arrays-hashing",
+    href: "/matching",
   },
   {
     icon: MoveHorizontal,
     title: "Two Pointers",
     description: "Solve challenges efficiently by using two pointers to iterate through data structures.",
-    href: "/clash/two-pointers",
+    href: "/matching",
   },
   {
     icon: Columns,
     title: "Sliding Window",
     description: "Tackle problems on contiguous subarrays with the efficient sliding window technique.",
-    href: "/clash/sliding-window",
+    href: "/matching",
   },
   {
     icon: ToyBrick,
     title: "Stack",
     description: "Understand and apply the LIFO principle to solve complex logical problems.",
-    href: "/clash/stack",
+    href: "/matching",
   },
   {
     icon: Search,
     title: "Binary Search",
     description: "Sharpen your skills in logarithmic time complexity searches on sorted arrays.",
-    href: "/clash/binary-search",
+    href: "/matching",
   },
   {
     icon: LinkIcon,
     title: "Linked List",
     description: "Explore problems related to nodes, pointers, and dynamic data structures.",
-    href: "/clash/linked-list",
+    href: "/matching",
   },
   {
     icon: GitMerge,
     title: "Trees",
     description: "Navigate hierarchical data structures to solve tree traversal and manipulation problems.",
-    href: "/clash/trees",
+    href: "/matching",
   },
   {
     icon: Coins,
     title: "Dynamic Programming",
     description: "Break down complex problems into simpler subproblems with DP.",
-    href: "/clash/dynamic-programming",
+    href: "/matching",
   },
 ];
 
@@ -68,7 +68,7 @@ export default function LobbyPage() {
           <div className="container max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
             <div className="text-center mb-12">
               <h1 className="text-4xl font-extrabold tracking-tight sm:text-5xl">Choose Your Challenge</h1>
-              <p className="mt-4 text-lg text-muted-foreground">Select a topic to begin your clash. A new room will be created for you.</p>
+              <p className="mt-4 text-lg text-muted-foreground">Select a topic to find an opponent.</p>
             </div>
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
               {topics.map((topic) => (
@@ -85,7 +85,7 @@ export default function LobbyPage() {
                   <CardFooter>
                     <Button className="w-full bg-primary/90 text-primary-foreground hover:bg-primary" asChild>
                       <Link href={topic.href}>
-                        Start Clash <ArrowRight className="ml-2 h-4 w-4" />
+                        Find Opponent <ArrowRight className="ml-2 h-4 w-4" />
                       </Link>
                     </Button>
                   </CardFooter>
