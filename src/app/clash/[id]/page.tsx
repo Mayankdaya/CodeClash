@@ -1,4 +1,3 @@
-
 'use client';
 
 import { useState, useEffect, useRef } from 'react';
@@ -286,30 +285,32 @@ export default function ClashPage() {
     <AuthGuard>
       <div className="flex flex-col min-h-dvh bg-transparent text-foreground font-body">
         <Header />
-        <main className="flex-1 container mx-auto py-6 px-4 flex flex-col">
-          <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 flex-1">
+        <main className="flex-1 container mx-auto py-6 px-4 flex flex-col min-h-0">
+          <div className="flex flex-col lg:flex-row gap-6 flex-1 min-h-0">
             {/* Left Panel */}
-            <div className="lg:col-span-3 flex flex-col gap-6">
+            <div className="w-full lg:w-1/4 flex flex-col gap-6">
               <Card className="bg-card/50 backdrop-blur-lg border border-white/10 rounded-2xl flex-grow flex flex-col">
                 <CardHeader className="flex-row items-center gap-4">
                   <BookOpen className="h-6 w-6 text-primary" />
                   <CardTitle>Problem</CardTitle>
                 </CardHeader>
                 <CardContent className="flex-grow flex flex-col min-h-0">
-                  <ScrollArea className="flex-grow pr-4">
-                    <h3 className="font-bold text-lg mb-2 capitalize">{problem.title}</h3>
-                    <p className="text-muted-foreground mb-4 whitespace-pre-line">
-                      {problem.description}
-                    </p>
-                    <div className="text-sm space-y-3">
-                      <p><strong className='text-foreground'>Example:</strong></p>
-                      <pre className='p-2 rounded-md bg-muted/50 text-xs'>
-                        <code>
-                          Input: {problem.example.input}<br/>
-                          Output: {problem.example.output}
-                          {problem.example.explanation && <><br/>Explanation: {problem.example.explanation}</>}
-                        </code>
-                      </pre>
+                  <ScrollArea className="flex-grow pr-4 -mr-4">
+                    <div className="pr-4">
+                      <h3 className="font-bold text-lg mb-2 capitalize">{problem.title}</h3>
+                      <p className="text-muted-foreground mb-4 whitespace-pre-line">
+                        {problem.description}
+                      </p>
+                      <div className="text-sm space-y-3">
+                        <p><strong className='text-foreground'>Example:</strong></p>
+                        <pre className='p-2 rounded-md bg-muted/50 text-xs'>
+                          <code>
+                            Input: {problem.example.input}<br/>
+                            Output: {problem.example.output}
+                            {problem.example.explanation && <><br/>Explanation: {problem.example.explanation}</>}
+                          </code>
+                        </pre>
+                      </div>
                     </div>
                   </ScrollArea>
                 </CardContent>
@@ -327,30 +328,32 @@ export default function ClashPage() {
             </div>
 
             {/* Middle Panel */}
-            <div className="lg:col-span-6 flex flex-col gap-6">
+            <div className="w-full lg:w-1/2 flex flex-col">
               <Card className="bg-card/50 backdrop-blur-lg border border-white/10 rounded-2xl flex-grow flex flex-col">
                 <CardHeader className="flex-row items-center gap-4">
                   <Code className="h-6 w-6 text-primary" />
                   <CardTitle>Solution</CardTitle>
                 </CardHeader>
-                <CardContent className="flex-grow flex flex-col min-h-0">
-                  <Textarea
-                    placeholder="Enter your code here..."
-                    className="flex-grow w-full p-4 bg-muted/30 border-white/10 font-code text-base resize-none"
-                    value={code}
-                    onChange={(e) => setCode(e.target.value)}
-                    disabled={isRunning}
-                  />
-                  <div className='flex justify-end mt-4 gap-2'>
-                      <Button variant="secondary" onClick={handleRunCode} disabled={isRunning}>
-                          {isRunning && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-                          Run Code
-                      </Button>
-                      <Button className="bg-green-600 hover:bg-green-700 text-white" onClick={handleSubmitCode} disabled={isRunning}>Submit</Button>
-                  </div>
-                   <div className="mt-4 border-t pt-4">
+                <CardContent className="flex-grow flex flex-col min-h-0 p-0">
+                   <div className="h-3/5 flex flex-col p-6 pb-0">
+                     <Textarea
+                        placeholder="Enter your code here..."
+                        className="flex-grow w-full p-4 bg-muted/30 border-white/10 font-code text-base resize-none"
+                        value={code}
+                        onChange={(e) => setCode(e.target.value)}
+                        disabled={isRunning}
+                      />
+                      <div className='flex justify-end mt-4 gap-2'>
+                          <Button variant="secondary" onClick={handleRunCode} disabled={isRunning}>
+                              {isRunning && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                              Run Code
+                          </Button>
+                          <Button className="bg-green-600 hover:bg-green-700 text-white" onClick={handleSubmitCode} disabled={isRunning}>Submit</Button>
+                      </div>
+                   </div>
+                   <div className="h-2/5 border-t border-border/50 pt-4 px-6 pb-6 flex flex-col">
                       <h3 className="text-lg font-semibold mb-2">Console</h3>
-                      <ScrollArea className="h-40 bg-muted/30 p-4 rounded-md font-code text-sm">
+                      <ScrollArea className="flex-grow bg-muted/30 p-4 rounded-md font-code text-sm">
                           <pre className="whitespace-pre-wrap">
                               <code>{output}</code>
                           </pre>
@@ -361,7 +364,7 @@ export default function ClashPage() {
             </div>
 
             {/* Right Panel */}
-            <div className="lg:col-span-3 flex flex-col gap-6">
+            <div className="w-full lg:w-1/4 flex flex-col gap-6">
               <Card className="bg-card/50 backdrop-blur-lg border border-white/10 rounded-2xl flex-grow flex flex-col">
                 <CardHeader className="flex-row items-center gap-4">
                   <Video className="h-6 w-6 text-primary" />
@@ -394,14 +397,14 @@ export default function ClashPage() {
                       </Alert>
                   )}
 
-                  <Tabs defaultValue="chat" className="flex-grow flex flex-col">
+                  <Tabs defaultValue="chat" className="flex-grow flex flex-col min-h-0">
                     <TabsList className="grid w-full grid-cols-2">
                       <TabsTrigger value="chat">Chat</TabsTrigger>
                       <TabsTrigger value="participants">Participants (2)</TabsTrigger>
                     </TabsList>
-                    <TabsContent value="chat" className="mt-4 flex flex-col flex-grow">
-                       <ScrollArea className="flex-grow pr-4">
-                        <div className="space-y-4 text-sm">
+                    <TabsContent value="chat" className="mt-4 flex flex-col flex-grow min-h-0">
+                       <ScrollArea className="flex-grow pr-4 -mr-4">
+                        <div className="space-y-4 text-sm pr-4">
                           {messages.map((message) => {
                             const isMe = message.senderId === auth.currentUser?.uid;
                             return (
@@ -437,7 +440,7 @@ export default function ClashPage() {
                            <div ref={endOfMessagesRef} />
                         </div>
                       </ScrollArea>
-                      <div className="mt-4 flex gap-2">
+                      <div className="mt-4 flex gap-2 flex-shrink-0">
                          <Input
                           placeholder="Send a message..."
                           value={newMessage}
@@ -455,8 +458,8 @@ export default function ClashPage() {
                       </div>
                     </TabsContent>
                     <TabsContent value="participants" className="mt-4 flex-grow">
-                      <ScrollArea className="h-full pr-4">
-                        <div className="space-y-4">
+                      <ScrollArea className="h-full pr-4 -mr-4">
+                        <div className="space-y-4 pr-4">
                             <div className="flex items-center justify-between">
                               <div className='flex items-center gap-3'>
                                 <Avatar className="h-10 w-10">
