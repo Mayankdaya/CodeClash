@@ -2,7 +2,7 @@
 'use client';
 
 import { useState, useEffect, useRef } from 'react';
-import { useRouter } from 'next/navigation';
+import Link from 'next/link';
 import Image from 'next/image';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
@@ -23,13 +23,13 @@ const opponents = [
 ];
 
 export default function MatchingPage() {
-  const router = useRouter();
   const { toast } = useToast();
   const videoRef = useRef<HTMLVideoElement>(null);
 
   const [hasCameraPermission, setHasCameraPermission] = useState<boolean | null>(null);
   const [opponent, setOpponent] = useState(opponents[0]);
   const [isLoading, setIsLoading] = useState(false);
+  const [clashId, setClashId] = useState(() => `challenge-${Math.random().toString(36).substring(7)}`);
 
   useEffect(() => {
     const getCameraPermission = async () => {
@@ -77,12 +77,9 @@ export default function MatchingPage() {
       const currentIndex = opponents.findIndex(o => o.name === opponent.name);
       const nextIndex = (currentIndex + 1) % opponents.length;
       setOpponent(opponents[nextIndex]);
+      setClashId(`challenge-${Math.random().toString(36).substring(7)}`);
       setIsLoading(false);
     }, 1500);
-  };
-
-  const handleBattle = () => {
-    router.push(`/clash/challenge-${Math.random().toString(36).substring(7)}`);
   };
 
   return (
@@ -161,8 +158,10 @@ export default function MatchingPage() {
                 </>
               )}
             </Button>
-            <Button size="lg" className="text-lg px-8 py-6 w-48 bg-green-600 hover:bg-green-700 text-white" onClick={handleBattle} disabled={isLoading}>
-              <Swords className="mr-2 h-5 w-5" /> Battle
+            <Button asChild size="lg" className="text-lg px-8 py-6 w-48 bg-green-600 hover:bg-green-700 text-white" disabled={isLoading}>
+              <Link href={`/clash/${clashId}`}>
+                <Swords className="mr-2 h-5 w-5" /> Battle
+              </Link>
             </Button>
           </div>
         </main>
