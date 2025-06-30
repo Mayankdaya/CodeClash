@@ -14,7 +14,7 @@ import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { Button } from '@/components/ui/button';
 import { CameraOff, Loader2 } from 'lucide-react';
 import Link from 'next/link';
-import { problems } from '@/lib/problems';
+import { generateProblem } from '@/ai/flows/generateProblemFlow';
 
 export default function MatchingPage() {
   const { toast } = useToast();
@@ -23,6 +23,7 @@ export default function MatchingPage() {
   const videoRef = useRef<HTMLVideoElement>(null);
 
   const [hasCameraPermission, setHasCameraPermission] = useState<boolean | null>(null);
+  const [statusText, setStatusText] = useState('Searching for a clash...');
   
   const isCreatingClash = useRef(false);
 
@@ -43,11 +44,6 @@ export default function MatchingPage() {
         if (videoRef.current) videoRef.current.srcObject = stream;
       } catch (error) {
         setHasCameraPermission(false);
-        toast({
-          variant: 'destructive',
-          title: 'Camera Access Denied',
-          description: 'Please enable camera permissions in your browser settings.',
-        });
       }
     };
     getCameraPermission();
@@ -59,14 +55,15 @@ export default function MatchingPage() {
   }, [toast]);
   
   useEffect(() => {
-    const createTestMatch = async () => {
-      if (isCreatingClash.current) return;
-      isCreatingClash.current = true;
+    if (isCreatingClash.current) return;
+    isCreatingClash.current = true;
 
+    const createAIGeneratedMatch = async () => {
       const currentUser = auth?.currentUser;
       const topicId = searchParams.get('topic');
+      const topicName = topicId?.replace(/-/g, ' ').replace(/\b\w/g, l => l.toUpperCase());
 
-      if (!db || !currentUser || !topicId) {
+      if (!db || !currentUser || !topicId || !topicName) {
         if(!topicId) {
             toast({ title: "No Topic Selected", description: "Please select a topic from the lobby.", variant: "destructive" });
             router.push('/lobby');
@@ -75,22 +72,19 @@ export default function MatchingPage() {
       }
 
       try {
-        const topicProblems = problems[topicId];
-        if (!topicProblems || topicProblems.length === 0) {
-            toast({ title: "No problems found", description: "There are no problems available for this topic yet.", variant: "destructive" });
-            router.push('/lobby');
-            return;
-        }
+        setStatusText(`Generating a unique problem about ${topicName}...`);
 
-        const randomProblem = topicProblems[Math.floor(Math.random() * topicProblems.length)];
+        const problem = await generateProblem({ topic: topicName });
+
+        setStatusText('Match found! Preparing your arena...');
 
         const clashesRef = collection(db, 'clashes');
         const newClashDoc = await addDoc(clashesRef, {
           topicId,
-          problemId: randomProblem.id,
+          problem,
           participants: [
-            { userId: currentUser.uid, userName: currentUser.displayName || 'Anonymous', userAvatar: currentUser.photoURL || 'https://placehold.co/100x100.png' },
-            { userId: 'bot-123', userName: 'CodeBot', userAvatar: 'https://placehold.co/100x100.png' }
+            { userId: currentUser.uid, userName: currentUser.displayName || 'Anonymous', userAvatar: currentUser.photoURL || `https://placehold.co/100x100.png` },
+            { userId: 'bot-123', userName: 'CodeBot', userAvatar: `https://placehold.co/100x100.png` }
           ],
           createdAt: serverTimestamp(),
           status: 'active'
@@ -99,19 +93,19 @@ export default function MatchingPage() {
         toast({ title: "Match Found!", description: "Redirecting you to the clash..." });
         router.push(`/clash/${newClashDoc.id}`);
 
-      } catch (error) {
-        console.error("Error creating test clash:", error);
+      } catch (error: any) {
+        console.error("Error creating AI-generated match:", error);
         toast({
           title: "Matchmaking Error",
-          description: "Could not create a test match. Ensure Firestore is enabled.",
+          description: error.message || "Could not create a match. Please try again.",
           variant: "destructive"
         });
-        isCreatingClash.current = false; // Allow retry if it fails
+        isCreatingClash.current = false;
+        router.push('/lobby');
       }
     };
 
-    // Create the test match after a short delay so the user sees the screen.
-    const timeoutId = setTimeout(createTestMatch, 2000);
+    const timeoutId = setTimeout(createAIGeneratedMatch, 1000);
 
     return () => clearTimeout(timeoutId);
 
@@ -125,7 +119,7 @@ export default function MatchingPage() {
           <Card className="bg-card/50 backdrop-blur-lg border border-white/10 rounded-2xl shadow-lg w-full max-w-2xl">
             <CardHeader className="text-center">
               <CardTitle className="text-3xl">Finding Your Opponent</CardTitle>
-              <CardDescription>Please wait while we match you with a worthy adversary.</CardDescription>
+              <CardDescription>Please wait while we prepare your challenge.</CardDescription>
             </CardHeader>
             <CardContent className="flex flex-col items-center gap-6">
               <div className="aspect-video w-full max-w-md bg-muted/30 rounded-lg flex items-center justify-center overflow-hidden">
@@ -149,7 +143,7 @@ export default function MatchingPage() {
 
               <div className="flex items-center gap-4 text-lg text-muted-foreground">
                 <Loader2 className="h-6 w-6 animate-spin" />
-                <p>Searching for a clash...</p>
+                <p>{statusText}</p>
               </div>
 
               <Button variant="outline" asChild>

@@ -4,9 +4,10 @@
 import { useState, useEffect, useRef } from 'react';
 import Image from 'next/image';
 import { useParams } from 'next/navigation';
-import { doc, getDoc, collection, addDoc, query, orderBy, onSnapshot, serverTimestamp, type DocumentData } from 'firebase/firestore';
+import { doc, getDoc, collection, addDoc, query, orderBy, onSnapshot, serverTimestamp } from 'firebase/firestore';
 import { auth, db } from '@/lib/firebase';
 import { useToast } from '@/hooks/use-toast';
+import { useRouter } from 'next/navigation';
 
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Button } from '@/components/ui/button';
@@ -22,8 +23,7 @@ import { Footer } from '@/components/Footer';
 import AuthGuard from '@/components/AuthGuard';
 import { BookOpen, Code, Send, Users, Timer, Star, ThumbsUp, Video, CameraOff, Loader2 } from 'lucide-react';
 import { cn } from '@/lib/utils';
-import { type Problem, problems } from '@/lib/problems';
-import { useRouter } from 'next/navigation';
+import type { Problem } from '@/lib/problems';
 
 interface Participant {
   userId: string;
@@ -33,7 +33,7 @@ interface Participant {
 
 interface ClashData {
   topicId: string;
-  problemId: string;
+  problem: Problem;
   participants: Participant[];
 }
 
@@ -79,18 +79,13 @@ export default function ClashPage() {
         const data = docSnap.data() as ClashData;
         setClashData(data);
         
-        const problemArray = problems[data.topicId] || [];
-        const problemData = problemArray.find(p => p.id === data.problemId);
-
-        if (problemData) {
-          setProblem(problemData);
-          setCode(problemData.starterCode);
+        if (data.problem) {
+          setProblem(data.problem);
+          setCode(data.problem.starterCode);
         } else {
-          // Fallback if problem not found
-          const fallbackProblem = problems['arrays-hashing'][0];
-          setProblem(fallbackProblem);
-          setCode(fallbackProblem.starterCode);
-          toast({ title: "Problem not found", description: "The specified problem couldn't be found. Loading a default.", variant: 'destructive' });
+          toast({ title: "Problem not found", description: "The problem for this clash is missing.", variant: 'destructive' });
+          router.push('/lobby');
+          return;
         }
 
         const opponentParticipant = data.participants.find(p => p.userId !== auth.currentUser?.uid);
@@ -180,47 +175,48 @@ export default function ClashPage() {
     setOutput('Running test cases...');
     setIsRunning(true);
     
-    // Simulate async execution for user feedback
+    // This is a highly simplified and insecure way to run code.
+    // In a real application, this should be done in a sandboxed environment (e.g., a web worker or a secure backend service).
     setTimeout(() => {
-        // For now, we only support client-side execution for the "Two Sum" problem
-        if (problem.id !== 'two-sum') {
-            setOutput('Code execution for this problem is not yet supported in this demo.');
-            setIsRunning(false);
-            return;
-        }
-
-        const testCases = [
-            { args: [[2, 7, 11, 15], 9], expected: [0, 1] },
-            { args: [[3, 2, 4], 6], expected: [1, 2] },
-            { args: [[3, 3], 6], expected: [0, 1] },
-        ];
-
-        let results = '';
-        let allPassed = true;
-
         try {
-            // Unsafe in production. Use a web worker or sandboxed environment for real apps.
-            const userFunc = new Function('nums', 'target', `
-                ${code}
-                return twoSum(nums, target);
-            `);
+            // A slightly more robust way to extract function name
+            const funcNameMatch = problem.starterCode.match(/var\s+(\w+)\s*=\s*function/);
+            if (!funcNameMatch) {
+                setOutput('Could not identify the function to test from the starter code.');
+                setIsRunning(false);
+                return;
+            }
+            const funcName = funcNameMatch[1];
+
+            // This is still unsafe for production.
+            const userFunc = new Function('return ' + code)()[funcName];
+            
+            // This is a placeholder for test cases which would ideally come with the problem definition
+            const testCases = [
+                { args: [[2, 7, 11, 15], 9], expected: [0, 1] },
+                { args: [[3, 2, 4], 6], expected: [1, 2] },
+                { args: [[3, 3], 6], expected: [0, 1] },
+            ];
+
+            let results = `Running tests for "${problem.title}"...\n\n`;
+            let allPassed = true;
 
             testCases.forEach((testCase, index) => {
                 const result = userFunc(...testCase.args);
                 
-                // Simple array comparison, ignoring order
+                // Simple array comparison, ignoring order for this specific problem
                 const passed = JSON.stringify(result?.sort((a:number, b:number) => a - b)) === JSON.stringify(testCase.expected.sort((a:number, b:number) => a - b));
                 if (!passed) allPassed = false;
 
                 results += `Case ${index + 1}: ${passed ? '✅ Passed' : '❌ Failed'}\n`;
-                results += `  Input:    nums = ${JSON.stringify(testCase.args[0])}, target = ${testCase.args[1]}\n`;
+                results += `  Input:    ${JSON.stringify(testCase.args)}\n`;
                 results += `  Output:   ${JSON.stringify(result)}\n`;
                 results += `  Expected: ${JSON.stringify(testCase.expected)}\n\n`;
             });
             results += allPassed ? 'All test cases passed!' : 'Some test cases failed.';
             setOutput(results);
         } catch (error: any) {
-            setOutput(`An error occurred:\n${error.message}`);
+            setOutput(`An error occurred:\n${error.name}: ${error.message}`);
         } finally {
             setIsRunning(false);
         }
