@@ -544,7 +544,6 @@ export default function ClashPage() {
         <main className="flex-1 flex flex-row gap-0 px-2 pb-2 overflow-hidden">
           <PanelGroup direction="horizontal">
             <Panel defaultSize={45} minSize={30}>
-              {/* Left Panel: Problem & Solution */}
               <Tabs defaultValue="problem" className="h-full flex flex-col min-h-0 bg-card/50 border border-white/10 rounded-xl">
                  <div className="p-2 border-b border-border">
                     <TabsList className="w-full grid grid-cols-2">
@@ -590,7 +589,6 @@ export default function ClashPage() {
             <Panel minSize={30}>
               <PanelGroup direction="vertical">
                 <Panel defaultSize={60} minSize={25}>
-                   {/* Editor Panel */}
                    <div className="h-full flex flex-col bg-card/50 border border-white/10 rounded-xl min-h-0">
                       <div className="p-2 border-b border-border flex items-center justify-between">
                           <Select value={language} onValueChange={handleLanguageChange} disabled={isRunning || isSubmitting || isTranslatingCode}>
@@ -631,9 +629,8 @@ export default function ClashPage() {
                   <div className="w-24 h-1 rounded-full bg-border group-hover:bg-primary transition-colors"></div>
                 </PanelResizeHandle>
                 <Panel minSize={25}>
-                   {/* Console Panel */}
                    <div className="h-full flex flex-col bg-card/50 border border-white/10 rounded-xl min-h-0">
-                      <div className='flex-1 min-h-0'>
+                      <div className='flex-1 flex flex-col min-h-0'>
                         <Tabs value={consoleTab} onValueChange={setConsoleTab} className="flex-1 flex flex-col min-h-0 h-full">
                           <div className='p-2 border-b border-border/50'>
                             <TabsList className="grid w-full grid-cols-3">
