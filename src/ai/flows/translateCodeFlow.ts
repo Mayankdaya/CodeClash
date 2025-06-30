@@ -1,3 +1,4 @@
+
 'use server';
 /**
  * @fileOverview A flow to translate a code snippet to a different language.
@@ -35,10 +36,13 @@ const translateCodePrompt = ai.definePrompt({
   prompt: `You are an expert programmer specializing in code translation. Your task is to translate a given code snippet from one language to another.
 
 IMPORTANT RULES:
-1.  Translate only the code provided.
-2.  Maintain the original logic and function signature as closely as possible in the target language.
-3.  The main function to be translated is named '{{{entryPoint}}}'. Ensure the translated function is a standard function declaration appropriate for the target language. For Python, it should be 'def {{{entryPoint}}}(...): ...'. For Java, it should be part of a public class named 'Solution'. For C++, it could be a standalone function.
-4.  Return *only* the translated code. Do not include any explanations, comments, or markdown formatting like \`\`\`.
+1.  **CRITICAL**: The source code is a boilerplate/starter template. Your translation MUST also be a boilerplate. **DO NOT add any implementation logic.** The function body should be empty or contain only a placeholder comment (e.g., "// your code here").
+2.  Translate only the code provided. Maintain the original function signature as closely as possible in the target language.
+3.  The main function to be translated is named '{{{entryPoint}}}'. Ensure the translated function is a standard function declaration appropriate for the target language.
+    *   For Python, it should be 'def {{{entryPoint}}}(...): ...'.
+    *   For Java, it must be part of a public class named 'Solution'.
+    *   For C++, it can be a standalone function.
+4.  Return *only* the translated code. Do not include any explanations, comments (other than the placeholder in the body), or markdown formatting like \`\`\`.
 
 Source Language: {{{sourceLanguage}}}
 Target Language: {{{targetLanguage}}}
@@ -48,7 +52,7 @@ Source Code:
 {{{sourceCode}}}
 \`\`\`
 
-Provide the translated code for the '{{{targetLanguage}}}' language.
+Provide the translated boilerplate code for the '{{{targetLanguage}}}' language.
 `,
 });
 

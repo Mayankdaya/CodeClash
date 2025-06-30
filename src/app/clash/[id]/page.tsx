@@ -541,7 +541,7 @@ export default function ClashPage() {
               <Progress value={progressValue} className="w-full h-1 rounded-none" />
         </Card>
 
-        <main className="flex-1 flex p-2 overflow-hidden">
+        <main className="flex-1 flex p-2 pt-0 overflow-hidden">
           <PanelGroup direction="horizontal">
             <Panel defaultSize={45} minSize={30}>
               <Tabs defaultValue="problem" className="h-full flex flex-col min-h-0 bg-card/50 border border-white/10 rounded-xl">
@@ -583,10 +583,10 @@ export default function ClashPage() {
                   )}
               </Tabs>
             </Panel>
-            <PanelResizeHandle className="w-2 bg-primary/50 hover:bg-primary transition-colors" />
+            <PanelResizeHandle className="w-2 rounded-full bg-border hover:bg-primary transition-colors" />
             <Panel minSize={30}>
               <PanelGroup direction="vertical">
-                <Panel defaultSize={40} minSize={25}>
+                <Panel defaultSize={60} minSize={25}>
                    <div className="h-full flex flex-col bg-card/50 border border-white/10 rounded-xl min-h-0">
                       <div className="p-2 border-b border-border flex items-center justify-between">
                           <Select value={language} onValueChange={handleLanguageChange} disabled={isRunning || isSubmitting || isTranslatingCode}>
@@ -623,8 +623,8 @@ export default function ClashPage() {
                       </div>
                    </div>
                 </Panel>
-                <PanelResizeHandle className="h-2 bg-primary/50 hover:bg-primary transition-colors" />
-                <Panel defaultSize={60} minSize={25}>
+                <PanelResizeHandle className="h-2 rounded-full bg-border hover:bg-primary transition-colors" />
+                <Panel defaultSize={40} minSize={25}>
                    <div className="h-full flex flex-col bg-card/50 border border-white/10 rounded-xl min-h-0">
                       <Tabs value={consoleTab} onValueChange={setConsoleTab} className="flex-1 flex flex-col min-h-0 h-full">
                         <div className='p-2 border-b border-border/50'>
@@ -669,15 +669,17 @@ export default function ClashPage() {
                                   ))}
                               </div>
                             </TabsContent>
-                            <TabsContent value="chat" className="m-0 h-full flex flex-col min-h-0 p-4">
-                              <div className="grid grid-cols-2 gap-1 mb-1">
-                                <UserVideo />
-                                <div className="relative aspect-video w-full bg-muted/30 rounded-lg flex items-center justify-center overflow-hidden">
-                                    <Image src={opponent.userAvatar || 'https://placehold.co/600x400.png'} data-ai-hint="person coding" alt={opponent.userName} width={320} height={180} className="w-full h-full object-cover" />
-                                    <div className="absolute bottom-1 left-2 text-xs bg-black/50 text-white px-1.5 py-0.5 rounded">{opponent.userName}</div>
+                            <TabsContent value="chat" className="m-0 h-full flex flex-col min-h-0">
+                              <div className="p-4 pt-0">
+                                <div className="grid grid-cols-2 gap-1 mb-1">
+                                  <UserVideo />
+                                  <div className="relative aspect-video w-full bg-muted/30 rounded-lg flex items-center justify-center overflow-hidden">
+                                      <Image src={opponent.userAvatar || 'https://placehold.co/600x400.png'} data-ai-hint="person coding" alt={opponent.userName} width={320} height={180} className="w-full h-full object-cover" />
+                                      <div className="absolute bottom-1 left-2 text-xs bg-black/50 text-white px-1.5 py-0.5 rounded">{opponent.userName}</div>
+                                  </div>
                                 </div>
                               </div>
-                              <div className="flex-1 flex flex-col min-h-0 border-t pt-2">
+                              <div className="flex-1 flex flex-col min-h-0 border-t pt-2 px-4 pb-4">
                                   <div className="flex-1 pr-2 -mr-2 overflow-y-auto">
                                     <div className="space-y-2 text-sm pr-2">
                                       {messages.map((message) => {
