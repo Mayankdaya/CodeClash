@@ -181,14 +181,21 @@ const executeInWorker = (code: string, entryPoint: string, testCases: TestCase[]
 };
 
 const formatInputForDisplay = (input: any) => {
-    if (!Array.isArray(input)) {
-        return JSON.stringify(input);
+    let args = input;
+    if (typeof args === 'string') {
+        try {
+            args = JSON.parse(args);
+        } catch (e) {
+            // Not a valid JSON string, return as is.
+            return args;
+        }
     }
-    const s = JSON.stringify(input);
-    // Remove outer brackets and add space after commas for readability
-    return s.substring(1, s.length - 1).replace(/,/g, ', ');
+    if (!Array.isArray(args)) {
+        return JSON.stringify(args);
+    }
+    // Handle arrays: stringify each element and join with a comma.
+    return args.map(arg => JSON.stringify(arg)).join(', ');
 };
-
 
 export default function ClashPage() {
   const params = useParams();
@@ -233,32 +240,26 @@ export default function ClashPage() {
         if (data.problem && data.problem.testCases) {
            const parsedTestCases = (data.problem.testCases as any[]).map(tc => {
                 try {
-                    // First, parse the full input/expected strings from Firestore
-                    let parsedInput = typeof tc.input === 'string' ? JSON.parse(tc.input) : tc.input;
+                    // This handles cases where the entire input or expected value is a stringified JSON.
+                    const parsedInput = typeof tc.input === 'string' ? JSON.parse(tc.input) : tc.input;
                     const parsedExpected = typeof tc.expected === 'string' ? JSON.parse(tc.expected) : tc.expected;
 
-                    // Then, if the input is an array, try to parse each argument inside it
-                    // This cleans up cases where the AI might have returned a stringified array/object
-                    if (Array.isArray(parsedInput)) {
-                      parsedInput = parsedInput.map(arg => {
+                    // This handles cases where an argument *within* the input array is a stringified JSON.
+                    const sanizitedInput = Array.isArray(parsedInput) ? parsedInput.map(arg => {
                         if (typeof arg === 'string') {
-                          try {
-                            // If it's a string that can be parsed, parse it.
-                            return JSON.parse(arg);
-                          } catch (e) {
-                            // Otherwise, leave it as a string.
-                            return arg;
-                          }
+                            try {
+                                return JSON.parse(arg);
+                            } catch (e) {
+                                return arg;
+                            }
                         }
                         return arg;
-                      });
-                    }
-                    
-                    return { ...tc, input: parsedInput, expected: parsedExpected };
+                    }) : parsedInput;
+
+                    return { ...tc, input: sanizitedInput, expected: parsedExpected };
                 } catch (e) {
-                    console.error("Failed to parse test case:", tc, e);
-                    // Return the original test case if parsing fails
-                    return { ...tc, input: tc.input, expected: tc.expected };
+                    console.error("Failed to parse test case, returning as is:", tc, e);
+                    return { ...tc };
                 }
             });
             data.problem = { ...data.problem, testCases: parsedTestCases };
@@ -534,7 +535,7 @@ export default function ClashPage() {
     <AuthGuard>
       <div className="flex flex-col min-h-dvh bg-transparent text-foreground font-body">
         <Header />
-        <main className="flex-1 flex flex-col p-4">
+        <main className="flex-1 flex flex-col p-4 gap-4">
           <Card className="bg-card/50 border border-white/10 rounded-xl shrink-0">
               <CardContent className="flex justify-between items-center p-2">
                   <div className='flex items-center gap-4'>
@@ -571,32 +572,48 @@ export default function ClashPage() {
               <Progress value={progressValue} className="w-full h-1 rounded-none" />
           </Card>
 
-          <div className="flex-1 mt-4 min-h-0">
+          <div className="flex-1 min-h-0">
               <PanelGroup direction="horizontal">
                   <Panel defaultSize={45} minSize={30}>
                        <div className="h-full flex flex-col bg-card/50 border border-white/10 rounded-xl overflow-hidden">
-                          <div className="p-2 border-b border-border shrink-0 flex items-center gap-2">
-                              <BookOpen className="h-5 w-5"/>
-                              <h2 className="font-semibold">Problem</h2>
-                          </div>
-                          <div className="flex-1 min-h-0 overflow-y-auto p-4 pr-2">
-                              <h1 className="text-2xl font-bold mb-2">{problem.title}</h1>
-                              <div className='prose prose-invert max-w-none prose-p:text-muted-foreground prose-strong:text-foreground'>
-                              <p className="whitespace-pre-wrap">{problem.description}</p>
-                              {problem.examples && problem.examples.map((example, index) => (
-                                  <div key={index}>
-                                  <p><strong>Example {index + 1}:</strong></p>
-                                  <pre className='mt-2 p-2 rounded-md bg-muted/50 text-base whitespace-pre-wrap font-code not-prose'>
-                                      <code>
-                                      <strong>Input:</strong> {example.input}<br/>
-                                      <strong>Output:</strong> {example.output}
-                                      {example.explanation && <><br/><strong>Explanation:</strong> {example.explanation}</>}
-                                      </code>
-                                  </pre>
+                           <Tabs defaultValue="problem" className="flex-1 flex flex-col min-h-0">
+                               <div className="p-2 border-b border-border shrink-0">
+                                  <TabsList className="grid w-full grid-cols-2">
+                                      <TabsTrigger value="problem"><BookOpen className="mr-2 h-4 w-4"/>Problem</TabsTrigger>
+                                      <TabsTrigger value="solution"><KeySquare className="mr-2 h-4 w-4"/>Solution</TabsTrigger>
+                                  </TabsList>
+                               </div>
+
+                               <TabsContent value="problem" className="flex-1 min-h-0 overflow-y-auto m-0">
+                                  <div className="p-4 pr-2">
+                                      <h1 className="text-2xl font-bold mb-2">{problem.title}</h1>
+                                      <div className='prose prose-invert max-w-none prose-p:text-muted-foreground prose-strong:text-foreground'>
+                                      <p className="whitespace-pre-wrap">{problem.description}</p>
+                                      {problem.examples && problem.examples.map((example, index) => (
+                                          <div key={index}>
+                                          <p><strong>Example {index + 1}:</strong></p>
+                                          <pre className='mt-2 p-2 rounded-md bg-muted/50 text-base whitespace-pre-wrap font-code not-prose'>
+                                              <code>
+                                              <strong>Input:</strong> {example.input}<br/>
+                                              <strong>Output:</strong> {example.output}
+                                              {example.explanation && <><br/><strong>Explanation:</strong> {example.explanation}</>}
+                                              </code>
+                                          </pre>
+                                          </div>
+                                      ))}
+                                      </div>
                                   </div>
-                              ))}
-                              </div>
-                          </div>
+                               </TabsContent>
+
+                               <TabsContent value="solution" className="flex-1 min-h-0 m-0">
+                                   <CodeEditor
+                                       language="javascript"
+                                       value={problem.solution}
+                                       onChange={() => {}}
+                                       disabled={true}
+                                   />
+                               </TabsContent>
+                           </Tabs>
                       </div>
                   </Panel>
                   <PanelResizeHandle className="w-2 bg-border/50 hover:bg-primary transition-colors data-[resize-handle-state=drag]:bg-primary" />
