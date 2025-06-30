@@ -25,6 +25,7 @@ import type { Problem } from '@/lib/problems';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { getHint } from '@/ai/flows/getHintFlow';
 import { translateCode } from '@/ai/flows/translateCodeFlow';
+import { executeCode, type ExecuteCodeOutput } from '@/ai/flows/executeCodeFlow';
 import {
   AlertDialog,
   AlertDialogAction,
@@ -72,7 +73,7 @@ export default function ClashPage() {
   const [starterCodes, setStarterCodes] = useState<Record<string, string>>({});
   const [isTranslatingCode, setIsTranslatingCode] = useState(false);
   const [language, setLanguage] = useState('javascript');
-  const [output, setOutput] = useState<any[] | string>('Click "Run Code" to see the output here.');
+  const [output, setOutput] = useState<ExecuteCodeOutput['results'] | string>('Click "Run Code" to see the output here.');
   const [isRunning, setIsRunning] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [consoleTab, setConsoleTab] = useState('testcases');
@@ -182,12 +183,7 @@ export default function ClashPage() {
 
   const handleLanguageChange = async (newLang: string) => {
     setLanguage(newLang);
-
-    if (newLang !== 'javascript') {
-      setOutput('Code execution is only supported for JavaScript in this environment.');
-    } else {
-      setOutput('Click "Run Code" to see the output here.');
-    }
+    setOutput('Click "Run Code" to see the output here.');
     
     if (starterCodes[newLang]) {
       setCode(starterCodes[newLang]);
@@ -222,139 +218,86 @@ export default function ClashPage() {
     }
   };
 
-  const createAndRunWorker = (testCases: any[], onDone: (data: any) => void) => {
-    if (!problem) return;
-    const workerCode = `
-        self.onmessage = function(e) {
-            const { code, testCases, funcName } = e.data;
-            let results = [];
-            let passedCount = 0;
-            
-            try {
-                eval(code); 
-                const userFunc = self[funcName];
-
-                if (typeof userFunc !== 'function') {
-                    throw new Error('Could not find function "' + funcName + '". Make sure it is defined correctly (e.g., var ' + funcName + ' = function(...) ...).');
-                }
-
-                testCases.forEach((testCase, index) => {
-                    const inputArgs = Array.isArray(testCase.input) ? testCase.input : [testCase.input];
-                    const startTime = performance.now();
-                    const result = userFunc(...inputArgs);
-                    const endTime = performance.now();
-                    
-                    let processedResult = result;
-                    let processedExpected = testCase.expected;
-
-                    if (Array.isArray(result) && Array.isArray(testCase.expected)) {
-                        try {
-                          processedResult = JSON.parse(JSON.stringify(result)).sort();
-                          processedExpected = JSON.parse(JSON.stringify(testCase.expected)).sort();
-                        } catch (e) {
-                          // Fallback for non-sortable arrays
-                        }
-                    }
-                    
-                    const passed = JSON.stringify(processedResult) === JSON.stringify(processedExpected);
-                    if (passed) passedCount++;
-
-                    results.push({
-                      case: index + 1,
-                      input: JSON.stringify(inputArgs),
-                      output: JSON.stringify(result),
-                      expected: JSON.stringify(testCase.expected),
-                      passed: passed,
-                      runtime: (endTime - startTime).toFixed(2)
-                    });
-                });
-
-                self.postMessage({
-                  status: 'success',
-                  passedCount: passedCount,
-                  totalCount: testCases.length,
-                  results: results
-                });
-
-            } catch (error) {
-                self.postMessage({
-                  status: 'error',
-                  message: error.name + ': ' + error.message
-                });
-            }
-        }
-    `;
-
-    const blob = new Blob([workerCode], { type: 'application/javascript' });
-    const workerUrl = URL.createObjectURL(blob);
-    const worker = new Worker(workerUrl);
-
-    worker.onmessage = (e) => {
-      onDone(e.data);
-      worker.terminate();
-      URL.revokeObjectURL(workerUrl);
-    };
-
-    worker.onerror = (e) => {
-      onDone({ status: 'error', message: `A worker error occurred: ${e.message}` });
-      worker.terminate();
-      URL.revokeObjectURL(workerUrl);
-    };
-
-    worker.postMessage({
-        code,
-        testCases,
-        funcName: problem.entryPoint,
-    });
-  };
-
-  const handleRunCode = () => {
-    if (!problem?.testCases) return;
+  const handleRunCode = async () => {
+    if (!problem?.testCases || !code) return;
     
     const runTestCases = problem.testCases.slice(0, 3);
     setOutput('Running test cases...');
     setIsRunning(true);
     setConsoleTab('test-result');
     
-    createAndRunWorker(runTestCases, (data) => {
-      if (data.status === 'error') {
-          setOutput(data.message);
+    try {
+      const result = await executeCode({
+        code,
+        language,
+        entryPoint: problem.entryPoint,
+        testCases: runTestCases,
+      });
+
+      if (result.status === 'error') {
+        setOutput(result.message || 'An unknown error occurred during execution.');
       } else {
-          setOutput(data.results);
+        setOutput(result.results);
       }
+    } catch (error) {
+      console.error("Error running code:", error);
+      const errorMessage = error instanceof Error ? error.message : "An unexpected error occurred.";
+      setOutput(`Execution failed: ${errorMessage}`);
+      toast({
+        title: "Execution Error",
+        description: "Could not run the code. Please try again.",
+        variant: "destructive",
+      });
+    } finally {
       setIsRunning(false);
-    });
+    }
   };
   
-  const handleSubmitCode = () => {
-    if (!problem?.testCases) return;
+  const handleSubmitCode = async () => {
+    if (!problem?.testCases || !code) return;
     
     setIsSubmitting(true);
     setOutput('Submitting and running all test cases...');
     setConsoleTab('test-result');
 
-    createAndRunWorker(problem.testCases, (data) => {
-        if (data.status === 'error') {
-             setSubmissionResult({
-                status: 'Error',
-                message: `An error occurred during submission: ${data.message}`,
-            });
+    try {
+      const result = await executeCode({
+        code,
+        language,
+        entryPoint: problem.entryPoint,
+        testCases: problem.testCases,
+      });
+
+      if (result.status === 'error') {
+        setSubmissionResult({
+          status: 'Error',
+          message: `An error occurred during submission: ${result.message}`,
+        });
+        setOutput(result.message || 'An unknown error occurred during execution.');
+      } else {
+        if (result.passedCount === result.totalCount) {
+          setSubmissionResult({
+            status: 'Accepted',
+            message: `Congratulations! All ${result.totalCount} test cases passed.`,
+          });
         } else {
-            if (data.passedCount === data.totalCount) {
-                setSubmissionResult({
-                    status: 'Accepted',
-                    message: `Congratulations! All ${data.totalCount} test cases passed.`,
-                });
-            } else {
-                 setSubmissionResult({
-                    status: 'Wrong Answer',
-                    message: `Your solution failed. Passed ${data.passedCount} out of ${data.totalCount} test cases.`,
-                });
-            }
-            setOutput(data.results);
+          setSubmissionResult({
+            status: 'Wrong Answer',
+            message: `Your solution failed. Passed ${result.passedCount} out of ${result.totalCount} test cases.`,
+          });
         }
-        setIsSubmitting(false);
-    });
+        setOutput(result.results);
+      }
+    } catch (error) {
+       console.error("Error submitting code:", error);
+       const errorMessage = error instanceof Error ? error.message : "An unexpected error occurred.";
+       setSubmissionResult({
+            status: 'Error',
+            message: `An error occurred during submission: ${errorMessage}`,
+        });
+    } finally {
+      setIsSubmitting(false);
+    }
   };
 
   const handleGetHint = async () => {
@@ -386,7 +329,6 @@ export default function ClashPage() {
   };
 
   const progressValue = (timeLeft / (30 * 60)) * 100;
-  const isJsRunnable = language === 'javascript';
 
   if (!clashData || !opponent || !problem) {
     return (
@@ -487,11 +429,11 @@ export default function ClashPage() {
                           {isGettingHint ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Lightbulb className="mr-2 h-4 w-4" />}
                           Get Hint
                         </Button>
-                        <Button variant="secondary" onClick={handleRunCode} disabled={!isJsRunnable || isRunning || isSubmitting || isTranslatingCode}>
+                        <Button variant="secondary" onClick={handleRunCode} disabled={isRunning || isSubmitting || isTranslatingCode}>
                           {isRunning && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
                           Run Code
                         </Button>
-                        <Button className="bg-green-600 hover:bg-green-700 text-white" onClick={handleSubmitCode} disabled={!isJsRunnable || isRunning || isSubmitting || isTranslatingCode}>
+                        <Button className="bg-green-600 hover:bg-green-700 text-white" onClick={handleSubmitCode} disabled={isRunning || isSubmitting || isTranslatingCode}>
                            {isSubmitting && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
                           Submit
                         </Button>
