@@ -17,7 +17,7 @@ const TestCaseSchema = z.object({
 
 const ExecuteCodeInputSchema = z.object({
   code: z.string().describe('The user-submitted code to execute.'),
-  language: z.string().describe('The programming language of the code (e.g., "javascript", "python", "java", "cpp").'),
+  language: z.string().describe('The programming language of the code (e.g., "python", "java", "cpp").'),
   entryPoint: z.string().describe('The name of the function to be called and tested.'),
   testCases: z.array(TestCaseSchema).describe('An array of test cases to validate the code against.'),
 });

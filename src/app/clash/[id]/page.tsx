@@ -60,6 +60,89 @@ interface Message {
 }
 
 type TestCaseResult = ExecuteCodeOutput['results'][0];
+type TestCase = Problem['testCases'][0];
+
+const executeInWorker = (code: string, entryPoint: string, testCases: TestCase[]): Promise<ExecuteCodeOutput> => {
+    return new Promise((resolve) => {
+        const workerCode = `
+            const_deepEqual = (obj1, obj2) => {
+                if (obj1 === obj2) return true;
+                if (typeof obj1 !== 'object' || obj1 === null || typeof obj2 !== 'object' || obj2 === null) {
+                    return false;
+                }
+                const keys1 = Object.keys(obj1);
+                const keys2 = Object.keys(obj2);
+                if (keys1.length !== keys2.length) return false;
+                for (let key of keys1) {
+                    if (!keys2.includes(key) || !const_deepEqual(obj1[key], obj2[key])) {
+                        return false;
+                    }
+                }
+                return true;
+            };
+
+            self.onmessage = function(e) {
+                const { code, entryPoint, testCases } = e.data;
+                const results = [];
+                let passedCount = 0;
+                
+                try {
+                    // This is a workaround to make the user's code available in the worker
+                    const userFunc = new Function('return ' + code)();
+                    
+                    for (let i = 0; i < testCases.length; i++) {
+                        const tc = testCases[i];
+                        const startTime = performance.now();
+                        let output, error = null;
+                        
+                        try {
+                            // Deep copy input to prevent mutation
+                            const inputClone = JSON.parse(JSON.stringify(tc.input));
+                            output = userFunc(...inputClone);
+                        } catch (err) {
+                            error = err;
+                        }
+
+                        const endTime = performance.now();
+                        const passed = !error && const_deepEqual(output, tc.expected);
+                        if (passed) passedCount++;
+
+                        results.push({
+                            case: i + 1,
+                            input: JSON.stringify(tc.input),
+                            output: error ? error.toString() : JSON.stringify(output),
+                            expected: JSON.stringify(tc.expected),
+                            passed: passed,
+                            runtime: (endTime - startTime).toFixed(2) + 'ms',
+                        });
+                    }
+                    self.postMessage({ status: 'success', passedCount, totalCount: testCases.length, results });
+                } catch (e) {
+                    self.postMessage({ status: 'error', message: 'Execution Error: ' + e.message, results: [], passedCount: 0, totalCount: testCases.length });
+                }
+            };
+        `;
+
+        const blob = new Blob([workerCode], { type: 'application/javascript' });
+        const workerUrl = URL.createObjectURL(blob);
+        const worker = new Worker(workerUrl);
+
+        worker.postMessage({ code, entryPoint, testCases });
+
+        worker.onmessage = (e) => {
+            resolve(e.data);
+            worker.terminate();
+            URL.revokeObjectURL(workerUrl);
+        };
+
+        worker.onerror = (e) => {
+            resolve({ status: 'error', message: `A worker error occurred: ${e.message}`, passedCount: 0, totalCount: testCases.length, results: [] });
+            worker.terminate();
+            URL.revokeObjectURL(workerUrl);
+        };
+    });
+};
+
 
 export default function ClashPage() {
   const params = useParams();
@@ -101,11 +184,9 @@ export default function ClashPage() {
       if (docSnap.exists()) {
         const data = docSnap.data() as ClashData;
         
-        // Firestore stores test case inputs as strings, so we parse them back to objects
         if (data.problem && data.problem.testCases) {
           const parsedTestCases = data.problem.testCases.map(tc => {
             try {
-              // The input from firestore is already a string, no need to check type
               const parsedInput = JSON.parse(tc.input);
               return { ...tc, input: parsedInput };
             } catch (e) {
@@ -223,78 +304,70 @@ export default function ClashPage() {
     }
   };
 
-  const handleRunCode = async () => {
-    if (!problem?.testCases || !code) return;
-    setIsRunning(true);
-    setConsoleTab('test-result');
-    setOutput('Running test cases...');
+  const handleCodeExecution = async (isSubmission: boolean) => {
+    if (!problem || !code) return;
+
+    if (isSubmission) setIsSubmitting(true);
+    else setIsRunning(true);
     
+    setConsoleTab('test-result');
+    const testCasesToRun = isSubmission ? problem.testCases : problem.testCases.slice(0, 3);
+    setOutput(`Running ${testCasesToRun.length} test case(s)...`);
+
     try {
-      const runTestCases = problem.testCases.slice(0, 3);
-      const result = await executeCode({
-        code,
-        language,
-        entryPoint: problem.entryPoint,
-        testCases: runTestCases,
-      });
+      let result: ExecuteCodeOutput;
+      if (language === 'javascript') {
+        result = await executeInWorker(code, problem.entryPoint, testCasesToRun);
+      } else {
+        result = await executeCode({
+          code,
+          language,
+          entryPoint: problem.entryPoint,
+          testCases: testCasesToRun,
+        });
+      }
 
       if (result.status === 'error') {
         setOutput(result.message || 'An unknown execution error occurred.');
+        if (isSubmission) {
+            setSubmissionResult({
+                status: 'Error',
+                message: `An error occurred: ${result.message || 'Unknown error'}`,
+            });
+        }
       } else {
         setOutput(result.results);
-      }
-    } catch (error: any) {
-        setOutput('An unexpected error occurred: ' + (error.message || 'Unknown error'));
-    } finally {
-        setIsRunning(false);
-    }
-  };
-  
-  const handleSubmitCode = async () => {
-    if (!problem?.testCases || !code) return;
-    setIsSubmitting(true);
-    setConsoleTab('test-result');
-    setOutput('Submitting and running all test cases...');
-
-    try {
-      const result = await executeCode({
-        code,
-        language,
-        entryPoint: problem.entryPoint,
-        testCases: problem.testCases,
-      });
-      
-      if (result.status === 'error') {
-          setOutput(result.message || 'An unknown submission error occurred.');
-          setSubmissionResult({
-              status: 'Error',
-              message: 'An error occurred during submission: ' + (result.message || 'Unknown error'),
-          });
-      } else {
-          setOutput(result.results);
-          if (result.passedCount === result.totalCount) {
-              setSubmissionResult({
-                  status: 'Accepted',
-                  message: `Congratulations! All ${result.totalCount} test cases passed.`,
-              });
-          } else {
-              setSubmissionResult({
-                  status: 'Wrong Answer',
-                  message: `Your solution failed. Passed ${result.passedCount} out of ${result.totalCount} test cases.`,
-              });
-          }
+        if (isSubmission) {
+            if (result.passedCount === result.totalCount) {
+                setSubmissionResult({
+                    status: 'Accepted',
+                    message: `Congratulations! All ${result.totalCount} test cases passed.`,
+                });
+            } else {
+                setSubmissionResult({
+                    status: 'Wrong Answer',
+                    message: `Your solution failed. Passed ${result.passedCount} out of ${result.totalCount} test cases.`,
+                });
+            }
+        }
       }
     } catch (error: any) {
         const errorMessage = error.message || 'Unknown error';
-        setOutput('An unexpected error occurred during submission: ' + errorMessage);
-        setSubmissionResult({
-            status: 'Error',
-            message: 'An unexpected framework error occurred: ' + errorMessage,
-        });
+        setOutput(`An unexpected error occurred: ${errorMessage}`);
+        if (isSubmission) {
+            setSubmissionResult({
+                status: 'Error',
+                message: `An unexpected framework error occurred: ${errorMessage}`,
+            });
+        }
     } finally {
-      setIsSubmitting(false);
+        if (isSubmission) setIsSubmitting(false);
+        else setIsRunning(false);
     }
   };
+
+  const handleRunCode = () => handleCodeExecution(false);
+  const handleSubmitCode = () => handleCodeExecution(true);
 
   const handleGetHint = async () => {
     if (!problem || !code) return;
