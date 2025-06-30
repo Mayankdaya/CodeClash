@@ -544,16 +544,16 @@ export default function ClashPage() {
         <main className="flex-1 flex p-2 pt-0 gap-2 overflow-hidden">
           <PanelGroup direction="horizontal">
             <Panel defaultSize={45} minSize={30}>
-               <div className="h-full flex flex-col bg-card/50 border border-white/10 rounded-xl">
-                <Tabs defaultValue="problem" className="h-full flex flex-col">
+               <div className="h-full flex flex-col bg-card/50 border border-white/10 rounded-xl overflow-hidden">
+                <Tabs defaultValue="problem" className="flex-1 flex flex-col h-full">
                   <div className="p-2 border-b border-border shrink-0">
                     <TabsList className="w-full grid grid-cols-2">
                       <TabsTrigger value="problem"><BookOpen className="mr-2 h-4 w-4"/>Problem</TabsTrigger>
                       {problem.solution && <TabsTrigger value="solution"><KeySquare className="mr-2 h-4 w-4"/>Solution</TabsTrigger>}
                     </TabsList>
                   </div>
-                  <div className="flex-1 relative">
-                    <TabsContent value="problem" className="absolute inset-0 overflow-y-auto p-4 pr-2 m-0">
+                  <div className="flex-1 min-h-0">
+                    <TabsContent value="problem" className="m-0 h-full overflow-y-auto p-4 pr-2">
                         <h1 className="text-2xl font-bold mb-2">{problem.title}</h1>
                         <div className='prose prose-invert max-w-none prose-p:text-muted-foreground prose-strong:text-foreground'>
                           <p className="whitespace-pre-wrap">{problem.description}</p>
@@ -573,7 +573,7 @@ export default function ClashPage() {
                     </TabsContent>
 
                     {problem.solution && (
-                      <TabsContent value="solution" className="absolute inset-0 p-0 m-0">
+                      <TabsContent value="solution" className="m-0 h-full p-0">
                         <CodeEditor
                           language="javascript"
                           value={problem.solution || "No solution available."}
@@ -586,11 +586,11 @@ export default function ClashPage() {
                 </Tabs>
               </div>
             </Panel>
-            <PanelResizeHandle className="w-2 rounded-full bg-border/50 hover:bg-primary transition-colors" />
+            <PanelResizeHandle className="w-2 bg-border/50 hover:bg-primary transition-colors data-[resize-handle-state=drag]:bg-primary" />
             <Panel minSize={30}>
               <PanelGroup direction="vertical">
                 <Panel defaultSize={60} minSize={25}>
-                   <div className="h-full flex flex-col bg-card/50 border border-white/10 rounded-xl min-h-0">
+                   <div className="h-full flex flex-col bg-card/50 border border-white/10 rounded-xl min-h-0 overflow-hidden">
                       <div className="p-2 border-b border-border flex items-center justify-between">
                           <Select value={language} onValueChange={handleLanguageChange} disabled={isRunning || isSubmitting || isTranslatingCode}>
                             <SelectTrigger className="w-[180px] h-9">
@@ -626,10 +626,10 @@ export default function ClashPage() {
                       </div>
                    </div>
                 </Panel>
-                <PanelResizeHandle className="h-2 rounded-full bg-border/50 hover:bg-primary transition-colors" />
+                <PanelResizeHandle className="h-2 bg-border/50 hover:bg-primary transition-colors data-[resize-handle-state=drag]:bg-primary" />
                 <Panel defaultSize={40} minSize={25}>
-                   <div className="h-full flex flex-col bg-card/50 border border-white/10 rounded-xl min-h-0">
-                        <Tabs value={consoleTab} onValueChange={setConsoleTab} className="flex-1 flex flex-col min-h-0 h-full">
+                   <div className="h-full flex flex-col bg-card/50 border border-white/10 rounded-xl overflow-hidden">
+                        <Tabs value={consoleTab} onValueChange={setConsoleTab} className="flex-1 flex flex-col min-h-0">
                           <div className='p-2 border-b border-border/50'>
                             <TabsList className="grid w-full grid-cols-3">
                                 <TabsTrigger value="test-result"><Terminal className="mr-2 h-4 w-4"/>Test Result</TabsTrigger>
