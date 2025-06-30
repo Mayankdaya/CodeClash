@@ -19,7 +19,7 @@ import { Footer } from '@/components/Footer';
 import AuthGuard from '@/components/AuthGuard';
 import { CodeEditor } from '@/components/CodeEditor';
 import { UserVideo } from '@/components/UserVideo';
-import { BookOpen, Code, Send, Users, Timer, Star, ThumbsUp, Video, Loader2, Lightbulb } from 'lucide-react';
+import { BookOpen, Code, Send, Users, Timer, Star, ThumbsUp, Video, Loader2, Lightbulb, CheckCircle2, XCircle } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import type { Problem } from '@/lib/problems';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
@@ -72,8 +72,11 @@ export default function ClashPage() {
   const [starterCodes, setStarterCodes] = useState<Record<string, string>>({});
   const [isTranslatingCode, setIsTranslatingCode] = useState(false);
   const [language, setLanguage] = useState('javascript');
-  const [output, setOutput] = useState('Click "Run Code" to see the output here.');
+  const [output, setOutput] = useState<any[] | string>('Click "Run Code" to see the output here.');
   const [isRunning, setIsRunning] = useState(false);
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [consoleTab, setConsoleTab] = useState('testcases');
+  const [submissionResult, setSubmissionResult] = useState<{ status: 'Accepted' | 'Wrong Answer' | 'Error'; message: string; } | null>(null);
   
   const [timeLeft, setTimeLeft] = useState(30 * 60); // 30 minutes
 
@@ -219,107 +222,138 @@ export default function ClashPage() {
     }
   };
 
-  const handleRunCode = () => {
-    if (!clashData || !problem) return;
-    
-    setOutput('Running test cases...');
-    setIsRunning(true);
-    
-    setTimeout(() => {
-        try {
-            if (!problem.entryPoint || !problem.testCases || problem.testCases.length === 0) {
-                throw new Error('The problem is missing an entry point or test cases.');
-            }
+  const createAndRunWorker = (testCases: any[], onDone: (data: any) => void) => {
+    if (!problem) return;
+    const workerCode = `
+        self.onmessage = function(e) {
+            const { code, testCases, funcName } = e.data;
+            let results = [];
+            let passedCount = 0;
+            
+            try {
+                eval(code); 
+                const userFunc = self[funcName];
 
-            const workerCode = `
-                self.onmessage = function(e) {
-                    const { code, testCases, funcName, problemTitle } = e.data;
-                    let results = '';
-                    let allPassed = true;
+                if (typeof userFunc !== 'function') {
+                    throw new Error('Could not find function "' + funcName + '". Make sure it is defined correctly (e.g., var ' + funcName + ' = function(...) ...).');
+                }
+
+                testCases.forEach((testCase, index) => {
+                    const inputArgs = Array.isArray(testCase.input) ? testCase.input : [testCase.input];
+                    const startTime = performance.now();
+                    const result = userFunc(...inputArgs);
+                    const endTime = performance.now();
                     
-                    try {
-                        // The user code is expected to define a function on the global scope of the worker
-                        eval(code); 
-                        const userFunc = self[funcName];
+                    let processedResult = result;
+                    let processedExpected = testCase.expected;
 
-                        if (typeof userFunc !== 'function') {
-                            throw new Error('Could not find function "' + funcName + '". Make sure your function is defined correctly (e.g., as a variable: var ' + funcName + ' = function(...) ...).');
+                    if (Array.isArray(result) && Array.isArray(testCase.expected)) {
+                        try {
+                          processedResult = JSON.parse(JSON.stringify(result)).sort();
+                          processedExpected = JSON.parse(JSON.stringify(testCase.expected)).sort();
+                        } catch (e) {
+                          // Fallback for non-sortable arrays
                         }
-
-                        results += 'Running tests for "' + problemTitle + '"...\\n\\n';
-
-                        testCases.forEach((testCase, index) => {
-                            const inputArgs = Array.isArray(testCase.input) ? testCase.input : [testCase.input];
-                            const result = userFunc(...inputArgs);
-                            
-                            let processedResult = result;
-                            let processedExpected = testCase.expected;
-
-                            if (Array.isArray(result) && Array.isArray(testCase.expected)) {
-                                try {
-                                  processedResult = [...result].sort();
-                                  processedExpected = [...testCase.expected].sort();
-                                } catch (e) {
-                                  // Sorting might fail if array contains non-sortable items. Fallback to unsorted.
-                                }
-                            }
-                            
-                            const passed = JSON.stringify(processedResult) === JSON.stringify(processedExpected);
-                            if (!passed) allPassed = false;
-
-                            results += \`Case \${index + 1}: \${passed ? '✅ Passed' : '❌ Failed'}\\n\`;
-                            results += \`  Input:    \${JSON.stringify(inputArgs)}\\n\`;
-                            results += \`  Output:   \${JSON.stringify(result)}\\n\`;
-                            results += \`  Expected: \${JSON.stringify(testCase.expected)}\\n\\n\`;
-                        });
-                        
-                        results += allPassed ? 'All test cases passed!' : 'Some test cases failed.';
-
-                    } catch (error) {
-                        results = 'An error occurred during execution:\\n' + error.name + ': ' + error.message;
                     }
                     
-                    self.postMessage(results);
-                }
-            `;
+                    const passed = JSON.stringify(processedResult) === JSON.stringify(processedExpected);
+                    if (passed) passedCount++;
 
-            const blob = new Blob([workerCode], { type: 'application/javascript' });
-            const workerUrl = URL.createObjectURL(blob);
-            const worker = new Worker(workerUrl);
+                    results.push({
+                      case: index + 1,
+                      input: JSON.stringify(inputArgs),
+                      output: JSON.stringify(result),
+                      expected: JSON.stringify(testCase.expected),
+                      passed: passed,
+                      runtime: (endTime - startTime).toFixed(2)
+                    });
+                });
 
-            worker.onmessage = (e) => {
-                setOutput(e.data);
-                setIsRunning(false);
-                worker.terminate();
-                URL.revokeObjectURL(workerUrl);
-            };
+                self.postMessage({
+                  status: 'success',
+                  passedCount: passedCount,
+                  totalCount: testCases.length,
+                  results: results
+                });
 
-            worker.onerror = (e) => {
-                setOutput(`A worker error occurred: ${e.message}`);
-                setIsRunning(false);
-                worker.terminate();
-                URL.revokeObjectURL(workerUrl);
-            };
-
-            worker.postMessage({
-                code,
-                testCases: problem.testCases,
-                funcName: problem.entryPoint,
-                problemTitle: problem.title,
-            });
-
-        } catch (error) {
-            const err = error as Error;
-            setOutput(`An error occurred on the main thread: ${err.message}`);
-            setIsRunning(false);
+            } catch (error) {
+                self.postMessage({
+                  status: 'error',
+                  message: error.name + ': ' + error.message
+                });
+            }
         }
-    }, 100);
+    `;
+
+    const blob = new Blob([workerCode], { type: 'application/javascript' });
+    const workerUrl = URL.createObjectURL(blob);
+    const worker = new Worker(workerUrl);
+
+    worker.onmessage = (e) => {
+      onDone(e.data);
+      worker.terminate();
+      URL.revokeObjectURL(workerUrl);
+    };
+
+    worker.onerror = (e) => {
+      onDone({ status: 'error', message: `A worker error occurred: ${e.message}` });
+      worker.terminate();
+      URL.revokeObjectURL(workerUrl);
+    };
+
+    worker.postMessage({
+        code,
+        testCases,
+        funcName: problem.entryPoint,
+    });
+  };
+
+  const handleRunCode = () => {
+    if (!problem?.testCases) return;
+    
+    const runTestCases = problem.testCases.slice(0, 3);
+    setOutput('Running test cases...');
+    setIsRunning(true);
+    setConsoleTab('test-result');
+    
+    createAndRunWorker(runTestCases, (data) => {
+      if (data.status === 'error') {
+          setOutput(data.message);
+      } else {
+          setOutput(data.results);
+      }
+      setIsRunning(false);
+    });
   };
   
   const handleSubmitCode = () => {
-    toast({
-        title: "Code Submitted!",
-        description: "Your solution has been submitted for evaluation.",
+    if (!problem?.testCases) return;
+    
+    setIsSubmitting(true);
+    setOutput('Submitting and running all test cases...');
+    setConsoleTab('test-result');
+
+    createAndRunWorker(problem.testCases, (data) => {
+        if (data.status === 'error') {
+             setSubmissionResult({
+                status: 'Error',
+                message: `An error occurred during submission: ${data.message}`,
+            });
+        } else {
+            if (data.passedCount === data.totalCount) {
+                setSubmissionResult({
+                    status: 'Accepted',
+                    message: `Congratulations! All ${data.totalCount} test cases passed.`,
+                });
+            } else {
+                 setSubmissionResult({
+                    status: 'Wrong Answer',
+                    message: `Your solution failed. Passed ${data.passedCount} out of ${data.totalCount} test cases.`,
+                });
+            }
+            setOutput(data.results);
+        }
+        setIsSubmitting(false);
     });
   };
 
@@ -417,7 +451,7 @@ export default function ClashPage() {
                   <Code className="h-6 w-6 text-primary" />
                   <CardTitle>Solution</CardTitle>
                 </div>
-                <Select value={language} onValueChange={handleLanguageChange} disabled={isRunning || isTranslatingCode}>
+                <Select value={language} onValueChange={handleLanguageChange} disabled={isRunning || isSubmitting || isTranslatingCode}>
                   <SelectTrigger className="w-[180px] h-9">
                     <SelectValue placeholder="Select Language" />
                   </SelectTrigger>
@@ -431,7 +465,7 @@ export default function ClashPage() {
                 </Select>
               </CardHeader>
               <CardContent className="flex-1 flex flex-col p-0 min-h-0">
-                <div className="flex flex-col min-h-0" style={{flexBasis: '70%'}}>
+                <div className="flex flex-col min-h-0" style={{flexBasis: '60%'}}>
                     <div className="p-6 pt-0 flex-1 flex flex-col min-h-0">
                       <div className="flex-1 w-full rounded-md min-h-0 relative">
                         {isTranslatingCode && (
@@ -445,29 +479,66 @@ export default function ClashPage() {
                           language={language}
                           value={code}
                           onChange={(value) => setCode(value || '')}
-                          disabled={isRunning || isTranslatingCode}
+                          disabled={isRunning || isSubmitting || isTranslatingCode}
                         />
                       </div>
                       <div className='flex justify-end mt-4 gap-2'>
-                        <Button variant="outline" onClick={handleGetHint} disabled={isRunning || isGettingHint || isTranslatingCode}>
+                        <Button variant="outline" onClick={handleGetHint} disabled={isRunning || isSubmitting || isGettingHint || isTranslatingCode}>
                           {isGettingHint ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Lightbulb className="mr-2 h-4 w-4" />}
                           Get Hint
                         </Button>
-                        <Button variant="secondary" onClick={handleRunCode} disabled={!isJsRunnable || isRunning || isTranslatingCode}>
+                        <Button variant="secondary" onClick={handleRunCode} disabled={!isJsRunnable || isRunning || isSubmitting || isTranslatingCode}>
                           {isRunning && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
                           Run Code
                         </Button>
-                        <Button className="bg-green-600 hover:bg-green-700 text-white" onClick={handleSubmitCode} disabled={!isJsRunnable || isRunning || isTranslatingCode}>Submit</Button>
+                        <Button className="bg-green-600 hover:bg-green-700 text-white" onClick={handleSubmitCode} disabled={!isJsRunnable || isRunning || isSubmitting || isTranslatingCode}>
+                           {isSubmitting && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                          Submit
+                        </Button>
                       </div>
                     </div>
                 </div>
-                <div className="border-t border-border/50 p-6 flex flex-col min-h-0" style={{flexBasis: '30%'}}>
-                    <h3 className="text-lg font-semibold mb-2">Console</h3>
-                    <div className="flex-1 bg-muted/30 p-4 rounded-md font-code text-sm min-h-0 overflow-auto">
-                        <pre className="whitespace-pre-wrap">
-                            <code>{output}</code>
-                        </pre>
-                    </div>
+                <div className="border-t border-border/50 flex flex-col min-h-0" style={{flexBasis: '40%'}}>
+                    <Tabs value={consoleTab} onValueChange={setConsoleTab} className="flex-1 flex flex-col p-6 min-h-0">
+                        <TabsList className="grid w-full grid-cols-2">
+                            <TabsTrigger value="test-result">Test Result</TabsTrigger>
+                            <TabsTrigger value="testcases">Testcases</TabsTrigger>
+                        </TabsList>
+                        <TabsContent value="test-result" className="flex-1 mt-4 overflow-auto rounded-md bg-muted/30 p-4">
+                            {typeof output === 'string' ? (
+                                <pre className="whitespace-pre-wrap font-code text-sm"><code>{output}</code></pre>
+                            ) : (
+                                <div className="space-y-4 font-code text-sm">
+                                    {output.map((res, index) => (
+                                        <div key={index} className="border-b border-border/50 pb-2 last:border-b-0">
+                                            <div className="flex items-center gap-2 font-bold mb-2">
+                                                {res.passed ? <CheckCircle2 className="h-5 w-5 text-green-500" /> : <XCircle className="h-5 w-5 text-red-500" />}
+                                                <span className={cn(res.passed ? "text-green-400" : "text-red-400")}>Case {res.case}: {res.passed ? 'Passed' : 'Failed'}</span>
+                                            </div>
+                                            <div className='space-y-1 pl-7 text-xs'>
+                                              <p><span className="text-muted-foreground w-20 inline-block">Input:</span> {res.input}</p>
+                                              <p><span className="text-muted-foreground w-20 inline-block">Output:</span> {res.output}</p>
+                                              <p><span className="text-muted-foreground w-20 inline-block">Expected:</span> {res.expected}</p>
+                                            </div>
+                                        </div>
+                                    ))}
+                                </div>
+                            )}
+                        </TabsContent>
+                        <TabsContent value="testcases" className="flex-1 mt-4 overflow-auto rounded-md bg-muted/30 p-4">
+                          <div className="space-y-4 font-code text-sm">
+                              {problem?.testCases.slice(0, 3).map((tc, index) => (
+                                  <div key={index} className="border-b border-border/50 pb-3 last:border-b-0">
+                                      <p className="font-bold mb-2">Case {index + 1}</p>
+                                      <div className="bg-background/40 p-3 mt-1 rounded-md space-y-1">
+                                          <p><span className='text-muted-foreground'>Input:</span> {JSON.stringify(tc.input)}</p>
+                                          <p><span className='text-muted-foreground'>Output:</span> {JSON.stringify(tc.expected)}</p>
+                                      </div>
+                                  </div>
+                              ))}
+                          </div>
+                        </TabsContent>
+                    </Tabs>
                 </div>
               </CardContent>
             </Card>
@@ -600,6 +671,27 @@ export default function ClashPage() {
               </AlertDialogFooter>
           </AlertDialogContent>
       </AlertDialog>
+       <AlertDialog open={!!submissionResult} onOpenChange={(open) => !open && setSubmissionResult(null)}>
+        <AlertDialogContent>
+            <AlertDialogHeader>
+                <AlertDialogTitle
+                  className={cn(
+                    submissionResult?.status === 'Accepted' && 'text-green-500',
+                    submissionResult?.status === 'Wrong Answer' && 'text-red-500',
+                    submissionResult?.status === 'Error' && 'text-yellow-500',
+                  )}
+                >
+                  {submissionResult?.status}
+                </AlertDialogTitle>
+                <AlertDialogDescription>
+                    {submissionResult?.message}
+                </AlertDialogDescription>
+            </AlertDialogHeader>
+            <AlertDialogFooter>
+                <AlertDialogAction onClick={() => setSubmissionResult(null)}>Close</AlertDialogAction>
+            </AlertDialogFooter>
+        </AlertDialogContent>
+    </AlertDialog>
       </div>
     </AuthGuard>
   );
