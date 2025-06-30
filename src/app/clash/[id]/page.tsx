@@ -242,7 +242,7 @@ export default function ClashPage() {
                 try {
                     // This handles cases where the entire input or expected value is a stringified JSON.
                     const parsedInput = typeof tc.input === 'string' ? JSON.parse(tc.input) : tc.input;
-                    const parsedExpected = typeof tc.expected === 'string' ? JSON.parse(tc.expected) : tc.expected;
+                    const parsedExpected = tc.expected !== undefined && typeof tc.expected === 'string' ? JSON.parse(tc.expected) : tc.expected;
 
                     // This handles cases where an argument *within* the input array is a stringified JSON.
                     const sanizitedInput = Array.isArray(parsedInput) ? parsedInput.map(arg => {
@@ -680,7 +680,7 @@ export default function ClashPage() {
                                                       <p className="font-bold mb-2 text-lg">Case {index + 1}</p>
                                                       <div className="bg-background/40 p-3 mt-1 rounded-md space-y-2">
                                                           <p><strong className='text-muted-foreground'>Input:</strong> {formatInputForDisplay(tc.input)}</p>
-                                                          <p><strong className='text-muted-foreground'>Output:</strong> {JSON.stringify(tc.expected)}</p>
+                                                          <p><strong className='text-muted-foreground'>Output:</strong> {tc.expected !== undefined ? JSON.stringify(tc.expected) : <span className="text-muted-foreground/60 italic">(no output)</span>}</p>
                                                       </div>
                                                   </div>
                                               ))}
