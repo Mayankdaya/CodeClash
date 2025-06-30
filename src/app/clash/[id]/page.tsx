@@ -1,4 +1,3 @@
-
 'use client';
 
 import { useState, useEffect, useRef } from 'react';
@@ -296,7 +295,7 @@ export default function ClashPage() {
             };
 
             worker.onerror = (e) => {
-                setOutput(\`A worker error occurred: \${e.message}\`);
+                setOutput(`A worker error occurred: ${e.message}`);
                 setIsRunning(false);
                 worker.terminate();
                 URL.revokeObjectURL(workerUrl);
@@ -311,7 +310,7 @@ export default function ClashPage() {
 
         } catch (error) {
             const err = error as Error;
-            setOutput(\`An error occurred on the main thread: \${err.message}\`);
+            setOutput(`An error occurred on the main thread: ${err.message}`);
             setIsRunning(false);
         }
     }, 100);
@@ -349,7 +348,7 @@ export default function ClashPage() {
   const formatTime = (seconds: number) => {
     const minutes = Math.floor(seconds / 60);
     const remainingSeconds = seconds % 60;
-    return \`\${minutes.toString().padStart(2, '0')}:\${remainingSeconds.toString().padStart(2, '0')}\`;
+    return `${minutes.toString().padStart(2, '0')}:${remainingSeconds.toString().padStart(2, '0')}`;
   };
 
   const progressValue = (timeLeft / (30 * 60)) * 100;
