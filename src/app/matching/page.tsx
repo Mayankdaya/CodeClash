@@ -14,7 +14,7 @@ import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { Button } from '@/components/ui/button';
 import { CameraOff, Loader2 } from 'lucide-react';
 import Link from 'next/link';
-import { generateProblem } from '@/ai/flows/generateProblemFlow';
+import { problemsByTopic } from '@/lib/problems';
 
 export default function MatchingPage() {
   const { toast } = useToast();
@@ -58,7 +58,7 @@ export default function MatchingPage() {
     if (isCreatingClash.current) return;
     isCreatingClash.current = true;
 
-    const createAIGeneratedMatch = async () => {
+    const createMatch = async () => {
       const currentUser = auth?.currentUser;
       const topicId = searchParams.get('topic');
       const topicName = topicId?.replace(/-/g, ' ').replace(/\b\w/g, l => l.toUpperCase());
@@ -71,23 +71,29 @@ export default function MatchingPage() {
         return;
       }
 
+      const topicProblems = problemsByTopic[topicId];
+      if (!topicProblems || topicProblems.length === 0) {
+        toast({
+          title: "No Problems Available",
+          description: `Sorry, there are no problems for the topic "${topicName}" yet.`,
+          variant: "destructive"
+        });
+        router.push('/lobby');
+        return;
+      }
+
       try {
-        setStatusText(`Generating a unique problem about ${topicName}...`);
+        setStatusText('Finding an opponent...');
 
-        const generationPromise = generateProblem({ topic: topicName });
+        // Select a random problem from the static problem bank
+        const problem = topicProblems[Math.floor(Math.random() * topicProblems.length)];
         
-        const timeoutPromise = new Promise<never>((_, reject) =>
-          setTimeout(() => reject(new Error("Problem generation timed out. The AI may be busy. Please try again.")), 20000) // 20s timeout
-        );
-
-        const problem = await Promise.race([generationPromise, timeoutPromise]);
-
         setStatusText('Match found! Preparing your arena...');
 
         const clashesRef = collection(db, 'clashes');
         const newClashDoc = await addDoc(clashesRef, {
           topicId,
-          problem,
+          problem, // Store the full problem object in Firestore
           participants: [
             { userId: currentUser.uid, userName: currentUser.displayName || 'Anonymous', userAvatar: currentUser.photoURL || `https://placehold.co/100x100.png` },
             { userId: 'bot-123', userName: 'CodeBot', userAvatar: `https://placehold.co/100x100.png` }
@@ -100,10 +106,10 @@ export default function MatchingPage() {
         router.push(`/clash/${newClashDoc.id}`);
 
       } catch (error: any) {
-        console.error("Error creating AI-generated match:", error);
+        console.error("Error creating match:", error);
         toast({
           title: "Matchmaking Error",
-          description: error.message || "Could not create a match. Please try again.",
+          description: "Could not create a match. Please try again.",
           variant: "destructive"
         });
         isCreatingClash.current = false;
@@ -111,7 +117,7 @@ export default function MatchingPage() {
       }
     };
 
-    createAIGeneratedMatch();
+    createMatch();
 
   }, [searchParams, router, toast]);
 
