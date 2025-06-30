@@ -190,7 +190,7 @@ export default function ClashPage() {
 
             const funcName = problem.entryPoint;
             
-            const userFunc = new Function('return ' + code)()[funcName];
+            const userFunc = new Function(code + '\nreturn ' + funcName)();
             
             if (typeof userFunc !== 'function') {
                 setOutput(`Error: Could not find function "${funcName}". Make sure your function is defined correctly as a variable (e.g., var ${funcName} = function(...) ...).`);
@@ -292,7 +292,7 @@ export default function ClashPage() {
           {/* Left Panel */}
           <div className="flex flex-col gap-6" style={{ minWidth: '350px' }}>
             <Card className="flex-1 flex flex-col bg-card/50 border border-white/10 rounded-2xl min-h-0">
-              <CardHeader className="flex-row items-center gap-4">
+               <CardHeader className="flex-row items-center gap-4">
                 <BookOpen className="h-6 w-6 text-primary" />
                 <CardTitle>Problem</CardTitle>
               </CardHeader>
@@ -351,6 +351,7 @@ export default function ClashPage() {
                     <div className="p-6 pt-0 flex-1 flex flex-col min-h-0">
                       <div className="flex-1 w-full rounded-md min-h-0">
                         <CodeEditor
+                          key={language}
                           language={language}
                           value={code}
                           onChange={(value) => setCode(value || '')}
