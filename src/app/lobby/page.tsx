@@ -1,10 +1,14 @@
+
 'use client';
 
 import { useState, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
 import { Header } from "@/components/Header";
-import { ArrowRight, Coins, Columns, GitMerge, Link as LinkIcon, List, MoveHorizontal, Search, ToyBrick } from "lucide-react";
+import { 
+  ArrowRight, Coins, List, Search, GitMerge, Link as LinkIcon, ToyBrick, MoveHorizontal, 
+  Type, Repeat, Binary, Container, Pocket, GitBranchPlus, Workflow, SpellCheck 
+} from "lucide-react";
 import Link from "next/link";
 import AuthGuard from "@/components/AuthGuard";
 import { rtdb } from "@/lib/firebase";
@@ -18,46 +22,88 @@ const topics = [
     description: "Master problems involving data structures, and algorithms for arrays and hashing.",
   },
   {
-    id: "two-pointers",
-    icon: MoveHorizontal,
-    title: "Two Pointers",
-    description: "Solve challenges efficiently by using two pointers to iterate through data structures.",
-  },
-  {
-    id: "sliding-window",
-    icon: Columns,
-    title: "Sliding Window",
-    description: "Tackle problems on contiguous subarrays with the efficient sliding window technique.",
-  },
-  {
-    id: "stack",
-    icon: ToyBrick,
-    title: "Stack",
-    description: "Understand and apply the LIFO principle to solve complex logical problems.",
-  },
-  {
     id: "binary-search",
     icon: Search,
     title: "Binary Search",
     description: "Sharpen your skills in logarithmic time complexity searches on sorted arrays.",
   },
   {
+    id: "strings",
+    icon: Type,
+    title: "Strings",
+    description: "Tackle challenges involving string manipulation, parsing, and pattern matching.",
+  },
+  {
     id: "linked-list",
     icon: LinkIcon,
-    title: "Linked List",
+    title: "Linked Lists",
     description: "Explore problems related to nodes, pointers, and dynamic data structures.",
   },
   {
-    id: "trees",
+    id: "recursion",
+    icon: Repeat,
+    title: "Recursion",
+    description: "Solve complex problems by breaking them down into smaller, self-similar subproblems.",
+  },
+  {
+    id: "bit-manipulation",
+    icon: Binary,
+    title: "Bit Manipulation",
+    description: "Manipulate individual bits of a number to solve problems efficiently.",
+  },
+  {
+    id: "stack-queues",
+    icon: ToyBrick,
+    title: "Stack & Queues",
+    description: "Understand and apply LIFO (Stack) and FIFO (Queue) principles to solve logical problems.",
+  },
+  {
+    id: "sliding-window-two-pointer",
+    icon: MoveHorizontal,
+    title: "Sliding Window & Two Pointer",
+    description: "Efficiently solve problems on contiguous subarrays or by iterating with two pointers.",
+  },
+  {
+    id: "heaps",
+    icon: Container,
+    title: "Heaps",
+    description: "Use priority queues and heap data structures for optimization and selection problems.",
+  },
+  {
+    id: "greedy-algorithms",
+    icon: Pocket,
+    title: "Greedy Algorithms",
+    description: "Make locally optimal choices at each stage with the hope of finding a global optimum.",
+  },
+  {
+    id: "binary-trees",
     icon: GitMerge,
-    title: "Trees",
+    title: "Binary Trees",
     description: "Navigate hierarchical data structures to solve tree traversal and manipulation problems.",
+  },
+  {
+    id: "binary-search-trees",
+    icon: GitBranchPlus,
+    title: "Binary Search Trees",
+    description: "Work with sorted tree structures for efficient searching, insertion, and deletion.",
+  },
+  {
+    id: "graphs",
+    icon: Workflow,
+    title: "Graphs",
+    description: "Tackle problems involving nodes and edges, including traversals and shortest path algorithms.",
   },
   {
     id: "dynamic-programming",
     icon: Coins,
     title: "Dynamic Programming",
     description: "Break down complex problems into simpler subproblems with DP.",
+  },
+  {
+    id: "tries",
+    icon: SpellCheck,
+    title: "Tries",
+    description: "Use tree-like data structures for efficient retrieval of keys in a set of strings.",
   },
 ];
 
