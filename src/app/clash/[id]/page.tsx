@@ -16,11 +16,11 @@ import { Input } from '@/components/ui/input';
 import { Progress } from '@/components/ui/progress';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { Textarea } from '@/components/ui/textarea';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { Header } from '@/components/Header';
 import { Footer } from '@/components/Footer';
 import AuthGuard from '@/components/AuthGuard';
+import { CodeEditor } from '@/components/CodeEditor';
 import { BookOpen, Code, Send, Users, Timer, Star, ThumbsUp, Video, CameraOff, Loader2 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import type { Problem } from '@/lib/problems';
@@ -286,8 +286,8 @@ export default function ClashPage() {
     <AuthGuard>
       <div className="flex flex-col h-dvh bg-transparent text-foreground font-body">
         <Header />
-        <main className="flex-1 container mx-auto py-6 px-4 flex flex-col min-h-0">
-          <div className="flex-1 flex flex-col lg:flex-row gap-6 min-h-0">
+        <main className="flex-1 flex flex-col min-h-0">
+          <div className="flex-1 flex flex-col lg:flex-row gap-6 min-h-0 container mx-auto py-6 px-4">
             
             {/* Left Panel */}
             <div className="w-full lg:w-1/4 flex flex-col gap-6 min-h-0">
@@ -341,13 +341,13 @@ export default function ClashPage() {
                    <div className="flex-1 flex flex-col min-h-0">
                       {/* Editor Pane */}
                       <div className="flex flex-col p-6 pb-0 flex-grow-[3] min-h-0">
-                        <Textarea
-                            placeholder="Enter your code here..."
-                            className="flex-1 w-full p-4 bg-muted/30 border-white/10 font-code text-base resize-none"
+                        <div className="flex-1 w-full rounded-md overflow-hidden border border-input">
+                          <CodeEditor
                             value={code}
-                            onChange={(e) => setCode(e.target.value)}
+                            onChange={(value) => setCode(value || '')}
                             disabled={isRunning}
                           />
+                        </div>
                           <div className='flex justify-end mt-4 gap-2'>
                               <Button variant="secondary" onClick={handleRunCode} disabled={isRunning}>
                                   {isRunning && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
