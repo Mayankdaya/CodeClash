@@ -575,7 +575,7 @@ export default function ClashPage() {
                                   </div>
                               </TabsContent>
                               <TabsContent value="solution" className="flex-1 min-h-0 m-0 p-0">
-                                  {problem.solution && (
+                                  {problemTab === 'solution' && problem.solution && (
                                        <CodeEditor
                                           language="javascript"
                                           value={problem.solution}
