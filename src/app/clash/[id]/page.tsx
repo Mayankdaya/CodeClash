@@ -133,7 +133,7 @@ const executeInWorker = (code: string, entryPoint: string, testCases: TestCase[]
                         let output, error = null;
                         
                         try {
-                            const parsedInput = tc.input.map(smartParse);
+                            const parsedInput = Array.isArray(tc.input) ? tc.input.map(smartParse) : [smartParse(tc.input)];
                             const inputClone = JSON.parse(JSON.stringify(parsedInput));
                             output = userFunc(...inputClone);
                         } catch (err) {
@@ -221,19 +221,14 @@ export default function ClashPage() {
       if (docSnap.exists()) {
         const data = docSnap.data() as ClashData;
         
-        // This is a critical step. The test cases from Firestore are strings.
-        // We need to parse them back into their original types (arrays, objects, etc.)
-        // before they can be used by the execution engine.
         if (data.problem && data.problem.testCases) {
            const parsedTestCases = (data.problem.testCases as any[]).map(tc => {
                 try {
-                    // Smartly parse input and expected. Assumes they were stringified.
                     const parsedInput = typeof tc.input === 'string' ? JSON.parse(tc.input) : tc.input;
                     const parsedExpected = typeof tc.expected === 'string' ? JSON.parse(tc.expected) : tc.expected;
                     return { ...tc, input: parsedInput, expected: parsedExpected };
                 } catch (e) {
                     console.error("Failed to parse test case:", tc, e);
-                    // Return as-is if parsing fails, so we can debug it.
                     return { ...tc, input: tc.input, expected: tc.expected };
                 }
             });
@@ -590,7 +585,8 @@ export default function ClashPage() {
 
           {/* Right Panel: Workspace */}
           <div className="w-3/5 flex flex-col gap-2 min-h-0">
-             <div className="flex-1 flex flex-col bg-card/50 border border-white/10 rounded-xl min-h-0">
+             {/* Editor Panel - Takes up more space */}
+             <div className="flex-[3_3_0%] flex flex-col bg-card/50 border border-white/10 rounded-xl min-h-0">
                 <div className="p-2 border-b border-border flex items-center justify-between">
                     <Select value={language} onValueChange={handleLanguageChange} disabled={isRunning || isSubmitting || isTranslatingCode}>
                       <SelectTrigger className="w-[180px] h-9">
@@ -626,7 +622,8 @@ export default function ClashPage() {
                 </div>
              </div>
              
-             <div className="h-[35%] flex flex-col bg-card/50 border border-white/10 rounded-xl min-h-0">
+             {/* Console Panel - Takes up less space, but is still substantial */}
+             <div className="flex-[2_2_0%] flex flex-col bg-card/50 border border-white/10 rounded-xl min-h-0">
                 <Tabs value={consoleTab} onValueChange={setConsoleTab} className="flex-1 flex flex-col p-2 min-h-0">
                     <TabsList className="grid w-full grid-cols-3">
                         <TabsTrigger value="test-result"><Terminal className="mr-2 h-4 w-4"/>Test Result</TabsTrigger>
@@ -637,7 +634,7 @@ export default function ClashPage() {
                         {typeof output === 'string' ? (
                             <pre className="whitespace-pre-wrap font-code text-base"><code>{output}</code></pre>
                         ) : (
-                            <div className="space-y-4 font-code">
+                            <div className="space-y-4 font-code text-base">
                                 {output.map((res, index) => (
                                     <div key={index} className="border-b border-border/50 pb-3 last:border-b-0">
                                         <div className="flex items-center gap-2 font-bold mb-2 text-lg">
@@ -645,9 +642,9 @@ export default function ClashPage() {
                                             <span className={cn(res.passed ? "text-green-400" : "text-red-400")}>Case {res.case}: {res.passed ? 'Passed' : 'Failed'}</span>
                                         </div>
                                         <div className='space-y-2 pl-7 text-base'>
-                                          <p><span className="text-muted-foreground w-24 inline-block font-semibold">Input:</span> {res.input}</p>
-                                          <p><span className="text-muted-foreground w-24 inline-block font-semibold">Output:</span> {res.output}</p>
-                                          {!res.passed && <p><span className="text-muted-foreground w-24 inline-block font-semibold">Expected:</span> {res.expected}</p>}
+                                          <p><span className="text-foreground/70 w-24 inline-block font-semibold">Input:</span> {res.input}</p>
+                                          <p><span className="text-foreground/70 w-24 inline-block font-semibold">Output:</span> {res.output}</p>
+                                          {!res.passed && <p><span className="text-foreground/70 w-24 inline-block font-semibold">Expected:</span> {res.expected}</p>}
                                         </div>
                                     </div>
                                 ))}
@@ -660,8 +657,8 @@ export default function ClashPage() {
                               <div key={index} className="border-b border-border/50 pb-3 last:border-b-0">
                                   <p className="font-bold mb-2 text-lg">Case {index + 1}</p>
                                   <div className="bg-background/40 p-3 mt-1 rounded-md space-y-2">
-                                      <p><span className='text-muted-foreground font-semibold'>Input:</span> {JSON.stringify(tc.input)}</p>
-                                      <p><span className='text-muted-foreground font-semibold'>Output:</span> {JSON.stringify(tc.expected)}</p>
+                                      <p><span className='text-foreground/70 font-semibold'>Input:</span> {JSON.stringify(tc.input)}</p>
+                                      <p><span className='text-foreground/70 font-semibold'>Output:</span> {JSON.stringify(tc.expected)}</p>
                                   </div>
                               </div>
                           ))}
