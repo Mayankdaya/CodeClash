@@ -9,7 +9,7 @@ export interface Problem {
     explanation?: string;
   }[];
   starterCode: string;
-  solution?: string;
+  solution: string;
   testCases: {
     input: any[];
     expected: any;

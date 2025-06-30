@@ -27,7 +27,7 @@ const ProblemSchema: z.ZodType<Problem> = z.object({
   })).min(3).describe('An array of at least 3 clear examples with human-readable inputs, outputs, and optional explanations.'),
   starterCode: z.string().describe('Boilerplate code in JavaScript for the user to start with, as a standard function declaration. e.g., "function twoSum(nums, target) { ... }"'),
   solution: z.string().describe('A correct and optimal solution in JavaScript.'),
-  testCases: z.array(TestCaseSchema).min(5).describe("An array of at least 5 test cases to verify the solution. The 'input' field should be an array of arguments to pass to the function."),
+  testCases: z.array(TestCaseSchema).min(5).describe("An array of at least 5 test cases to verify the solution. The 'input' field should be an array of arguments for the function."),
   entryPoint: z.string().describe("The name of the function to be tested, e.g., 'twoSum'."),
 });
 export type { Problem };

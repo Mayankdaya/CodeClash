@@ -74,6 +74,7 @@ const executeInWorker = (code: string, entryPoint: string, testCases: TestCase[]
                 if (isArray) {
                     if (obj1.length !== obj2.length) return false;
                     try {
+                      // Handle cases where array order doesn't matter by sorting
                       const sortFunc = (a, b) => JSON.stringify(a).localeCompare(JSON.stringify(b));
                       const sorted1 = [...obj1].sort(sortFunc);
                       const sorted2 = [...obj2].sort(sortFunc);
@@ -125,14 +126,13 @@ const executeInWorker = (code: string, entryPoint: string, testCases: TestCase[]
                         let output, error = null;
                         
                         try {
+                            // Smart parsing for inputs that might be stringified JSON
                             const processedInput = tc.input.map(arg => {
                                 if (typeof arg === 'string') {
                                    try {
-                                        // This will handle "[1,2,3]", "123", "true", etc. correctly
                                         return JSON.parse(arg);
                                     } catch (e) {
-                                        // If it's not valid JSON (e.g., a simple string like "bat"), use it as is.
-                                        return arg;
+                                        return arg; // Use as is if not valid JSON
                                     }
                                 }
                                 return arg;
@@ -235,6 +235,7 @@ export default function ClashPage() {
                     return { input: parsedInput, expected: parsedExpected };
                 } catch (e) {
                     console.error("Failed to parse test case:", tc, e);
+                    // Fallback to original values if parsing fails
                     return { input: tc.input, expected: tc.expected };
                 }
             });
@@ -588,7 +589,7 @@ export default function ClashPage() {
                 </Select>
               </CardHeader>
               <CardContent className="flex-1 flex flex-col p-0 min-h-0">
-                <div className="flex flex-col min-h-0" style={{flexBasis: '50%', flexGrow: 1}}>
+                <div className="flex flex-col min-h-0" style={{flexBasis: '60%', flexGrow: 1}}>
                     <div className="p-6 pt-0 flex-1 flex flex-col min-h-0">
                       <div className="flex-1 w-full rounded-md min-h-0 relative">
                         {isTranslatingCode && (
@@ -615,7 +616,7 @@ export default function ClashPage() {
                       </div>
                     </div>
                 </div>
-                <div className="border-t border-border/50 flex flex-col min-h-0" style={{flexBasis: '50%', flexGrow: 1}}>
+                <div className="border-t border-border/50 flex flex-col min-h-0" style={{flexBasis: '40%', flexGrow: 1}}>
                     <Tabs value={consoleTab} onValueChange={setConsoleTab} className="flex-1 flex flex-col p-6 min-h-0">
                         <TabsList className="grid w-full grid-cols-2">
                             <TabsTrigger value="test-result">Test Result</TabsTrigger>
@@ -623,16 +624,16 @@ export default function ClashPage() {
                         </TabsList>
                         <TabsContent value="test-result" className="flex-1 mt-4 overflow-auto rounded-md bg-muted/30 p-4">
                             {typeof output === 'string' ? (
-                                <pre className="whitespace-pre-wrap font-code text-lg"><code>{output}</code></pre>
+                                <pre className="whitespace-pre-wrap font-code text-sm"><code>{output}</code></pre>
                             ) : (
-                                <div className="space-y-4 font-code text-base">
+                                <div className="space-y-4 font-code">
                                     {output.map((res, index) => (
                                         <div key={index} className="border-b border-border/50 pb-2 last:border-b-0">
-                                            <div className="flex items-center gap-2 font-bold mb-2 text-lg">
+                                            <div className="flex items-center gap-2 font-bold mb-2">
                                                 {res.passed ? <CheckCircle2 className="h-5 w-5 text-green-500" /> : <XCircle className="h-5 w-5 text-red-500" />}
                                                 <span className={cn(res.passed ? "text-green-400" : "text-red-400")}>Case {res.case}: {res.passed ? 'Passed' : 'Failed'}</span>
                                             </div>
-                                            <div className='space-y-1 pl-7 text-base'>
+                                            <div className='space-y-1 pl-7 text-xs'>
                                               <p><span className="text-muted-foreground w-24 inline-block">Input:</span> {res.input}</p>
                                               <p><span className="text-muted-foreground w-24 inline-block">Output:</span> {res.output}</p>
                                               <p><span className="text-muted-foreground w-24 inline-block">Expected:</span> {res.expected}</p>
@@ -643,11 +644,11 @@ export default function ClashPage() {
                             )}
                         </TabsContent>
                         <TabsContent value="testcases" className="flex-1 mt-4 overflow-auto rounded-md bg-muted/30 p-4">
-                          <div className="space-y-4 font-code text-base">
+                          <div className="space-y-4 font-code">
                               {problem?.testCases.slice(0, 3).map((tc, index) => (
                                   <div key={index} className="border-b border-border/50 pb-3 last:border-b-0">
-                                      <p className="font-bold mb-2 text-lg">Case {index + 1}</p>
-                                      <div className="bg-background/40 p-3 mt-1 rounded-md space-y-1 text-base">
+                                      <p className="font-bold mb-2">Case {index + 1}</p>
+                                      <div className="bg-background/40 p-3 mt-1 rounded-md space-y-1 text-xs">
                                           <p><span className='text-muted-foreground'>Input:</span> {JSON.stringify(tc.input)}</p>
                                           <p><span className='text-muted-foreground'>Output:</span> {JSON.stringify(tc.expected)}</p>
                                       </div>
