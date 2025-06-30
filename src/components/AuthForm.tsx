@@ -1,7 +1,7 @@
 
 'use client';
 
-import { useState } from 'react';
+import { useState, type ReactNode } from 'react';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
@@ -64,9 +64,22 @@ function LoginForm() {
         await signInWithPopup(auth, provider);
         router.push('/lobby');
     } catch (error: any) {
-        let description = error.message;
+        let description: ReactNode = error.message;
         if (error.code === 'auth/unauthorized-domain') {
-            description = "This domain is not authorized for Google Sign-In. Please check your Firebase project settings.";
+            description = (
+              <span>
+                This domain is not authorized. Add 'localhost' to your{' '}
+                <a
+                  href={`https://console.firebase.google.com/project/${process.env.NEXT_PUBLIC_FIREBASE_PROJECT_ID}/authentication/settings`}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="font-bold underline hover:text-primary"
+                >
+                  Firebase authorized domains
+                </a>
+                .
+              </span>
+            );
         } else if (error.code === 'auth/popup-closed-by-user') {
             description = "The sign-in popup was closed before completing. Please try again.";
         }
@@ -185,9 +198,22 @@ function SignupForm() {
             await signInWithPopup(auth, provider);
             router.push('/lobby');
         } catch (error: any) {
-            let description = error.message;
+            let description: ReactNode = error.message;
             if (error.code === 'auth/unauthorized-domain') {
-                description = "This domain is not authorized for Google Sign-In. Please check your Firebase project settings.";
+              description = (
+                <span>
+                  This domain is not authorized. Add 'localhost' to your{' '}
+                  <a
+                    href={`https://console.firebase.google.com/project/${process.env.NEXT_PUBLIC_FIREBASE_PROJECT_ID}/authentication/settings`}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="font-bold underline hover:text-primary"
+                  >
+                    Firebase authorized domains
+                  </a>
+                  .
+                </span>
+              );
             } else if (error.code === 'auth/popup-closed-by-user') {
                 description = "The sign-up popup was closed before completing. Please try again.";
             }
