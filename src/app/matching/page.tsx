@@ -60,7 +60,6 @@ export default function MatchingPage() {
   
   useEffect(() => {
     let unsubscribe: Unsubscribe | null = null;
-    let myQueueDocId: string | null = null;
     
     const findMatch = async () => {
       const currentUser = auth?.currentUser;
@@ -76,19 +75,22 @@ export default function MatchingPage() {
 
       setIsSearching(true);
       const queueRef = collection(db, 'matchmakingQueue');
+      
+      // Simplified query to find any pending match for the topic
       const q = query(
         queueRef,
         where('topicId', '==', topicId),
         where('status', '==', 'pending'),
-        where('userId', '!=', currentUser.uid),
-        limit(1)
+        limit(10) // Fetch a few potential matches
       );
 
       const querySnapshot = await getDocs(q);
 
-      if (!querySnapshot.empty) {
+      // Find an opponent who is not the current user on the client-side
+      const opponentQueueDoc = querySnapshot.docs.find(doc => doc.data().userId !== currentUser.uid);
+
+      if (opponentQueueDoc) {
         // Match found
-        const opponentQueueDoc = querySnapshot.docs[0];
         const opponentData = opponentQueueDoc.data();
         
         const clashesRef = collection(db, 'clashes');
@@ -118,7 +120,6 @@ export default function MatchingPage() {
           status: 'pending',
           createdAt: new Date()
         });
-        myQueueDocId = myQueueDoc.id;
         setQueueDocId(myQueueDoc.id);
 
         unsubscribe = onSnapshot(doc(db, 'matchmakingQueue', myQueueDoc.id), (docSnap) => {
@@ -129,12 +130,19 @@ export default function MatchingPage() {
       }
     };
 
-    findMatch();
+    findMatch().catch((error) => {
+      console.error("Error finding match:", error);
+      toast({
+        title: "Matchmaking Error",
+        description: "Could not search for an opponent. You may need to create a Firestore index. Check the browser console for a link.",
+        variant: "destructive",
+        duration: 10000
+      });
+    });
     
     return () => {
       if (unsubscribe) unsubscribe();
       // Optional: Clean up my document from the queue if I navigate away
-      // This part is tricky due to race conditions and can be improved later.
     };
 
   }, [searchParams, router, toast]);
