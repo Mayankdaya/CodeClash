@@ -1,3 +1,4 @@
+
 'use client';
 
 import { useState } from 'react';
@@ -63,9 +64,15 @@ function LoginForm() {
         await signInWithPopup(auth, provider);
         router.push('/lobby');
     } catch (error: any) {
+        let description = error.message;
+        if (error.code === 'auth/unauthorized-domain') {
+            description = "This domain is not authorized for Google Sign-In. Please check your Firebase project settings.";
+        } else if (error.code === 'auth/popup-closed-by-user') {
+            description = "The sign-in popup was closed before completing. Please try again.";
+        }
         toast({
             title: "Google Sign-In Failed",
-            description: error.message,
+            description: description,
             variant: "destructive",
         });
     } finally {
@@ -178,9 +185,15 @@ function SignupForm() {
             await signInWithPopup(auth, provider);
             router.push('/lobby');
         } catch (error: any) {
+            let description = error.message;
+            if (error.code === 'auth/unauthorized-domain') {
+                description = "This domain is not authorized for Google Sign-In. Please check your Firebase project settings.";
+            } else if (error.code === 'auth/popup-closed-by-user') {
+                description = "The sign-up popup was closed before completing. Please try again.";
+            }
             toast({
                 title: "Google Sign-Up Failed",
-                description: error.message,
+                description: description,
                 variant: "destructive",
             });
         } finally {
