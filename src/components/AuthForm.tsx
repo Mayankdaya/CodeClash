@@ -135,6 +135,9 @@ export function AuthForm({ mode }: AuthFormProps) {
     if (!auth) return;
     setIsLoading(true);
     const provider = new GoogleAuthProvider();
+    provider.setCustomParameters({
+      prompt: 'select_account'
+    });
     try {
       // This will redirect the user to Google's sign-in page.
       await signInWithRedirect(auth, provider);
