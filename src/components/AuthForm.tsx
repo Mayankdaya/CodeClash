@@ -24,6 +24,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from '@/components/ui/form';
 import { Input } from '@/components/ui/input';
 import { ArrowRight, Loader2 } from 'lucide-react';
+import { useRouter } from 'next/navigation';
 
 // Using an inline SVG for the Google icon to avoid adding another dependency
 const GoogleIcon = (props: React.SVGProps<SVGSVGElement>) => (
@@ -78,6 +79,7 @@ const ensureUserProfile = async (user: User, additionalData: { [key: string]: an
 
 
 export function AuthForm({ mode }: AuthFormProps) {
+  const router = useRouter();
   const { toast } = useToast();
   const [isLoading, setIsLoading] = useState(false);
   const [isVerifying, setIsVerifying] = useState(true);
@@ -92,17 +94,13 @@ export function AuthForm({ mode }: AuthFormProps) {
       try {
         const result = await getRedirectResult(auth);
         if (result) {
-          // A user has successfully signed in via redirect.
-          // The onAuthStateChanged listener on the parent page will handle the redirect.
-          // We just need to ensure their profile exists and welcome them.
           await ensureUserProfile(result.user);
           toast({
             title: "Sign In Successful",
             description: "Welcome to CodeClash!",
           });
-          // The parent page will now handle the redirect.
+          router.replace('/lobby');
         } else {
-           // No redirect result, so stop the verification process and show the form.
            setIsVerifying(false);
         }
       } catch (error) {
@@ -113,11 +111,11 @@ export function AuthForm({ mode }: AuthFormProps) {
           description: "Could not complete sign in with Google. Please try again.",
           variant: "destructive",
         });
-        setIsVerifying(false); // Stop loader and show form on error
+        setIsVerifying(false);
       }
     };
     checkRedirectResult();
-  }, [toast]);
+  }, [router, toast]);
 
 
   const loginForm = useForm<LoginFormData>({
@@ -136,7 +134,7 @@ export function AuthForm({ mode }: AuthFormProps) {
     try {
       const { user } = await signInWithEmailAndPassword(auth, data.email, data.password);
       await ensureUserProfile(user);
-      // The onAuthStateChanged listener on the parent page will handle the redirect.
+      router.replace('/lobby');
     } catch (error) {
       const authError = error as AuthError;
       toast({
@@ -158,7 +156,7 @@ export function AuthForm({ mode }: AuthFormProps) {
         const { user } = await createUserWithEmailAndPassword(auth, data.email, data.password);
         await updateProfile(user, { displayName: data.username });
         await ensureUserProfile(user, { username: data.username });
-        // The onAuthStateChanged listener on the parent page will handle the redirect.
+        router.replace('/lobby');
     } catch (error) {
         const authError = error as AuthError;
         toast({
@@ -180,8 +178,6 @@ export function AuthForm({ mode }: AuthFormProps) {
     });
     try {
       await signInWithRedirect(auth, provider);
-      // The redirect will navigate the user away. The checkRedirectResult effect will
-      // handle the logic when they return.
     } catch (error) {
       const authError = error as AuthError;
       toast({
