@@ -707,20 +707,23 @@ export default function ClashClient({ id }: { id: string }) {
 
                         <div className="flex-1 flex flex-col min-h-0 border-t border-border/50 pt-2 px-4 pb-4">
                             <div className="flex-1 pr-2 -mr-2 overflow-y-auto">
-                                <div className="space-y-2 text-sm pr-2">
+                                <div className="space-y-4 text-sm pr-2">
                                 {messages.map((message) => {
                                     const isMe = message.senderId === auth.currentUser?.uid;
                                     return (
-                                    <div key={message.id} className={cn('flex items-start gap-2', isMe && 'flex-row-reverse')}>
-                                        <Avatar className="h-8 w-8">
-                                        <AvatarImage src={message.senderAvatar} data-ai-hint={isMe ? "man portrait" : "woman portrait"}/>
-                                        <AvatarFallback>{message.senderName.substring(0, 2).toUpperCase()}</AvatarFallback>
+                                    <div key={message.id} className={cn('flex items-end gap-3', isMe && 'flex-row-reverse')}>
+                                        <Avatar className="h-8 w-8 shrink-0">
+                                            <AvatarImage src={message.senderAvatar} data-ai-hint={isMe ? "man portrait" : "woman portrait"}/>
+                                            <AvatarFallback>{message.senderName.substring(0, 2).toUpperCase()}</AvatarFallback>
                                         </Avatar>
-                                        <div className={cn(isMe && 'text-right')}>
-                                        <p className="font-bold">{message.senderName}</p>
-                                        <p className={cn('p-2 rounded-lg mt-1', isMe ? 'bg-primary/80 text-primary-foreground' : 'bg-muted/50')}>
-                                            {message.text}
-                                        </p>
+                                        <div className={cn(
+                                            'max-w-[75%] rounded-xl p-3', 
+                                            isMe 
+                                                ? 'bg-primary text-primary-foreground rounded-br-none' 
+                                                : 'bg-muted/50 rounded-bl-none'
+                                        )}>
+                                            {!isMe && <p className="font-bold text-xs mb-1 text-primary">{message.senderName}</p>}
+                                            <p className="text-sm break-words">{message.text}</p>
                                         </div>
                                     </div>
                                     );
