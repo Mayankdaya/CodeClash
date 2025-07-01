@@ -2,7 +2,7 @@
 'use client';
 
 import { useEffect, useState, type ReactNode } from 'react';
-import { onAuthStateChanged, type User } from 'firebase/auth';
+import { onAuthStateChanged, type User, signOut } from 'firebase/auth';
 import { auth } from '@/lib/firebase';
 import { Loader2 } from 'lucide-react';
 import { ensureUserProfile } from '@/lib/user';
@@ -35,7 +35,11 @@ export default function AuthGuard({ children }: { children: ReactNode }) {
         }
       } catch (error) {
           console.error("Error during authentication check:", error);
-          // If any error occurs (e.g., Firestore permission denied), redirect to login
+          // If any error occurs (e.g., Firestore permission denied), log the user out
+          // to prevent a redirect loop, then send them to the login page.
+          if (auth) {
+            await signOut(auth);
+          }
           if (typeof window !== 'undefined') {
             window.location.assign('/login');
           }
