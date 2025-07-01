@@ -19,13 +19,12 @@ import { Header } from '@/components/Header';
 import AuthGuard from '@/components/AuthGuard';
 import { CodeEditor } from '@/components/CodeEditor';
 import { UserVideo } from '@/components/UserVideo';
-import { BookOpen, Send, Timer, Loader2, Lightbulb, CheckCircle2, XCircle, KeySquare, MessageSquare, TestTube2, Terminal } from 'lucide-react';
+import { BookOpen, Send, Timer, Loader2, Lightbulb, CheckCircle2, XCircle, MessageSquare, TestTube2, Terminal } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import type { Problem } from '@/lib/problems';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { getHint } from '@/ai/flows/getHintFlow';
 import { translateCode } from '@/ai/flows/translateCodeFlow';
-import { translateSolution } from '@/ai/flows/translateSolutionFlow';
 import { executeCode, type ExecuteCodeOutput } from '@/ai/flows/executeCodeFlow';
 import {
   AlertDialog,
@@ -221,12 +220,6 @@ export default function ClashClient({ id }: { id: string }) {
   const [isGettingHint, setIsGettingHint] = useState(false);
   const [hint, setHint] = useState<string | null>(null);
 
-  const [leftPanelTab, setLeftPanelTab] = useState('problem');
-  const [solutionLanguage, setSolutionLanguage] = useState('javascript');
-  const [solutions, setSolutions] = useState<Record<string, string>>({});
-  const [isTranslatingSolution, setIsTranslatingSolution] = useState(false);
-  const solutionEditorRef = useRef<any>(null);
-
   const endOfMessagesRef = useRef<HTMLDivElement>(null);
   const languages = ["javascript", "python", "java", "cpp"];
 
@@ -270,9 +263,6 @@ export default function ClashClient({ id }: { id: string }) {
           const starterCode = data.problem.starterCode || `function ${data.problem.entryPoint}() {\n  // your code here\n}`;
           setCode(starterCode);
           setStarterCodes({ javascript: starterCode });
-          if (data.problem.solution) {
-            setSolutions({ javascript: data.problem.solution });
-          }
         } else {
           toast({ title: "Problem not found", description: "The problem for this clash is missing.", variant: 'destructive' });
           router.push('/lobby');
@@ -323,14 +313,6 @@ export default function ClashClient({ id }: { id: string }) {
     return () => clearInterval(timer);
   }, [timeLeft]);
   
-  // Editor layout effect
-  useEffect(() => {
-    if (leftPanelTab === 'solution' && solutionEditorRef.current) {
-        setTimeout(() => {
-            solutionEditorRef.current?.layout();
-        }, 1);
-    }
-  }, [leftPanelTab]);
 
   const handleSendMessage = async () => {
     if (newMessage.trim() === '' || !db || !auth.currentUser || !id) return;
@@ -381,37 +363,6 @@ export default function ClashClient({ id }: { id: string }) {
       }
     } finally {
       setIsTranslatingCode(false);
-    }
-  };
-
-  const handleSolutionLanguageChange = async (newLang: string) => {
-    setSolutionLanguage(newLang);
-
-    if (solutions[newLang]) {
-      return; // Already cached
-    }
-
-    if (!problem?.solution) return;
-
-    setIsTranslatingSolution(true);
-    try {
-      const result = await translateSolution({
-        sourceCode: problem.solution,
-        sourceLanguage: 'javascript',
-        targetLanguage: newLang,
-        entryPoint: problem.entryPoint,
-      });
-      const newSolutionCode = result.translatedCode;
-      setSolutions(prev => ({ ...prev, [newLang]: newSolutionCode }));
-    } catch (error) {
-      console.error("Error translating solution:", error);
-      toast({
-        title: "Error Translating Solution",
-        description: "Could not generate a solution for this language.",
-        variant: "destructive",
-      });
-    } finally {
-      setIsTranslatingSolution(false);
     }
   };
 
@@ -478,10 +429,6 @@ export default function ClashClient({ id }: { id: string }) {
     }
   };
   
-  const handleSolutionEditorMount = (editor: any) => {
-    solutionEditorRef.current = editor;
-  };
-
   const handleRunCode = () => handleCodeExecution(false);
   const handleSubmitCode = () => handleCodeExecution(true);
 
@@ -621,66 +568,28 @@ export default function ClashClient({ id }: { id: string }) {
             <PanelGroup direction="horizontal">
                 <Panel defaultSize={45} minSize={30}>
                     <div className="h-full flex flex-col bg-card/50 border border-white/10 rounded-xl overflow-hidden">
-                        <Tabs value={leftPanelTab} onValueChange={setLeftPanelTab} className="flex-1 flex flex-col min-h-0">
-                            <div className="p-2 border-b border-border shrink-0">
-                                <TabsList className="grid w-full grid-cols-2">
-                                    <TabsTrigger value="problem"><BookOpen className="mr-2 h-4 w-4"/>Problem</TabsTrigger>
-                                    <TabsTrigger value="solution"><KeySquare className="mr-2 h-4 w-4"/>Solution</TabsTrigger>
-                                </TabsList>
-                            </div>
-                            
-                            <TabsContent value="problem" className="flex-1 min-h-0 overflow-y-auto p-4 pr-2 m-0">
-                                <h1 className="text-2xl font-bold mb-2">{problem.title}</h1>
-                                <div className='prose prose-invert max-w-none prose-p:text-muted-foreground prose-strong:text-foreground'>
+                        <div className="p-4 border-b border-border shrink-0 flex items-center gap-2">
+                            <BookOpen className="h-5 w-5 text-primary"/>
+                            <h1 className="text-xl font-bold">Problem Description</h1>
+                        </div>
+                        <div className="flex-1 min-h-0 overflow-y-auto p-4 pr-2">
+                            <h2 className="text-2xl font-bold mb-2">{problem.title}</h2>
+                            <div className='prose prose-invert max-w-none prose-p:text-muted-foreground prose-strong:text-foreground'>
                                 <p className="whitespace-pre-wrap">{problem.description}</p>
                                 {problem.examples && problem.examples.map((example, index) => (
                                     <div key={index}>
-                                    <p><strong>Example {index + 1}:</strong></p>
-                                    <pre className='mt-2 p-2 rounded-md bg-muted/50 text-base whitespace-pre-wrap font-code not-prose'>
-                                        <code>
-                                        <strong>Input:</strong> {example.input}<br/>
-                                        <strong>Output:</strong> {example.output}
-                                        {example.explanation && <><br/><strong>Explanation:</strong> {example.explanation}</>}
-                                        </code>
-                                    </pre>
+                                        <p><strong>Example {index + 1}:</strong></p>
+                                        <pre className='mt-2 p-2 rounded-md bg-muted/50 text-base whitespace-pre-wrap font-code not-prose'>
+                                            <code>
+                                            <strong>Input:</strong> {example.input}<br/>
+                                            <strong>Output:</strong> {example.output}
+                                            {example.explanation && <><br/><strong>Explanation:</strong> {example.explanation}</>}
+                                            </code>
+                                        </pre>
                                     </div>
                                 ))}
-                                </div>
-                            </TabsContent>
-
-                            <TabsContent value="solution" className="flex-1 flex flex-col m-0 min-h-0">
-                                <div className="p-2 border-b border-border flex items-center justify-end shrink-0">
-                                    <Select value={solutionLanguage} onValueChange={handleSolutionLanguageChange} disabled={isTranslatingSolution}>
-                                        <SelectTrigger className="w-[180px] h-9">
-                                            <SelectValue placeholder="Select Language" />
-                                        </SelectTrigger>
-                                        <SelectContent>
-                                            {languages.map((lang) => (
-                                                <SelectItem key={lang} value={lang} className='capitalize'>
-                                                {lang.charAt(0).toUpperCase() + lang.slice(1)}
-                                                </SelectItem>
-                                            ))}
-                                        </SelectContent>
-                                    </Select>
-                                </div>
-                                <div className="flex-1 min-h-0 relative">
-                                    {isTranslatingSolution && (
-                                        <div className="absolute inset-0 bg-slate-900/80 backdrop-blur-sm flex flex-col items-center justify-center z-10 text-foreground rounded-md">
-                                            <Loader2 className="h-8 w-8 animate-spin" />
-                                            <p className="mt-2 text-sm">Translating solution to {solutionLanguage}...</p>
-                                        </div>
-                                    )}
-                                    <CodeEditor
-                                        key={`solution-${solutionLanguage}`}
-                                        onMount={handleSolutionEditorMount}
-                                        language={solutionLanguage}
-                                        value={solutions[solutionLanguage] || ''}
-                                        onChange={() => {}}
-                                        disabled={true}
-                                    />
-                                </div>
-                            </TabsContent>
-                        </Tabs>
+                            </div>
+                        </div>
                     </div>
                 </Panel>
                 <PanelResizeHandle className="w-2 bg-border/50 hover:bg-primary transition-colors data-[resize-handle-state=drag]:bg-primary" />
