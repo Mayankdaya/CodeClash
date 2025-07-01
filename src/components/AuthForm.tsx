@@ -62,34 +62,31 @@ function AuthFormContent({ mode }: { mode: 'login' | 'signup' }) {
       return;
     }
 
-    let isMounted = true;
-
     getRedirectResult(auth)
       .then((result) => {
-        if (result && isMounted) {
-          // User signed in successfully. The onAuthStateChanged listener in the parent
-          // page will handle profile creation & redirection.
-        } else if (isMounted) {
+        if (result) {
+          // User signed in successfully via redirect. Navigate them.
+          router.push('/lobby');
+        } else {
           // No redirect result, so we can stop showing the "processing" state.
           setIsProcessingRedirect(false);
         }
       })
       .catch((error) => {
-        if (isMounted) {
-          const authError = error as AuthError;
-          toast({
-            title: "Google Sign-In Failed",
-            description: authError.message || 'An unknown error occurred.',
-            variant: "destructive",
-          });
-          setIsProcessingRedirect(false);
-        }
+        const authError = error as AuthError;
+        toast({
+          title: "Google Sign-In Failed",
+          description: authError.code === 'auth/account-exists-with-different-credential' 
+            ? "An account with this email already exists. Please sign in with the original method."
+            : authError.message || 'An unknown error occurred.',
+          variant: "destructive",
+        });
+        setIsProcessingRedirect(false);
       });
     
-    return () => {
-      isMounted = false;
-    }
-  }, [toast]);
+  // We only want this to run once on component mount to check for a redirect result.
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   const loginForm = useForm<LoginFormData>({
     resolver: zodResolver(loginSchema),
@@ -114,12 +111,14 @@ function AuthFormContent({ mode }: { mode: 'login' | 'signup' }) {
     setIsLoading(true);
     try {
       await signInWithEmailAndPassword(auth, data.email, data.password);
-      // Successful login will trigger onAuthStateChanged, which handles the redirect.
+      // Successful login will trigger onAuthStateChanged in LoginPage, which handles the redirect.
     } catch (error) {
       const authError = error as AuthError;
       toast({
         title: "Login Failed",
-        description: authError.message,
+        description: authError.code === 'auth/invalid-credential' 
+          ? "Invalid email or password. If you originally signed up using Google, please log in with Google instead." 
+          : authError.message,
         variant: "destructive",
       });
     } finally {
@@ -135,7 +134,7 @@ function AuthFormContent({ mode }: { mode: 'login' | 'signup' }) {
         await updateProfile(user, {
             displayName: data.username,
         });
-        // Successful signup will trigger onAuthStateChanged, which handles the redirect.
+        // Successful signup will trigger onAuthStateChanged in SignupPage, which handles the redirect.
     } catch (error) {
         const authError = error as AuthError;
         toast({
