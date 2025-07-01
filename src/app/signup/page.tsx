@@ -17,6 +17,7 @@ export default function SignupPage() {
 
   useEffect(() => {
     if (!auth) {
+      // Firebase not configured. The FirebaseConfigGuard will show an error.
       setIsLoading(false);
       return;
     }
@@ -59,7 +60,7 @@ export default function SignupPage() {
         // This return is for the cleanup of onAuthStateChanged
         return () => unsubscribe();
       });
-  }, []); // <-- Empty dependency array fixes the infinite loop.
+  }, []); // <-- Empty dependency array is critical to prevent infinite loops.
 
 
   if (isLoading) {

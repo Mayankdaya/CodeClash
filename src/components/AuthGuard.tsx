@@ -14,7 +14,9 @@ export default function AuthGuard({ children }: { children: ReactNode }) {
 
   useEffect(() => {
     if (!auth) {
-      router.push('/login');
+      // This case handles when Firebase isn't configured.
+      // Redirect to a safe page, though FirebaseNotConfigured component should prevent this.
+      router.push('/');
       return;
     }
 
@@ -31,7 +33,7 @@ export default function AuthGuard({ children }: { children: ReactNode }) {
     });
 
     return () => unsubscribe();
-  }, []);
+  }, [router]);
 
   if (status === 'loading') {
     return (

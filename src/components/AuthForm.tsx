@@ -70,10 +70,8 @@ export function AuthForm({ mode }: AuthFormProps) {
     if (!auth) return;
     setIsLoading(true);
     try {
-      const { user } = await signInWithEmailAndPassword(auth, data.email, data.password);
+      await signInWithEmailAndPassword(auth, data.email, data.password);
       // The parent page's onAuthStateChanged listener will handle navigation.
-      // We just need to ensure the profile exists.
-      await ensureUserProfile(user);
     } catch (error) {
       const authError = error as AuthError;
       toast({
