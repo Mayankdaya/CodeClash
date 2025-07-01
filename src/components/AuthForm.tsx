@@ -7,7 +7,14 @@ import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
-import { createUserWithEmailAndPassword, signInWithEmailAndPassword, updateProfile, GoogleAuthProvider, signInWithPopup } from 'firebase/auth';
+import { 
+  createUserWithEmailAndPassword, 
+  signInWithEmailAndPassword, 
+  updateProfile, 
+  GoogleAuthProvider, 
+  signInWithPopup,
+  type AuthError
+} from 'firebase/auth';
 import { useToast } from '@/hooks/use-toast';
 import { auth } from '@/lib/firebase';
 import { Button } from '@/components/ui/button';
@@ -53,24 +60,15 @@ function LoginForm() {
 
   const handleGoogleSignIn = async () => {
     setIsGoogleLoading(true);
-    if (!auth) {
-        toast({
-            title: "Firebase Not Configured",
-            description: "Please make sure your Firebase environment variables are set in .env.local and restart the server.",
-            variant: "destructive"
-        });
-        setIsGoogleLoading(false);
-        return;
-    }
-    
     try {
       const provider = new GoogleAuthProvider();
       await signInWithPopup(auth, provider);
       router.push('/lobby');
-    } catch (error: any) {
+    } catch (error) {
+       const authError = error as AuthError;
        toast({
             title: "Google Sign-In Failed",
-            description: error.message,
+            description: authError.message,
             variant: "destructive",
        });
     } finally {
@@ -80,22 +78,14 @@ function LoginForm() {
 
   const onSubmit = async (data: LoginFormData) => {
     setIsLoading(true);
-    if (!auth) {
-        toast({
-            title: "Firebase Not Configured",
-            description: "Please set up your .env.local file.",
-            variant: "destructive"
-        });
-        setIsLoading(false);
-        return;
-    }
     try {
       await signInWithEmailAndPassword(auth, data.email, data.password);
       router.push('/lobby');
-    } catch (error: any) {
+    } catch (error) {
+      const authError = error as AuthError;
       toast({
         title: "Login Failed",
-        description: error.message,
+        description: authError.message,
         variant: "destructive",
       });
     } finally {
@@ -172,24 +162,15 @@ function SignupForm() {
     
     const handleGoogleSignIn = async () => {
       setIsGoogleLoading(true);
-      if (!auth) {
-        toast({
-            title: "Firebase Not Configured",
-            description: "Please make sure your Firebase environment variables are set in .env.local and restart the server.",
-            variant: "destructive"
-        });
-        setIsGoogleLoading(false);
-        return;
-      }
-
       try {
           const provider = new GoogleAuthProvider();
           await signInWithPopup(auth, provider);
           router.push('/lobby');
-      } catch (error: any) {
+      } catch (error) {
+         const authError = error as AuthError;
          toast({
               title: "Google Sign-Up Failed",
-              description: error.message,
+              description: authError.message,
               variant: "destructive",
          });
       } finally {
@@ -199,25 +180,17 @@ function SignupForm() {
 
     const onSubmit = async (data: SignupFormData) => {
         setIsLoading(true);
-         if (!auth) {
-            toast({
-                title: "Firebase Not Configured",
-                description: "Please set up your .env.local file.",
-                variant: "destructive"
-            });
-            setIsLoading(false);
-            return;
-        }
         try {
             const { user } = await createUserWithEmailAndPassword(auth, data.email, data.password);
             await updateProfile(user, {
                 displayName: data.username,
             });
             router.push('/lobby');
-        } catch (error: any) {
+        } catch (error) {
+            const authError = error as AuthError;
             toast({
                 title: "Sign Up Failed",
-                description: error.message,
+                description: authError.message,
                 variant: "destructive",
             });
         } finally {
