@@ -7,15 +7,14 @@ import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
-import { createUserWithEmailAndPassword, signInWithEmailAndPassword, updateProfile, GoogleAuthProvider, signInWithPopup, type User } from 'firebase/auth';
+import { createUserWithEmailAndPassword, signInWithEmailAndPassword, updateProfile, GoogleAuthProvider, signInWithPopup } from 'firebase/auth';
 import { useToast } from '@/hooks/use-toast';
-import { auth, db, isFirebaseConfigured } from '@/lib/firebase';
+import { auth, isFirebaseConfigured } from '@/lib/firebase';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from '@/components/ui/form';
 import { Input } from '@/components/ui/input';
 import { ArrowRight, Loader2, Terminal } from 'lucide-react';
-import { doc, getDoc, setDoc, serverTimestamp } from 'firebase/firestore';
 import { Alert, AlertDescription, AlertTitle } from './ui/alert';
 
 
@@ -42,30 +41,6 @@ const signupSchema = z.object({
 type LoginFormData = z.infer<typeof loginSchema>;
 type SignupFormData = z.infer<typeof signupSchema>;
 
-const createUserProfileDocument = async (userAuth: User, additionalData: { [key: string]: any } = {}) => {
-  if (!db || !userAuth) return;
-
-  const userDocRef = doc(db, 'users', userAuth.uid);
-  const snapshot = await getDoc(userDocRef);
-
-  if (!snapshot.exists()) {
-    const { displayName, email, photoURL } = userAuth;
-    
-    try {
-      await setDoc(userDocRef, {
-        displayName: displayName || additionalData.displayName || 'Anonymous Coder',
-        email,
-        photoURL: photoURL || `https://placehold.co/100x100.png`,
-        createdAt: serverTimestamp(),
-        totalScore: 0,
-        ...additionalData,
-      });
-    } catch (error) {
-      console.error('Error creating user document', error);
-    }
-  }
-};
-
 
 function LoginForm() {
   const router = useRouter();
@@ -79,8 +54,7 @@ function LoginForm() {
   const handleGoogleSignIn = async () => {
     setIsLoading(true);
     try {
-        const { user } = await signInWithPopup(auth!, new GoogleAuthProvider());
-        await createUserProfileDocument(user);
+        await signInWithPopup(auth!, new GoogleAuthProvider());
         router.push('/lobby');
     } catch (error: any) {
         let description: ReactNode = error.message;
@@ -115,8 +89,7 @@ function LoginForm() {
   const onSubmit = async (data: LoginFormData) => {
     setIsLoading(true);
     try {
-      const { user } = await signInWithEmailAndPassword(auth!, data.email, data.password);
-      await createUserProfileDocument(user);
+      await signInWithEmailAndPassword(auth!, data.email, data.password);
       router.push('/lobby');
     } catch (error: any) {
       toast({
@@ -196,8 +169,7 @@ function SignupForm() {
     const handleGoogleSignIn = async () => {
         setIsLoading(true);
         try {
-            const { user } = await signInWithPopup(auth!, new GoogleAuthProvider());
-            await createUserProfileDocument(user);
+            await signInWithPopup(auth!, new GoogleAuthProvider());
             router.push('/lobby');
         } catch (error: any) {
             let description: ReactNode = error.message;
@@ -236,7 +208,6 @@ function SignupForm() {
             await updateProfile(user, {
                 displayName: data.username,
             });
-            await createUserProfileDocument(user, { displayName: data.username });
             router.push('/lobby');
         } catch (error: any) {
             toast({

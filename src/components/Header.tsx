@@ -5,12 +5,39 @@ import { useState, useEffect } from 'react';
 import Link from "next/link";
 import { useRouter } from 'next/navigation';
 import { onAuthStateChanged, signOut, User } from 'firebase/auth';
-import { auth, rtdb } from '@/lib/firebase';
+import { auth, db, rtdb } from '@/lib/firebase';
+import { doc, getDoc, setDoc, serverTimestamp } from 'firebase/firestore';
 import { ref, onValue, set, onDisconnect } from "firebase/database";
 import { Button } from "@/components/ui/button";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel, DropdownMenuSeparator, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { ArrowRight, Code, LogOut, User as UserIcon } from "lucide-react";
+
+
+const createUserProfileDocument = async (userAuth: User, additionalData: { [key: string]: any } = {}) => {
+  if (!db || !userAuth) return;
+
+  const userDocRef = doc(db, 'users', userAuth.uid);
+  const snapshot = await getDoc(userDocRef);
+
+  if (!snapshot.exists()) {
+    const { displayName, email, photoURL } = userAuth;
+    
+    try {
+      await setDoc(userDocRef, {
+        displayName: displayName || additionalData.displayName || 'Anonymous Coder',
+        email,
+        photoURL: photoURL || `https://placehold.co/100x100.png`,
+        createdAt: serverTimestamp(),
+        totalScore: 0,
+        ...additionalData,
+      });
+    } catch (error) {
+      console.error('Error creating user document', error);
+    }
+  }
+};
+
 
 export function Header() {
   const [user, setUser] = useState<User | null>(null);
@@ -19,8 +46,11 @@ export function Header() {
 
   useEffect(() => {
     if (!auth) return;
-    const unsubscribe = onAuthStateChanged(auth, (currentUser) => {
+    const unsubscribe = onAuthStateChanged(auth, async (currentUser) => {
       setUser(currentUser);
+      if (currentUser) {
+        await createUserProfileDocument(currentUser);
+      }
     });
     return () => unsubscribe();
   }, []);
