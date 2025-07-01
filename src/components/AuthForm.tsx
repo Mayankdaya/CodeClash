@@ -6,6 +6,7 @@ import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
 import Link from 'next/link';
+import { useRouter } from 'next/navigation';
 import { 
   createUserWithEmailAndPassword, 
   signInWithEmailAndPassword, 
@@ -53,6 +54,7 @@ type AuthFormProps = {
 };
 
 export function AuthForm({ mode }: AuthFormProps) {
+  const router = useRouter();
   const { toast } = useToast();
   const [isLoading, setIsLoading] = useState(false);
   const [isGoogleLoading, setIsGoogleLoading] = useState(false);
@@ -71,8 +73,9 @@ export function AuthForm({ mode }: AuthFormProps) {
     if (!auth) return;
     setIsLoading(true);
     try {
-      // The UnauthGuard's onAuthStateChanged listener will handle navigation.
       await signInWithEmailAndPassword(auth, data.email, data.password);
+      router.push('/lobby');
+      toast({ title: 'Login Successful', description: 'Welcome back!' });
     } catch (error) {
       const authError = error as AuthError;
       toast({
@@ -93,7 +96,8 @@ export function AuthForm({ mode }: AuthFormProps) {
         const { user } = await createUserWithEmailAndPassword(auth, data.email, data.password);
         await updateProfile(user, { displayName: data.username });
         await ensureUserProfile(user, { username: data.username });
-        // The UnauthGuard's onAuthStateChanged listener will handle navigation.
+        router.push('/lobby');
+        toast({ title: 'Sign Up Successful', description: `Welcome, ${data.username}!` });
     } catch (error) {
         const authError = error as AuthError;
         let description = "An unexpected error occurred. Please try again.";
