@@ -1,3 +1,4 @@
+
 'use client';
 
 import { AuthForm } from '@/components/AuthForm';
@@ -14,7 +15,7 @@ export default function LoginPage() {
     if (!auth) return;
     const unsubscribe = onAuthStateChanged(auth, (user) => {
       if (user) {
-        router.push('/lobby');
+        router.replace('/lobby');
       }
     });
     return () => unsubscribe();
