@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
@@ -8,7 +8,10 @@ import Link from 'next/link';
 import { 
   createUserWithEmailAndPassword, 
   signInWithEmailAndPassword, 
-  updateProfile, 
+  updateProfile,
+  GoogleAuthProvider,
+  signInWithRedirect,
+  getRedirectResult,
   type AuthError
 } from 'firebase/auth';
 import { useToast } from '@/hooks/use-toast';
@@ -18,6 +21,16 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from '@/components/ui/form';
 import { Input } from '@/components/ui/input';
 import { ArrowRight, Loader2 } from 'lucide-react';
+
+// Using an inline SVG for the Google icon to avoid adding another dependency
+const GoogleIcon = (props: React.SVGProps<SVGSVGElement>) => (
+  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 48 48" width="24px" height="24px" {...props}>
+    <path fill="#FFC107" d="M43.611,20.083H42V20H24v8h11.303c-1.649,4.657-6.08,8-11.303,8c-6.627,0-12-5.373-12-12c0-6.627,5.373-12,12-12c3.059,0,5.842,1.154,7.961,3.039l5.657-5.657C34.046,6.053,29.268,4,24,4C12.955,4,4,12.955,4,24s8.955,20,20,20s20-8.955,20-20C44,22.659,43.862,21.35,43.611,20.083z"/>
+    <path fill="#FF3D00" d="M6.306,14.691l6.571,4.819C14.655,15.108,18.961,12,24,12c3.059,0,5.842,1.154,7.961,3.039l5.657-5.657C34.046,6.053,29.268,4,24,4C16.318,4,9.656,8.337,6.306,14.691z"/>
+    <path fill="#4CAF50" d="M24,44c5.166,0,9.86-1.977,13.409-5.192l-6.19-5.238C29.211,35.091,26.715,36,24,36c-5.223,0-9.657-3.657-11.303-8H6.306C9.656,35.663,16.318,40,24,40z"/>
+    <path fill="#1976D2" d="M43.611,20.083H42V20H24v8h11.303c-0.792,2.237-2.231,4.166-4.087,5.571l6.19,5.238C39.904,36.213,44,30.668,44,24C44,22.659,43.862,21.35,43.611,20.083z"/>
+  </svg>
+);
 
 
 const loginSchema = z.object({
@@ -34,10 +47,42 @@ const signupSchema = z.object({
 type LoginFormData = z.infer<typeof loginSchema>;
 type SignupFormData = z.infer<typeof signupSchema>;
 
+type AuthFormProps = {
+  mode: 'login' | 'signup';
+};
 
-function AuthFormContent({ mode }: { mode: 'login' | 'signup' }) {
+export function AuthForm({ mode }: AuthFormProps) {
   const { toast } = useToast();
   const [isLoading, setIsLoading] = useState(false);
+  const [isVerifying, setIsVerifying] = useState(true);
+
+  // This effect handles the result of the Google sign-in redirect.
+  useEffect(() => {
+    if (!auth) {
+        setIsVerifying(false);
+        return;
+    }
+    const checkRedirectResult = async () => {
+      try {
+        const result = await getRedirectResult(auth);
+        // If 'result' is not null, a user has signed in.
+        // The onAuthStateChanged listener on the login/signup page
+        // will then handle the redirect to the lobby.
+      } catch (error) {
+        const authError = error as AuthError;
+        toast({
+          title: "Sign In Failed",
+          description: authError.message,
+          variant: "destructive",
+        });
+      } finally {
+        // Stop the loading indicator once the check is complete.
+        setIsVerifying(false);
+      }
+    };
+    checkRedirectResult();
+  }, [toast]);
+
 
   const loginForm = useForm<LoginFormData>({
     resolver: zodResolver(loginSchema),
@@ -54,7 +99,6 @@ function AuthFormContent({ mode }: { mode: 'login' | 'signup' }) {
     setIsLoading(true);
     try {
       await signInWithEmailAndPassword(auth, data.email, data.password);
-      // Successful login will trigger onAuthStateChanged in LoginPage, which handles the redirect.
     } catch (error) {
       const authError = error as AuthError;
       toast({
@@ -74,10 +118,7 @@ function AuthFormContent({ mode }: { mode: 'login' | 'signup' }) {
     setIsLoading(true);
     try {
         const { user } = await createUserWithEmailAndPassword(auth, data.email, data.password);
-        await updateProfile(user, {
-            displayName: data.username,
-        });
-        // Successful signup will trigger onAuthStateChanged in SignupPage, which handles the redirect.
+        await updateProfile(user, { displayName: data.username });
     } catch (error) {
         const authError = error as AuthError;
         toast({
@@ -89,71 +130,28 @@ function AuthFormContent({ mode }: { mode: 'login' | 'signup' }) {
         setIsLoading(false);
     }
   };
+  
+  const handleGoogleSignIn = async () => {
+    if (!auth) return;
+    setIsLoading(true);
+    const provider = new GoogleAuthProvider();
+    try {
+      // This will redirect the user to Google's sign-in page.
+      await signInWithRedirect(auth, provider);
+    } catch (error) {
+      const authError = error as AuthError;
+      toast({
+        title: "Sign In Failed",
+        description: authError.message,
+        variant: "destructive",
+      });
+      setIsLoading(false);
+    }
+  };
 
   const isLogin = mode === 'login';
   const form = isLogin ? loginForm : signupForm;
   const onSubmit = isLogin ? onLoginSubmit : onSignupSubmit;
-
-  return (
-    <Form {...(form as any)}>
-      <form onSubmit={form.handleSubmit(onSubmit as any)} className="space-y-6">
-        {!isLogin && (
-          <FormField
-            control={signupForm.control}
-            name="username"
-            render={({ field }) => (
-              <FormItem>
-                <FormLabel>Username</FormLabel>
-                <FormControl>
-                  <Input placeholder="code_master" {...field} disabled={isLoading} />
-                </FormControl>
-                <FormMessage />
-              </FormItem>
-            )}
-          />
-        )}
-        <FormField
-          control={form.control}
-          name="email"
-          render={({ field }) => (
-            <FormItem>
-              <FormLabel>Email</FormLabel>
-              <FormControl>
-                <Input type="email" placeholder="you@example.com" {...field} disabled={isLoading} />
-              </FormControl>
-              <FormMessage />
-            </FormItem>
-          )}
-        />
-        <FormField
-          control={form.control}
-          name="password"
-          render={({ field }) => (
-            <FormItem>
-              <FormLabel>Password</FormLabel>
-              <FormControl>
-                <Input type="password" placeholder="••••••••" {...field} disabled={isLoading} />
-              </FormControl>
-              <FormMessage />
-            </FormItem>
-          )}
-        />
-        <Button type="submit" className="w-full" disabled={isLoading}>
-          {isLoading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-          {isLogin ? 'Log In' : 'Sign Up'}
-          {!isLoading && <ArrowRight className="ml-2 h-4 w-4" />}
-        </Button>
-      </form>
-    </Form>
-  );
-}
-
-type AuthFormProps = {
-  mode: 'login' | 'signup';
-};
-
-export function AuthForm({ mode }: AuthFormProps) {
-  const isLogin = mode === 'login';
 
   return (
     <Card className="w-full max-w-md mx-auto bg-card/50 backdrop-blur-lg border-white/10">
@@ -164,13 +162,87 @@ export function AuthForm({ mode }: AuthFormProps) {
         </CardDescription>
       </CardHeader>
       <CardContent>
-        <AuthFormContent mode={mode} />
-        <div className="mt-6 text-center text-sm">
-          {isLogin ? "Don't have an account? " : "Already have an account? "}
-          <Link href={isLogin ? '/signup' : '/login'} className="font-medium text-primary hover:underline">
-            {isLogin ? 'Sign up' : 'Log in'}
-          </Link>
-        </div>
+        {isVerifying ? (
+          <div className="flex flex-col items-center justify-center py-10 space-y-4">
+              <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
+              <p className="text-muted-foreground">Checking for existing login...</p>
+          </div>
+        ) : (
+        <>
+            <Form {...(form as any)}>
+            <form onSubmit={form.handleSubmit(onSubmit as any)} className="space-y-6">
+                {!isLogin && (
+                <FormField
+                    control={signupForm.control}
+                    name="username"
+                    render={({ field }) => (
+                    <FormItem>
+                        <FormLabel>Username</FormLabel>
+                        <FormControl>
+                        <Input placeholder="code_master" {...field} disabled={isLoading} />
+                        </FormControl>
+                        <FormMessage />
+                    </FormItem>
+                    )}
+                />
+                )}
+                <FormField
+                control={form.control}
+                name="email"
+                render={({ field }) => (
+                    <FormItem>
+                    <FormLabel>Email</FormLabel>
+                    <FormControl>
+                        <Input type="email" placeholder="you@example.com" {...field} disabled={isLoading} />
+                    </FormControl>
+                    <FormMessage />
+                    </FormItem>
+                )}
+                />
+                <FormField
+                control={form.control}
+                name="password"
+                render={({ field }) => (
+                    <FormItem>
+                    <FormLabel>Password</FormLabel>
+                    <FormControl>
+                        <Input type="password" placeholder="••••••••" {...field} disabled={isLoading} />
+                    </FormControl>
+                    <FormMessage />
+                    </FormItem>
+                )}
+                />
+                <Button type="submit" className="w-full" disabled={isLoading}>
+                {isLoading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                {isLogin ? 'Log In' : 'Sign Up'}
+                {!isLoading && <ArrowRight className="ml-2 h-4 w-4" />}
+                </Button>
+            </form>
+            </Form>
+
+            <div className="relative my-6">
+              <div className="absolute inset-0 flex items-center">
+                  <span className="w-full border-t" />
+              </div>
+              <div className="relative flex justify-center text-xs uppercase">
+                  <span className="bg-card px-2 text-muted-foreground">Or continue with</span>
+              </div>
+            </div>
+
+            <Button variant="outline" className="w-full" onClick={handleGoogleSignIn} disabled={isLoading}>
+                {isLoading ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <GoogleIcon className="mr-2 h-5 w-5" />}
+                Sign in with Google
+            </Button>
+
+
+            <div className="mt-6 text-center text-sm">
+            {isLogin ? "Don't have an account? " : "Already have an account? "}
+            <Link href={isLogin ? '/signup' : '/login'} className="font-medium text-primary hover:underline">
+                {isLogin ? 'Sign up' : 'Log in'}
+            </Link>
+            </div>
+        </>
+        )}
       </CardContent>
     </Card>
   );
