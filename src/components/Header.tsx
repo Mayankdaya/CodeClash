@@ -1,3 +1,4 @@
+
 'use client';
 
 import { useState, useEffect } from 'react';
@@ -13,6 +14,7 @@ import { ArrowRight, Code, LogOut, User as UserIcon } from "lucide-react";
 
 export function Header() {
   const [user, setUser] = useState<User | null>(null);
+  const [onlineUsersCount, setOnlineUsersCount] = useState(0);
   const router = useRouter();
 
   useEffect(() => {
@@ -51,6 +53,25 @@ export function Header() {
     };
   }, [user]);
 
+  useEffect(() => {
+    if (!rtdb) return;
+
+    const statusRef = ref(rtdb, 'status');
+    const unsubscribe = onValue(statusRef, (snapshot) => {
+      if (snapshot.exists()) {
+        const statuses = snapshot.val();
+        const onlineCount = Object.values(statuses).filter(
+          (status: any) => status.state === 'online'
+        ).length;
+        setOnlineUsersCount(onlineCount);
+      } else {
+        setOnlineUsersCount(0);
+      }
+    });
+
+    return () => unsubscribe();
+  }, []);
+
   const handleLogout = async () => {
     if (!auth) return;
     await signOut(auth);
@@ -70,6 +91,15 @@ export function Header() {
           <Link href="#" className="text-muted-foreground hover:text-foreground transition-colors" prefetch={false}>How it Works</Link>
         </nav>
         <div className="flex items-center gap-4">
+           {onlineUsersCount > 0 && (
+            <div className="hidden md:flex items-center gap-2 text-sm text-green-400" title={`${onlineUsersCount} ${onlineUsersCount === 1 ? 'user' : 'users'} online`}>
+               <span className="relative flex h-2 w-2">
+                 <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-green-400 opacity-75"></span>
+                 <span className="relative inline-flex rounded-full h-2 w-2 bg-green-500"></span>
+               </span>
+              {onlineUsersCount}
+            </div>
+          )}
           {auth ? (
             user ? (
              <DropdownMenu>

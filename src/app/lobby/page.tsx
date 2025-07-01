@@ -108,25 +108,10 @@ const topics = [
 ];
 
 export default function LobbyPage() {
-  const [onlineUsersCount, setOnlineUsersCount] = useState(0);
   const [waitingCounts, setWaitingCounts] = useState<Record<string, number>>({});
 
   useEffect(() => {
     if (!rtdb) return;
-
-    // Listener for online users
-    const statusRef = ref(rtdb, 'status');
-    const onlineUnsubscribe = onValue(statusRef, (snapshot) => {
-      if (snapshot.exists()) {
-        const statuses = snapshot.val();
-        const onlineCount = Object.values(statuses).filter(
-          (status: any) => status.state === 'online'
-        ).length;
-        setOnlineUsersCount(onlineCount);
-      } else {
-        setOnlineUsersCount(0);
-      }
-    });
 
     // Listener for matchmaking queues
     const matchmakingRef = ref(rtdb, 'matchmaking');
@@ -142,7 +127,6 @@ export default function LobbyPage() {
     });
 
     return () => {
-      onlineUnsubscribe();
       matchmakingUnsubscribe();
     };
   }, []);
@@ -156,15 +140,6 @@ export default function LobbyPage() {
             <div className="text-center mb-12">
               <h1 className="text-4xl font-extrabold tracking-tight sm:text-5xl">Choose Your Challenge</h1>
               <p className="mt-4 text-lg text-muted-foreground">Select a topic to find an opponent.</p>
-              {onlineUsersCount > 0 && (
-                <div className="mt-4 inline-flex items-center gap-2 rounded-full bg-green-500/20 px-4 py-1 text-sm font-medium text-green-300">
-                  <span className="relative flex h-3 w-3">
-                    <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-green-400 opacity-75"></span>
-                    <span className="relative inline-flex rounded-full h-3 w-3 bg-green-500"></span>
-                  </span>
-                  {onlineUsersCount} {onlineUsersCount === 1 ? 'player' : 'players'} online
-                </div>
-              )}
             </div>
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
               {topics.map((topic) => {
