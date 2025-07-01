@@ -52,24 +52,38 @@ function LoginForm() {
   });
 
   const handleGoogleSignIn = async () => {
-    if (!auth) return;
+    if (!isFirebaseConfigured || !auth) {
+      toast({
+        title: "Firebase Not Configured",
+        description: "Please configure your .env file and restart the server.",
+        variant: "destructive",
+      });
+      return;
+    }
+    
+    if (!process.env.NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN) {
+      toast({
+          title: "Configuration Error",
+          description: "The Firebase Auth Domain is not set in your .env file. Cannot proceed with Google Sign-In.",
+          variant: "destructive",
+      });
+      return;
+    }
+
     setIsLoading(true);
     try {
         const provider = new GoogleAuthProvider();
-        provider.setCustomParameters({
-          'auth_domain': process.env.NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN
-        });
         await signInWithPopup(auth, provider);
         router.push('/lobby');
     } catch (error: any) {
-        let description: ReactNode = error.message;
+        let description: ReactNode = "An unknown error occurred. Please try again.";
         if (error.code === 'auth/unauthorized-domain') {
             description = (
               <span>
-                This domain is not authorized.
+                This domain is not authorized for Google Sign-In.
                 {process.env.NEXT_PUBLIC_FIREBASE_PROJECT_ID ? (
                   <>
-                  {' '}Add 'localhost' to your{' '}
+                  {' '}Please add 'localhost' (and any other domains you use for development) to your{' '}
                   <a
                     href={`https://console.firebase.google.com/project/${process.env.NEXT_PUBLIC_FIREBASE_PROJECT_ID}/authentication/settings`}
                     target="_blank"
@@ -77,16 +91,20 @@ function LoginForm() {
                     className="font-bold underline hover:text-primary"
                   >
                     Firebase authorized domains
-                  </a>.
+                  </a>
+                  .
                   </>
                 ) : (
-                  " Check your Firebase project settings and .env configuration."
+                  " Check your Firebase project's 'Authentication > Settings > Authorized domains' settings and ensure your .env configuration is correct."
                 )}
               </span>
             );
         } else if (error.code === 'auth/popup-closed-by-user') {
             description = "The sign-in popup was closed before completing. Please try again.";
+        } else if (error.message) {
+            description = error.message;
         }
+
         toast({
             title: "Google Sign-In Failed",
             description: description,
@@ -179,24 +197,38 @@ function SignupForm() {
     });
     
     const handleGoogleSignIn = async () => {
-        if (!auth) return;
-        setIsLoading(true);
-        try {
-            const provider = new GoogleAuthProvider();
-            provider.setCustomParameters({
-              'auth_domain': process.env.NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN
-            });
-            await signInWithPopup(auth, provider);
-            router.push('/lobby');
-        } catch (error: any) {
-            let description: ReactNode = error.message;
-            if (error.code === 'auth/unauthorized-domain') {
+      if (!isFirebaseConfigured || !auth) {
+        toast({
+          title: "Firebase Not Configured",
+          description: "Please configure your .env file and restart the server.",
+          variant: "destructive",
+        });
+        return;
+      }
+      
+      if (!process.env.NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN) {
+        toast({
+            title: "Configuration Error",
+            description: "The Firebase Auth Domain is not set in your .env file. Cannot proceed with Google Sign-In.",
+            variant: "destructive",
+        });
+        return;
+      }
+  
+      setIsLoading(true);
+      try {
+          const provider = new GoogleAuthProvider();
+          await signInWithPopup(auth, provider);
+          router.push('/lobby');
+      } catch (error: any) {
+          let description: ReactNode = "An unknown error occurred. Please try again.";
+          if (error.code === 'auth/unauthorized-domain') {
               description = (
                 <span>
-                   This domain is not authorized.
+                  This domain is not authorized for Google Sign-In.
                   {process.env.NEXT_PUBLIC_FIREBASE_PROJECT_ID ? (
                     <>
-                    {' '}Add 'localhost' to your{' '}
+                    {' '}Please add 'localhost' (and any other domains you use for development) to your{' '}
                     <a
                       href={`https://console.firebase.google.com/project/${process.env.NEXT_PUBLIC_FIREBASE_PROJECT_ID}/authentication/settings`}
                       target="_blank"
@@ -204,24 +236,28 @@ function SignupForm() {
                       className="font-bold underline hover:text-primary"
                     >
                       Firebase authorized domains
-                    </a>.
+                    </a>
+                    .
                     </>
                   ) : (
-                     " Check your Firebase project settings and .env configuration."
+                    " Check your Firebase project's 'Authentication > Settings > Authorized domains' settings and ensure your .env configuration is correct."
                   )}
                 </span>
               );
-            } else if (error.code === 'auth/popup-closed-by-user') {
-                description = "The sign-up popup was closed before completing. Please try again.";
-            }
-            toast({
-                title: "Google Sign-Up Failed",
-                description: description,
-                variant: "destructive",
-            });
-        } finally {
-            setIsLoading(false);
-        }
+          } else if (error.code === 'auth/popup-closed-by-user') {
+              description = "The sign-in popup was closed before completing. Please try again.";
+          } else if (error.message) {
+              description = error.message;
+          }
+  
+          toast({
+              title: "Google Sign-In Failed",
+              description: description,
+              variant: "destructive",
+          });
+      } finally {
+          setIsLoading(false);
+      }
     };
 
     const onSubmit = async (data: SignupFormData) => {
@@ -322,8 +358,8 @@ function FirebaseConfigWarning() {
       <Terminal className="h-4 w-4" />
       <AlertTitle>Firebase Not Configured</AlertTitle>
       <AlertDescription>
-        <p>
-          Authentication is disabled. To enable it, please add your Firebase project's web app configuration to the <strong>.env</strong> file in your project root.
+        <p className="mb-2">
+          Authentication is disabled. To enable it, please copy your Firebase project's web app configuration into the <strong>.env</strong> file at the root of your project.
         </p>
         <p className="mt-2 text-xs font-mono bg-black/20 p-2 rounded-md">
           NEXT_PUBLIC_FIREBASE_API_KEY=...<br />
@@ -332,6 +368,9 @@ function FirebaseConfigWarning() {
           NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET=...<br />
           NEXT_PUBLIC_FIREBASE_MESSAGING_SENDER_ID=...<br />
           NEXT_PUBLIC_FIREBASE_APP_ID=...
+        </p>
+         <p className="mt-3">
+          After saving the <strong>.env</strong> file, you must <strong>restart the development server</strong> for the changes to take effect.
         </p>
       </AlertDescription>
     </Alert>
