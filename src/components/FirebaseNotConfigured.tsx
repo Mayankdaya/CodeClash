@@ -26,26 +26,30 @@ NEXT_PUBLIC_FIREBASE_DATABASE_URL="https://codeclash-4b6f5-default-rtdb.firebase
           </div>
         </div>
         
-        <div className="mt-8 space-y-6 text-card-foreground">
+        <div className="mt-8 text-card-foreground">
           <p>
             To fix this, you need to create a file named <code className="font-mono text-base bg-muted px-1.5 py-1 rounded-md">.env.local</code> in the root directory of your project and add your Firebase project's configuration to it.
           </p>
           
-          <h2 className="text-xl font-semibold !mt-8">Step 1: Add your Firebase Credentials</h2>
-          <p className="text-muted-foreground !-mt-2 mb-3">
-            Based on the URL you provided, I've pre-filled some of the values for you. Copy the block below into your <code className="font-mono text-base bg-muted px-1.5 py-1 rounded-md">.env.local</code> file and replace the remaining placeholder values with the actual credentials from your Firebase project settings.
-          </p>
-          <pre className="w-full rounded-lg bg-muted p-4 !-mt-2">
-            <code className="text-sm font-mono whitespace-pre-wrap">{envExample}</code>
-          </pre>
-          <a href="https://console.firebase.google.com/project/codeclash-4b6f5/settings/general" target="_blank" rel="noopener noreferrer" className="text-sm !mt-3 inline-block text-primary hover:underline">
-            Find the remaining credentials in your Firebase Project Settings &rarr;
-          </a>
+          <div className="mt-6">
+            <h2 className="text-xl font-semibold">Step 1: Add your Firebase Credentials</h2>
+            <p className="text-muted-foreground mt-2 mb-3">
+              Based on the URL you provided, I've pre-filled some of the values for you. Copy the block below into your <code className="font-mono text-base bg-muted px-1.5 py-1 rounded-md">.env.local</code> file and replace the remaining placeholder values with the actual credentials from your Firebase project settings.
+            </p>
+            <pre className="w-full rounded-lg bg-muted p-4">
+              <code className="text-sm font-mono whitespace-pre-wrap">{envExample}</code>
+            </pre>
+            <a href="https://console.firebase.google.com/project/codeclash-4b6f5/settings/general" target="_blank" rel="noopener noreferrer" className="text-sm mt-3 inline-block text-primary hover:underline">
+              Find the remaining credentials in your Firebase Project Settings &rarr;
+            </a>
+          </div>
 
-          <h2 className="text-xl font-semibold !mt-8">Step 2: Restart the Server</h2>
-          <p className="text-muted-foreground !-mt-2">
-            After creating and saving the <code className="font-mono text-base bg-muted px-1.5 py-1 rounded-md">.env.local</code> file, you **must** restart your development server for the changes to take effect.
-          </p>
+          <div className="mt-6">
+            <h2 className="text-xl font-semibold">Step 2: Restart the Server</h2>
+            <p className="text-muted-foreground mt-2">
+              After creating and saving the <code className="font-mono text-base bg-muted px-1.5 py-1 rounded-md">.env.local</code> file, you <strong>must</strong> restart your development server for the changes to take effect.
+            </p>
+          </div>
         </div>
       </div>
     </div>
