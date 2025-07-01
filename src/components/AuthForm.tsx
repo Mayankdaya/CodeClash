@@ -6,7 +6,6 @@ import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
 import Link from 'next/link';
-import { useRouter } from 'next/navigation';
 import { 
   createUserWithEmailAndPassword, 
   signInWithEmailAndPassword, 
@@ -79,7 +78,6 @@ const ensureUserProfile = async (user: User, additionalData: { [key: string]: an
 
 
 export function AuthForm({ mode }: AuthFormProps) {
-  const router = useRouter();
   const { toast } = useToast();
   const [isLoading, setIsLoading] = useState(false);
   const [isVerifying, setIsVerifying] = useState(true);
@@ -100,7 +98,7 @@ export function AuthForm({ mode }: AuthFormProps) {
           await ensureUserProfile(result.user);
           toast({
             title: "Sign In Successful",
-            description: "Welcome back to CodeClash!",
+            description: "Welcome to CodeClash!",
           });
           // The parent page will now handle the redirect.
         } else {
@@ -136,7 +134,8 @@ export function AuthForm({ mode }: AuthFormProps) {
     if (!auth) return;
     setIsLoading(true);
     try {
-      await signInWithEmailAndPassword(auth, data.email, data.password);
+      const { user } = await signInWithEmailAndPassword(auth, data.email, data.password);
+      await ensureUserProfile(user);
       // The onAuthStateChanged listener on the parent page will handle the redirect.
     } catch (error) {
       const authError = error as AuthError;
@@ -147,7 +146,8 @@ export function AuthForm({ mode }: AuthFormProps) {
           : authError.message,
         variant: "destructive",
       });
-      setIsLoading(false);
+    } finally {
+        setIsLoading(false);
     }
   };
 
@@ -166,6 +166,7 @@ export function AuthForm({ mode }: AuthFormProps) {
             description: authError.message,
             variant: "destructive",
         });
+    } finally {
         setIsLoading(false);
     }
   };
@@ -196,6 +197,15 @@ export function AuthForm({ mode }: AuthFormProps) {
   const form = isLogin ? loginForm : signupForm;
   const onSubmit = isLogin ? onLoginSubmit : onSignupSubmit;
 
+  if (isVerifying) {
+    return (
+        <div className="flex flex-col items-center justify-center py-10 space-y-4">
+            <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
+            <p className="text-muted-foreground">Checking for existing login...</p>
+        </div>
+    );
+  }
+
   return (
     <Card className="w-full max-w-md mx-auto bg-card/50 backdrop-blur-lg border-white/10">
       <CardHeader>
@@ -205,12 +215,6 @@ export function AuthForm({ mode }: AuthFormProps) {
         </CardDescription>
       </CardHeader>
       <CardContent>
-        {isVerifying ? (
-          <div className="flex flex-col items-center justify-center py-10 space-y-4">
-              <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
-              <p className="text-muted-foreground">Checking for existing login...</p>
-          </div>
-        ) : (
         <>
             <Form {...(form as any)}>
             <form onSubmit={form.handleSubmit(onSubmit as any)} className="space-y-6">
@@ -285,7 +289,6 @@ export function AuthForm({ mode }: AuthFormProps) {
             </Link>
             </div>
         </>
-        )}
       </CardContent>
     </Card>
   );
