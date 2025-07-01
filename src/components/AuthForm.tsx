@@ -54,30 +54,50 @@ function LoginForm() {
     setIsLoading(true);
     try {
       if (!auth) {
-        throw new Error("Firebase is not configured. Please check your .env file and restart the server.");
+        throw new Error("Firebase Authentication is not available. Please check your configuration.");
       }
       const provider = new GoogleAuthProvider();
       await signInWithPopup(auth, provider);
       router.push('/lobby');
     } catch (error: any) {
         let description: ReactNode = "An unknown error occurred. Please try again.";
+        const projectId = process.env.NEXT_PUBLIC_FIREBASE_PROJECT_ID;
+        const authDomain = process.env.NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN;
+
         if (error.code === 'auth/unauthorized-domain') {
             description = (
-              <span>
-                This domain is not authorized.
-                <br /><br />
-                <strong>1. Double-check:</strong> Is `localhost` in your{' '}
-                <a
-                  href={`https://console.firebase.google.com/project/${process.env.NEXT_PUBLIC_FIREBASE_PROJECT_ID || '_'}/authentication/settings`}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="font-bold underline hover:text-primary"
-                >
-                  Firebase authorized domains
-                </a>?
-                <br />
-                <strong>2. Restart Server:</strong> If you've just updated your `.env` file, you MUST restart the development server for changes to apply.
-              </span>
+              <div className="space-y-2 text-left">
+                <p className="font-semibold">This domain is not authorized.</p>
+                <p>Your app is using the following configuration:</p>
+                <ul className="list-disc pl-5 text-xs bg-black/20 p-2 rounded-md font-mono">
+                  <li>Project ID: <span className="font-bold">{projectId || 'NOT FOUND'}</span></li>
+                  <li>Auth Domain: <span className="font-bold">{authDomain || 'NOT FOUND'}</span></li>
+                </ul>
+                <p className="font-semibold pt-2">Please take the following steps:</p>
+                <ol className="list-decimal pl-5 space-y-1 text-sm">
+                  <li>
+                    Ensure you are using a <strong className="text-white">.env.local</strong> file in the root of your project.
+                  </li>
+                  <li>
+                    Verify that the Project ID and Auth Domain above exactly match your Firebase project settings.
+                  </li>
+                  <li>
+                    In your{' '}
+                    <a
+                      href={`https://console.firebase.google.com/project/${projectId || '_'}/authentication/settings`}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="font-bold underline hover:text-primary"
+                    >
+                      Firebase authorized domains
+                    </a>
+                    , ensure <strong className="text-white">localhost</strong> is listed.
+                  </li>
+                   <li>
+                    After making any changes to your <strong className="text-white">.env.local</strong> file, you <strong className="uppercase">must</strong> restart the development server.
+                  </li>
+                </ol>
+              </div>
             );
         } else if (error.message) {
             description = error.message;
@@ -87,6 +107,7 @@ function LoginForm() {
             title: "Google Sign-In Failed",
             description: description,
             variant: "destructive",
+            duration: Infinity,
         });
     } finally {
         setIsLoading(false);
@@ -97,7 +118,7 @@ function LoginForm() {
     if (!auth) {
        toast({
         title: "Login Failed",
-        description: "Firebase is not configured. Please check your .env file and restart the server.",
+        description: "Firebase Authentication is not available. Please check your configuration.",
         variant: "destructive",
       });
       return;
@@ -185,30 +206,50 @@ function SignupForm() {
       setIsLoading(true);
       try {
           if (!auth) {
-            throw new Error("Firebase is not configured. Please check your .env file and restart the server.");
+            throw new Error("Firebase Authentication is not available. Please check your configuration.");
           }
           const provider = new GoogleAuthProvider();
           await signInWithPopup(auth, provider);
           router.push('/lobby');
       } catch (error: any) {
           let description: ReactNode = "An unknown error occurred. Please try again.";
+          const projectId = process.env.NEXT_PUBLIC_FIREBASE_PROJECT_ID;
+          const authDomain = process.env.NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN;
+  
           if (error.code === 'auth/unauthorized-domain') {
               description = (
-                <span>
-                  This domain is not authorized.
-                  <br /><br />
-                  <strong>1. Double-check:</strong> Is `localhost` in your{' '}
-                  <a
-                    href={`https://console.firebase.google.com/project/${process.env.NEXT_PUBLIC_FIREBASE_PROJECT_ID || '_'}/authentication/settings`}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="font-bold underline hover:text-primary"
-                  >
-                    Firebase authorized domains
-                  </a>?
-                  <br />
-                  <strong>2. Restart Server:</strong> If you've just updated your `.env` file, you MUST restart the development server for changes to apply.
-                </span>
+                <div className="space-y-2 text-left">
+                  <p className="font-semibold">This domain is not authorized.</p>
+                  <p>Your app is using the following configuration:</p>
+                  <ul className="list-disc pl-5 text-xs bg-black/20 p-2 rounded-md font-mono">
+                    <li>Project ID: <span className="font-bold">{projectId || 'NOT FOUND'}</span></li>
+                    <li>Auth Domain: <span className="font-bold">{authDomain || 'NOT FOUND'}</span></li>
+                  </ul>
+                  <p className="font-semibold pt-2">Please take the following steps:</p>
+                  <ol className="list-decimal pl-5 space-y-1 text-sm">
+                    <li>
+                      Ensure you are using a <strong className="text-white">.env.local</strong> file in the root of your project.
+                    </li>
+                    <li>
+                      Verify that the Project ID and Auth Domain above exactly match your Firebase project settings.
+                    </li>
+                    <li>
+                      In your{' '}
+                      <a
+                        href={`https://console.firebase.google.com/project/${projectId || '_'}/authentication/settings`}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="font-bold underline hover:text-primary"
+                      >
+                        Firebase authorized domains
+                      </a>
+                      , ensure <strong className="text-white">localhost</strong> is listed.
+                    </li>
+                     <li>
+                      After making any changes to your <strong className="text-white">.env.local</strong> file, you <strong className="uppercase">must</strong> restart the development server.
+                    </li>
+                  </ol>
+                </div>
               );
           } else if (error.message) {
               description = error.message;
@@ -218,6 +259,7 @@ function SignupForm() {
               title: "Google Sign-In Failed",
               description: description,
               variant: "destructive",
+              duration: Infinity,
           });
       } finally {
           setIsLoading(false);
@@ -228,7 +270,7 @@ function SignupForm() {
         if (!auth) {
           toast({
             title: "Sign Up Failed",
-            description: "Firebase is not configured. Please check your .env file and restart the server.",
+            description: "Firebase Authentication is not available. Please check your configuration.",
             variant: "destructive",
           });
           return;
