@@ -1,4 +1,3 @@
-
 'use client';
 
 import { useState, useEffect } from 'react';
@@ -50,26 +49,22 @@ type SignupFormData = z.infer<typeof signupSchema>;
 
 
 function AuthFormContent({ mode }: { mode: 'login' | 'signup' }) {
-  const router = useRouter();
   const { toast } = useToast();
   const [isLoading, setIsLoading] = useState(false);
   const [isGoogleLoading, setIsGoogleLoading] = useState(false);
-  const [isProcessingRedirect, setIsProcessingRedirect] = useState(true);
+  const [isProcessingRedirect, setIsProcessingRedirect] = useState(true); // Start as true
 
+  // This effect handles the result of a Google Sign-In redirect.
   useEffect(() => {
     if (!auth) {
       setIsProcessingRedirect(false);
       return;
     }
 
+    // getRedirectResult completes the sign-in flow and triggers onAuthStateChanged.
+    // The actual navigation to '/lobby' is handled by onAuthStateChanged listeners
+    // in LoginPage or SignupPage to keep concerns separated.
     getRedirectResult(auth)
-      .then((result) => {
-        if (result) {
-          router.push('/lobby');
-        } else {
-          setIsProcessingRedirect(false);
-        }
-      })
       .catch((error) => {
         const authError = error as AuthError;
         toast({
@@ -77,9 +72,12 @@ function AuthFormContent({ mode }: { mode: 'login' | 'signup' }) {
           description: authError.message || 'An unknown error occurred.',
           variant: "destructive",
         });
+      })
+      .finally(() => {
+        // Once the redirect is processed (or if there was none), show the form.
         setIsProcessingRedirect(false);
       });
-  }, [router, toast]);
+  }, [toast]);
 
   const loginForm = useForm<LoginFormData>({
     resolver: zodResolver(loginSchema),
@@ -95,6 +93,7 @@ function AuthFormContent({ mode }: { mode: 'login' | 'signup' }) {
     if (!auth) return;
     setIsGoogleLoading(true);
     const provider = new GoogleAuthProvider();
+    // Start the redirect flow. The result is handled by the useEffect above.
     await signInWithRedirect(auth, provider);
   };
 
@@ -103,6 +102,7 @@ function AuthFormContent({ mode }: { mode: 'login' | 'signup' }) {
     setIsLoading(true);
     try {
       await signInWithEmailAndPassword(auth, data.email, data.password);
+      // Successful login will trigger onAuthStateChanged, which handles the redirect.
     } catch (error) {
       const authError = error as AuthError;
       let description = "An unexpected error occurred. Please try again.";
@@ -129,6 +129,7 @@ function AuthFormContent({ mode }: { mode: 'login' | 'signup' }) {
         await updateProfile(user, {
             displayName: data.username,
         });
+        // Successful signup will trigger onAuthStateChanged, which handles the redirect.
     } catch (error) {
         const authError = error as AuthError;
         toast({
