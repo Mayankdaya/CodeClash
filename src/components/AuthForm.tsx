@@ -50,6 +50,7 @@ type SignupFormData = z.infer<typeof signupSchema>;
 
 function AuthFormContent({ mode }: { mode: 'login' | 'signup' }) {
   const { toast } = useToast();
+  const router = useRouter();
   const [isLoading, setIsLoading] = useState(false);
   const [isGoogleLoading, setIsGoogleLoading] = useState(false);
   const [isProcessingRedirect, setIsProcessingRedirect] = useState(true); // Start as true
@@ -61,23 +62,35 @@ function AuthFormContent({ mode }: { mode: 'login' | 'signup' }) {
       return;
     }
 
-    // getRedirectResult completes the sign-in flow and triggers onAuthStateChanged.
-    // The actual navigation to '/lobby' is handled by onAuthStateChanged listeners
-    // in LoginPage or SignupPage to keep concerns separated.
+    let isMounted = true;
+
     getRedirectResult(auth)
-      .catch((error) => {
-        const authError = error as AuthError;
-        toast({
-          title: "Google Sign-In Failed",
-          description: authError.message || 'An unknown error occurred.',
-          variant: "destructive",
-        });
+      .then((result) => {
+        if (result && isMounted) {
+          // User signed in successfully. Navigate them to the lobby.
+          // The onAuthStateChanged listener in the Header will handle profile creation.
+          router.push('/lobby');
+        } else if (isMounted) {
+          // No redirect result, so we can stop showing the "processing" state.
+          setIsProcessingRedirect(false);
+        }
       })
-      .finally(() => {
-        // Once the redirect is processed (or if there was none), show the form.
-        setIsProcessingRedirect(false);
+      .catch((error) => {
+        if (isMounted) {
+          const authError = error as AuthError;
+          toast({
+            title: "Google Sign-In Failed",
+            description: authError.message || 'An unknown error occurred.',
+            variant: "destructive",
+          });
+          setIsProcessingRedirect(false);
+        }
       });
-  }, [toast]);
+    
+    return () => {
+      isMounted = false;
+    }
+  }, [toast, router]);
 
   const loginForm = useForm<LoginFormData>({
     resolver: zodResolver(loginSchema),
