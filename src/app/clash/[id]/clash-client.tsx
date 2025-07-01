@@ -4,7 +4,7 @@
 import { useState, useEffect, useRef } from 'react';
 import Image from 'next/image';
 import { useRouter } from 'next/navigation';
-import { doc, getDoc, collection, addDoc, query, orderBy, onSnapshot, serverTimestamp } from 'firebase/firestore';
+import { doc, onSnapshot, runTransaction } from 'firebase/firestore';
 import { auth, db } from '@/lib/firebase';
 import { useToast } from '@/hooks/use-toast';
 import { Panel, PanelGroup, PanelResizeHandle } from "react-resizable-panels";
@@ -42,6 +42,8 @@ interface Participant {
   userId: string;
   userName: string;
   userAvatar: string;
+  score: number;
+  solvedTimestamp: number | null;
 }
 
 interface ClashData {
@@ -225,12 +227,10 @@ export default function ClashClient({ id }: { id: string }) {
 
   // Get clash data and opponent info
   useEffect(() => {
-    if (!db || !auth.currentUser || !id) return;
-    
-    const getClashData = async () => {
-      const clashDocRef = doc(db, 'clashes', id);
-      const docSnap = await getDoc(clashDocRef);
+    if (!db || !id) return;
 
+    const clashDocRef = doc(db, 'clashes', id);
+    const unsubscribe = onSnapshot(clashDocRef, (docSnap) => {
       if (docSnap.exists()) {
         const data = docSnap.data() as ClashData;
         
@@ -258,30 +258,34 @@ export default function ClashClient({ id }: { id: string }) {
         
         setClashData(data);
         
-        if (data.problem) {
+        if (!problem && data.problem) { // Only set initial problem data once
           setProblem(data.problem);
           const starterCode = data.problem.starterCode || `function ${data.problem.entryPoint}() {\n  // your code here\n}`;
           setCode(starterCode);
           setStarterCodes({ javascript: starterCode });
-        } else {
+        } else if (!data.problem) {
           toast({ title: "Problem not found", description: "The problem for this clash is missing.", variant: 'destructive' });
           router.push('/lobby');
           return;
         }
 
-        const opponentParticipant = data.participants.find(p => p.userId !== auth.currentUser?.uid);
-        if (opponentParticipant) {
-          setOpponent(opponentParticipant);
-        } else {
-           toast({ title: "Opponent not found", description: "Could not find opponent data in this clash.", variant: 'destructive' });
+        const currentUser = auth.currentUser;
+        if(currentUser) {
+            const opponentParticipant = data.participants.find(p => p.userId !== currentUser.uid);
+            if (opponentParticipant) {
+              setOpponent(opponentParticipant);
+            } else {
+               toast({ title: "Opponent not found", description: "Could not find opponent data in this clash.", variant: 'destructive' });
+            }
         }
       } else {
         toast({ title: "Clash not found", description: "This clash does not exist or has been deleted.", variant: 'destructive' });
         router.push('/lobby');
       }
-    };
-    getClashData();
-  }, [id, router, toast]);
+    });
+    
+    return () => unsubscribe();
+  }, [id, router, toast, problem]);
 
   // Chat listener
   useEffect(() => {
@@ -313,6 +317,58 @@ export default function ClashClient({ id }: { id: string }) {
     return () => clearInterval(timer);
   }, [timeLeft]);
   
+  const awardPoints = async () => {
+    if (!db || !auth.currentUser) return;
+    const clashDocRef = doc(db, 'clashes', id);
+
+    try {
+        await runTransaction(db, async (transaction) => {
+            const clashDoc = await transaction.get(clashDocRef);
+            if (!clashDoc.exists()) {
+                throw "Document does not exist!";
+            }
+
+            const data = clashDoc.data() as ClashData;
+            const currentUser = auth.currentUser!;
+            
+            const me = data.participants.find(p => p.userId === currentUser.uid);
+            if (!me || me.solvedTimestamp) {
+                return; // Already solved
+            }
+
+            const isFirstSolver = !data.participants.some(p => p.solvedTimestamp);
+            let pointsAwarded = 100;
+            let toastDescription = "You solved the problem!";
+
+            if (isFirstSolver) {
+                pointsAwarded += 50; // Bonus points
+                toastDescription = "First blood! You solved the problem first and earned bonus points!";
+            }
+
+            const updatedParticipants = data.participants.map(p => {
+                if (p.userId === currentUser.uid) {
+                    return { ...p, score: (p.score || 0) + pointsAwarded, solvedTimestamp: Date.now() };
+                }
+                return p;
+            });
+
+            transaction.update(clashDocRef, { participants: updatedParticipants });
+
+            toast({
+                title: `+${pointsAwarded} Points!`,
+                description: toastDescription,
+            });
+        });
+    } catch (e) {
+        console.error("Transaction failed: ", e);
+        toast({
+            title: "Error",
+            description: "Could not update your score due to a server error.",
+            variant: "destructive"
+        });
+    }
+  };
+
 
   const handleSendMessage = async () => {
     if (newMessage.trim() === '' || !db || !auth.currentUser || !id) return;
@@ -406,6 +462,7 @@ export default function ClashClient({ id }: { id: string }) {
                     status: 'Accepted',
                     message: `Congratulations! All ${result.totalCount} test cases passed.`,
                 });
+                awardPoints();
             } else {
                 setSubmissionResult({
                     status: 'Wrong Answer',
@@ -462,7 +519,7 @@ export default function ClashClient({ id }: { id: string }) {
 
   const progressValue = (timeLeft / (30 * 60)) * 100;
 
-  if (!clashData || !opponent || !problem) {
+  if (!clashData || !problem) {
     return (
       <div className="flex h-dvh items-center justify-center bg-background">
         <Loader2 className="h-8 w-8 animate-spin" />
@@ -523,6 +580,8 @@ export default function ClashClient({ id }: { id: string }) {
     return button;
   }
 
+  const currentUserScore = clashData?.participants.find(p => p.userId === auth.currentUser?.uid)?.score ?? 0;
+
   return (
     <AuthGuard>
       <div className="flex flex-col min-h-dvh bg-transparent text-foreground font-body">
@@ -538,20 +597,20 @@ export default function ClashClient({ id }: { id: string }) {
                       </Avatar>
                       <div>
                       <p className="font-semibold">{auth.currentUser?.displayName || 'You'}</p>
-                      <p className="text-xs text-muted-foreground">Score: 0</p>
+                      <p className="text-xs text-muted-foreground">Score: {currentUserScore}</p>
                       </div>
                   </div>
                   <div className='text-muted-foreground font-bold text-lg'>VS</div>
-                  <div className='flex items-center gap-3'>
+                  {opponent && <div className='flex items-center gap-3'>
                       <Avatar className="h-10 w-10">
                       <AvatarImage src={opponent.userAvatar} data-ai-hint="person coding" />
                       <AvatarFallback>{opponent.userName.substring(0, 2).toUpperCase()}</AvatarFallback>
                       </Avatar>
                       <div>
                       <p className="font-semibold">{opponent.userName}</p>
-                      <p className="text-xs text-muted-foreground">Score: 0</p>
+                      <p className="text-xs text-muted-foreground">Score: {opponent.score}</p>
                       </div>
-                  </div>
+                  </div>}
                   </div>
                   <div className="flex items-center gap-4">
                   <Timer className='h-6 w-6 text-primary' />
@@ -698,10 +757,10 @@ export default function ClashClient({ id }: { id: string }) {
                         <div className="p-4">
                             <div className="grid grid-cols-2 gap-2">
                                 <UserVideo />
-                                <div className="relative aspect-video w-full bg-muted/30 rounded-lg flex items-center justify-center overflow-hidden">
+                                {opponent && <div className="relative aspect-video w-full bg-muted/30 rounded-lg flex items-center justify-center overflow-hidden">
                                     <Image src={opponent.userAvatar || 'https://placehold.co/600x400.png'} data-ai-hint="person coding" alt={opponent.userName} width={320} height={180} className="w-full h-full object-cover" />
                                     <div className="absolute bottom-1 left-2 text-xs bg-black/50 text-white px-1.5 py-0.5 rounded">{opponent.userName}</div>
-                                </div>
+                                </div>}
                             </div>
                         </div>
 
@@ -787,3 +846,4 @@ export default function ClashClient({ id }: { id: string }) {
     </AuthGuard>
   );
 }
+

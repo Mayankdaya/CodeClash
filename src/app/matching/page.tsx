@@ -89,8 +89,8 @@ export default function MatchingPage() {
           topicId,
           problem: sanitizedProblem,
           participants: [
-            { userId: currentUser.uid, userName: currentUser.displayName || 'Anonymous', userAvatar: currentUser.photoURL || `https://placehold.co/100x100.png` },
-            { userId: 'bot-123', userName: 'CodeBot', userAvatar: `https://placehold.co/100x100.png` }
+            { userId: currentUser.uid, userName: currentUser.displayName || 'Anonymous', userAvatar: currentUser.photoURL || `https://placehold.co/100x100.png`, score: 0, solvedTimestamp: null },
+            { userId: 'bot-123', userName: 'CodeBot', userAvatar: `https://placehold.co/100x100.png`, score: 0, solvedTimestamp: null }
           ],
           createdAt: serverTimestamp(),
           status: 'active'
