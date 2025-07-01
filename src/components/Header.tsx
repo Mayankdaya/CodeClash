@@ -6,7 +6,7 @@ import Link from "next/link";
 import { useRouter } from 'next/navigation';
 import { onAuthStateChanged, signOut, User } from 'firebase/auth';
 import { auth, rtdb } from '@/lib/firebase';
-import { ref, onValue, set, onDisconnect } from "firebase/database";
+import { ref, onValue, set, onDisconnect, serverTimestamp } from "firebase/database";
 import { Button } from "@/components/ui/button";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel, DropdownMenuSeparator, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
@@ -31,11 +31,11 @@ export function Header() {
     const userStatusRef = ref(rtdb, `/status/${user.uid}`);
     const isOfflineForDatabase = {
       state: 'offline',
-      last_changed: Date.now(),
+      last_changed: serverTimestamp(),
     };
     const isOnlineForDatabase = {
       state: 'online',
-      last_changed: Date.now(),
+      last_changed: serverTimestamp(),
     };
 
     const connectedRef = ref(rtdb, '.info/connected');
