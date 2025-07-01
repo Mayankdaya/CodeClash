@@ -5,6 +5,7 @@ import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
 import Link from 'next/link';
+import { useRouter } from 'next/navigation';
 import { 
   createUserWithEmailAndPassword, 
   signInWithEmailAndPassword, 
@@ -12,10 +13,12 @@ import {
   GoogleAuthProvider,
   signInWithRedirect,
   getRedirectResult,
-  type AuthError
+  type AuthError,
+  type User
 } from 'firebase/auth';
 import { useToast } from '@/hooks/use-toast';
-import { auth } from '@/lib/firebase';
+import { auth, db } from '@/lib/firebase';
+import { doc, getDoc, setDoc, serverTimestamp } from 'firebase/firestore';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from '@/components/ui/form';
@@ -51,7 +54,31 @@ type AuthFormProps = {
   mode: 'login' | 'signup';
 };
 
+// Ensures a user document exists in Firestore. Safe to call multiple times.
+const ensureUserProfile = async (user: User, additionalData: { [key: string]: any } = {}) => {
+  if (!db || !user) return;
+  const userDocRef = doc(db, 'users', user.uid);
+  const snapshot = await getDoc(userDocRef);
+
+  if (!snapshot.exists()) {
+    try {
+      await setDoc(userDocRef, {
+        displayName: user.displayName || additionalData.username || 'Anonymous Coder',
+        email: user.email,
+        photoURL: user.photoURL || `https://placehold.co/100x100.png`,
+        createdAt: serverTimestamp(),
+        totalScore: 0,
+        ...additionalData,
+      });
+    } catch (error) {
+      console.error('Error creating user document', error);
+    }
+  }
+};
+
+
 export function AuthForm({ mode }: AuthFormProps) {
+  const router = useRouter();
   const { toast } = useToast();
   const [isLoading, setIsLoading] = useState(false);
   const [isVerifying, setIsVerifying] = useState(true);
@@ -65,9 +92,19 @@ export function AuthForm({ mode }: AuthFormProps) {
     const checkRedirectResult = async () => {
       try {
         const result = await getRedirectResult(auth);
-        // If 'result' is not null, a user has signed in.
-        // The onAuthStateChanged listener on the login/signup page
-        // will then handle the redirect to the lobby.
+        if (result) {
+          // If 'result' is not null, a user has successfully signed in via redirect.
+          setIsLoading(true);
+          await ensureUserProfile(result.user);
+          toast({
+            title: "Sign In Successful",
+            description: "Welcome to CodeClash!",
+          });
+          router.push('/lobby');
+        } else {
+           // No redirect result, so just stop the verification process
+           setIsVerifying(false);
+        }
       } catch (error) {
         const authError = error as AuthError;
         toast({
@@ -75,13 +112,11 @@ export function AuthForm({ mode }: AuthFormProps) {
           description: authError.message,
           variant: "destructive",
         });
-      } finally {
-        // Stop the loading indicator once the check is complete.
         setIsVerifying(false);
       }
     };
     checkRedirectResult();
-  }, [toast]);
+  }, [router, toast]);
 
 
   const loginForm = useForm<LoginFormData>({
@@ -99,6 +134,7 @@ export function AuthForm({ mode }: AuthFormProps) {
     setIsLoading(true);
     try {
       await signInWithEmailAndPassword(auth, data.email, data.password);
+      router.push('/lobby');
     } catch (error) {
       const authError = error as AuthError;
       toast({
@@ -108,7 +144,6 @@ export function AuthForm({ mode }: AuthFormProps) {
           : authError.message,
         variant: "destructive",
       });
-    } finally {
       setIsLoading(false);
     }
   };
@@ -119,6 +154,8 @@ export function AuthForm({ mode }: AuthFormProps) {
     try {
         const { user } = await createUserWithEmailAndPassword(auth, data.email, data.password);
         await updateProfile(user, { displayName: data.username });
+        await ensureUserProfile(user, { username: data.username });
+        router.push('/lobby');
     } catch (error) {
         const authError = error as AuthError;
         toast({
@@ -126,7 +163,6 @@ export function AuthForm({ mode }: AuthFormProps) {
             description: authError.message,
             variant: "destructive",
         });
-    } finally {
         setIsLoading(false);
     }
   };
@@ -139,7 +175,6 @@ export function AuthForm({ mode }: AuthFormProps) {
       prompt: 'select_account'
     });
     try {
-      // This will redirect the user to Google's sign-in page.
       await signInWithRedirect(auth, provider);
     } catch (error) {
       const authError = error as AuthError;
