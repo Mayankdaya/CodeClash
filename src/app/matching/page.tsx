@@ -44,10 +44,9 @@ export default function MatchingPage() {
       try {
         setStatusText('Generating a unique problem with AI...');
 
-        // Pass a unique seed to bypass caching and ensure a new problem every time.
         const problem = await generateProblem({ topic: topicName, seed: Date.now().toString() });
         
-        if (!problem) {
+        if (!problem || !problem.testCases) {
           toast({
             title: "Problem Generation Failed",
             description: "Sorry, we couldn't generate a problem right now. Please try again.",
@@ -56,19 +55,31 @@ export default function MatchingPage() {
           router.push('/lobby');
           return;
         }
+
+        // Filter out any test cases where 'expected' is missing. This is a safeguard against faulty AI output.
+        const validTestCases = problem.testCases.filter(tc => tc.expected !== undefined);
+
+        if (validTestCases.length < 3) { // Ensure we have a minimum number of valid test cases.
+            toast({
+                title: "Problem Generation Failed",
+                description: "The AI generated a problem with insufficient valid test cases. Please try again.",
+                variant: "destructive",
+            });
+            router.push('/lobby');
+            return;
+        }
         
-        // Stringify test case inputs/outputs for Firestore. We do this before sanitizing.
+        // Stringify test case inputs/outputs for Firestore.
         const problemWithStrTestCases = {
             ...problem,
-            testCases: problem.testCases.map(tc => ({
+            testCases: validTestCases.map(tc => ({
                 input: JSON.stringify(tc.input),
-                expected: JSON.stringify(tc.expected ?? null),
+                expected: JSON.stringify(tc.expected), // We've already filtered for undefined, so no `?? null` needed.
             })),
         };
         
         // Firestore doesn't like undefined values. Sanitize the entire problem object
-        // by converting it to a JSON string and back. This removes any keys
-        // with `undefined` values, no matter how deeply nested.
+        // by converting it to a JSON string and back.
         const sanitizedProblem = JSON.parse(JSON.stringify(problemWithStrTestCases));
         
         setStatusText('Match found! Preparing your arena...');
