@@ -1,3 +1,4 @@
+
 'use client';
 
 import { useEffect, useState, type ReactNode } from 'react';
@@ -5,11 +6,11 @@ import { useRouter } from 'next/navigation';
 import { onAuthStateChanged, type User } from 'firebase/auth';
 import { auth } from '@/lib/firebase';
 import { Loader2 } from 'lucide-react';
+import { ensureUserProfile } from '@/lib/user';
 
 export default function AuthGuard({ children }: { children: ReactNode }) {
   const router = useRouter();
-  const [user, setUser] = useState<User | null>(null);
-  const [loading, setLoading] = useState(true);
+  const [status, setStatus] = useState<'loading' | 'success'>('loading');
 
   useEffect(() => {
     if (!auth) {
@@ -17,11 +18,14 @@ export default function AuthGuard({ children }: { children: ReactNode }) {
       return;
     }
 
-    const unsubscribe = onAuthStateChanged(auth, (user) => {
+    const unsubscribe = onAuthStateChanged(auth, async (user) => {
       if (user) {
-        setUser(user);
-        setLoading(false);
+        // User is authenticated, now ensure their profile exists in the database.
+        await ensureUserProfile(user);
+        // Profile is ready, allow rendering children.
+        setStatus('success');
       } else {
+        // No user, redirect to login.
         router.push('/login');
       }
     });
@@ -29,7 +33,7 @@ export default function AuthGuard({ children }: { children: ReactNode }) {
     return () => unsubscribe();
   }, [router]);
 
-  if (loading) {
+  if (status === 'loading') {
     return (
       <div className="flex flex-col items-center justify-center min-h-dvh bg-transparent text-foreground">
         <Loader2 className="h-12 w-12 animate-spin text-primary" />
@@ -38,9 +42,6 @@ export default function AuthGuard({ children }: { children: ReactNode }) {
     );
   }
 
-  if (user) {
-    return <>{children}</>;
-  }
-  
-  return null;
+  // status === 'success'
+  return <>{children}</>;
 }

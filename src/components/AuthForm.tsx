@@ -1,7 +1,7 @@
 
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState } from 'react';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
@@ -12,19 +12,16 @@ import {
   updateProfile,
   GoogleAuthProvider,
   signInWithRedirect,
-  getRedirectResult,
   type AuthError,
-  type User
 } from 'firebase/auth';
 import { useToast } from '@/hooks/use-toast';
-import { auth, db } from '@/lib/firebase';
-import { doc, getDoc, setDoc, serverTimestamp } from 'firebase/firestore';
+import { auth } from '@/lib/firebase';
+import { ensureUserProfile } from '@/lib/user';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from '@/components/ui/form';
 import { Input } from '@/components/ui/input';
 import { ArrowRight, Loader2 } from 'lucide-react';
-import { useRouter } from 'next/navigation';
 
 // Using an inline SVG for the Google icon to avoid adding another dependency
 const GoogleIcon = (props: React.SVGProps<SVGSVGElement>) => (
@@ -55,68 +52,9 @@ type AuthFormProps = {
   mode: 'login' | 'signup';
 };
 
-// Ensures a user document exists in Firestore. Safe to call multiple times.
-const ensureUserProfile = async (user: User, additionalData: { [key: string]: any } = {}) => {
-  if (!db || !user) return;
-  const userDocRef = doc(db, 'users', user.uid);
-  const snapshot = await getDoc(userDocRef);
-
-  if (!snapshot.exists()) {
-    try {
-      await setDoc(userDocRef, {
-        displayName: user.displayName || additionalData.username || 'Anonymous Coder',
-        email: user.email,
-        photoURL: user.photoURL || `https://placehold.co/100x100.png`,
-        createdAt: serverTimestamp(),
-        totalScore: 0,
-        ...additionalData,
-      });
-    } catch (error) {
-      console.error('Error creating user document', error);
-    }
-  }
-};
-
-
 export function AuthForm({ mode }: AuthFormProps) {
-  const router = useRouter();
   const { toast } = useToast();
   const [isLoading, setIsLoading] = useState(false);
-  const [isVerifying, setIsVerifying] = useState(true);
-
-  // This effect handles the result of the Google sign-in redirect.
-  useEffect(() => {
-    if (!auth) {
-      setIsVerifying(false);
-      return;
-    }
-    const checkRedirectResult = async () => {
-      try {
-        const result = await getRedirectResult(auth);
-        if (result) {
-          await ensureUserProfile(result.user);
-          toast({
-            title: "Sign In Successful",
-            description: "Welcome to CodeClash!",
-          });
-          router.replace('/lobby');
-        } else {
-           setIsVerifying(false);
-        }
-      } catch (error) {
-        const authError = error as AuthError;
-        console.error("Google Sign-In Error:", authError);
-        toast({
-          title: "Sign In Failed",
-          description: "Could not complete sign in with Google. Please try again.",
-          variant: "destructive",
-        });
-        setIsVerifying(false);
-      }
-    };
-    checkRedirectResult();
-  }, [router, toast]);
-
 
   const loginForm = useForm<LoginFormData>({
     resolver: zodResolver(loginSchema),
@@ -133,8 +71,9 @@ export function AuthForm({ mode }: AuthFormProps) {
     setIsLoading(true);
     try {
       const { user } = await signInWithEmailAndPassword(auth, data.email, data.password);
+      // The parent page's onAuthStateChanged listener will handle navigation.
+      // We just need to ensure the profile exists.
       await ensureUserProfile(user);
-      router.replace('/lobby');
     } catch (error) {
       const authError = error as AuthError;
       toast({
@@ -155,8 +94,9 @@ export function AuthForm({ mode }: AuthFormProps) {
     try {
         const { user } = await createUserWithEmailAndPassword(auth, data.email, data.password);
         await updateProfile(user, { displayName: data.username });
+        // The parent page's onAuthStateChanged listener will handle navigation.
+        // We just need to create the profile.
         await ensureUserProfile(user, { username: data.username });
-        router.replace('/lobby');
     } catch (error) {
         const authError = error as AuthError;
         toast({
@@ -177,6 +117,7 @@ export function AuthForm({ mode }: AuthFormProps) {
       prompt: 'select_account'
     });
     try {
+      // This will redirect the user. The result is handled on the page component.
       await signInWithRedirect(auth, provider);
     } catch (error) {
       const authError = error as AuthError;
@@ -192,15 +133,6 @@ export function AuthForm({ mode }: AuthFormProps) {
   const isLogin = mode === 'login';
   const form = isLogin ? loginForm : signupForm;
   const onSubmit = isLogin ? onLoginSubmit : onSignupSubmit;
-
-  if (isVerifying) {
-    return (
-        <div className="flex flex-col items-center justify-center py-10 space-y-4">
-            <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
-            <p className="text-muted-foreground">Checking for existing login...</p>
-        </div>
-    );
-  }
 
   return (
     <Card className="w-full max-w-md mx-auto bg-card/50 backdrop-blur-lg border-white/10">
@@ -277,7 +209,6 @@ export function AuthForm({ mode }: AuthFormProps) {
                 Sign in with Google
             </Button>
 
-
             <div className="mt-6 text-center text-sm">
             {isLogin ? "Don't have an account? " : "Already have an account? "}
             <Link href={isLogin ? '/signup' : '/login'} className="font-medium text-primary hover:underline">
@@ -289,5 +220,3 @@ export function AuthForm({ mode }: AuthFormProps) {
     </Card>
   );
 }
-
-    
