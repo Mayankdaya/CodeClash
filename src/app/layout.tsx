@@ -1,6 +1,8 @@
 import type {Metadata} from 'next';
 import './globals.css';
 import { Toaster } from "@/components/ui/toaster";
+import { auth } from '@/lib/firebase';
+import { FirebaseNotConfigured } from '@/components/FirebaseNotConfigured';
 
 export const metadata: Metadata = {
   title: 'CodeClash – Real-Time Coding Arena',
@@ -12,6 +14,17 @@ export default function RootLayout({
 }: Readonly<{
   children: React.ReactNode;
 }>) {
+  // If Firebase is not configured, show a dedicated instruction page.
+  if (!auth) {
+    return (
+      <html lang="en" className="dark">
+        <body className="antialiased">
+          <FirebaseNotConfigured />
+        </body>
+      </html>
+    );
+  }
+
   return (
     <html lang="en" className="dark">
       <head>

@@ -10,24 +10,42 @@ const firebaseConfig = {
   storageBucket: process.env.NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET,
   messagingSenderId: process.env.NEXT_PUBLIC_FIREBASE_MESSAGING_SENDER_ID,
   appId: process.env.NEXT_PUBLIC_FIREBASE_APP_ID,
-  databaseURL: `https://${process.env.NEXT_PUBLIC_FIREBASE_PROJECT_ID}.firebaseio.com`,
+  databaseURL: process.env.NEXT_PUBLIC_FIREBASE_DATABASE_URL,
 };
 
-// This critical check ensures Firebase is configured before any part of the app uses it.
-// It will throw a build-time error if the environment variables are missing,
-// preventing the app from running in a broken state.
-if (!firebaseConfig.apiKey || !firebaseConfig.projectId || !firebaseConfig.authDomain) {
-  throw new Error(
-    "Firebase configuration is missing or incomplete. " +
-    "Please check your `.env.local` file and ensure all `NEXT_PUBLIC_FIREBASE_*` variables are set correctly. " +
-    "You must restart your development server after making changes to `.env.local`."
-  );
-}
+let app: FirebaseApp | null = null;
+let auth: Auth | null = null;
+let db: Firestore | null = null;
+let rtdb: Database | null = null;
 
-// Initialize Firebase services, guaranteed to have a valid config.
-const app: FirebaseApp = getApps().length > 0 ? getApp() : initializeApp(firebaseConfig);
-const auth: Auth = getAuth(app);
-const db: Firestore = getFirestore(app);
-const rtdb: Database = getDatabase(app);
+const isConfigured = 
+  firebaseConfig.apiKey &&
+  firebaseConfig.projectId &&
+  firebaseConfig.authDomain &&
+  firebaseConfig.databaseURL;
+
+if (isConfigured) {
+  try {
+    app = getApps().length > 0 ? getApp() : initializeApp(firebaseConfig);
+    auth = getAuth(app);
+    db = getFirestore(app);
+    rtdb = getDatabase(app);
+  } catch (e) {
+    console.error("Failed to initialize Firebase.", e)
+    // In case of an initialization error (e.g., invalid config),
+    // ensure services are null.
+    app = null;
+    auth = null;
+    db = null;
+    rtdb = null;
+  }
+} else {
+    // This warning will be visible in the server logs
+    console.warn(
+        "Firebase configuration is missing or incomplete. " +
+        "Please check your `.env.local` file and ensure all `NEXT_PUBLIC_FIREBASE_*` variables are set. " +
+        "The application will be rendered in a 'configuration needed' state."
+    );
+}
 
 export { app, auth, db, rtdb };
