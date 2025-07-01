@@ -12,11 +12,12 @@ import {
   signInWithEmailAndPassword, 
   updateProfile, 
   GoogleAuthProvider, 
-  signInWithPopup,
+  signInWithRedirect,
   type AuthError
 } from 'firebase/auth';
 import { useToast } from '@/hooks/use-toast';
-import { auth } from '@/lib/firebase';
+import { auth, db } from '@/lib/firebase';
+import { doc, getDoc, setDoc, serverTimestamp } from 'firebase/firestore';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from '@/components/ui/form';
@@ -39,7 +40,7 @@ const loginSchema = z.object({
 });
 
 const signupSchema = z.object({
-  username: z.string().min(3, { message: "Username must be at least 3 characters." }),
+  username: z.string().min(3, { message: "Username must be at least 3 characters." }).max(20, { message: "Username must be 20 characters or less."}),
   email: z.string().email({ message: "Invalid email address." }),
   password: z.string().min(8, { message: "Password must be at least 8 characters." }),
 });
@@ -47,6 +48,9 @@ const signupSchema = z.object({
 type LoginFormData = z.infer<typeof loginSchema>;
 type SignupFormData = z.infer<typeof signupSchema>;
 
+
+// The createUserProfileDocument logic has been centralized in Header.tsx
+// It runs on onAuthStateChanged, which handles all login/signup events including redirect.
 
 function LoginForm() {
   const router = useRouter();
@@ -59,24 +63,35 @@ function LoginForm() {
   });
 
   const handleGoogleSignIn = async () => {
+    if (!auth) {
+        toast({
+            title: "Firebase Not Configured",
+            description: "There was an issue initializing Firebase services. Please check your configuration.",
+            variant: "destructive",
+        });
+        return;
+    }
     setIsGoogleLoading(true);
     try {
       const provider = new GoogleAuthProvider();
-      await signInWithPopup(auth, provider);
-      router.push('/lobby');
+      // Use redirect instead of popup for better compatibility with different environments.
+      await signInWithRedirect(auth, provider);
+      // The user will be redirected to Google. After they sign in, they will be redirected back
+      // to this page, where onAuthStateChanged (in Header.tsx) will handle profile creation
+      // and routing to the lobby.
     } catch (error) {
        const authError = error as AuthError;
-       toast({
+        toast({
             title: "Google Sign-In Failed",
             description: authError.message,
             variant: "destructive",
        });
-    } finally {
-        setIsGoogleLoading(false);
+       setIsGoogleLoading(false);
     }
   };
 
   const onSubmit = async (data: LoginFormData) => {
+    if (!auth) { return; }
     setIsLoading(true);
     try {
       await signInWithEmailAndPassword(auth, data.email, data.password);
@@ -85,7 +100,7 @@ function LoginForm() {
       const authError = error as AuthError;
       toast({
         title: "Login Failed",
-        description: authError.message,
+        description: authError.code === 'auth/invalid-credential' ? 'Invalid email or password.' : authError.message,
         variant: "destructive",
       });
     } finally {
@@ -161,11 +176,11 @@ function SignupForm() {
     });
     
     const handleGoogleSignIn = async () => {
+      if (!auth) { return; }
       setIsGoogleLoading(true);
       try {
           const provider = new GoogleAuthProvider();
-          await signInWithPopup(auth, provider);
-          router.push('/lobby');
+          await signInWithRedirect(auth, provider);
       } catch (error) {
          const authError = error as AuthError;
          toast({
@@ -173,18 +188,19 @@ function SignupForm() {
               description: authError.message,
               variant: "destructive",
          });
-      } finally {
-          setIsGoogleLoading(false);
+         setIsGoogleLoading(false);
       }
     };
 
     const onSubmit = async (data: SignupFormData) => {
+        if (!auth || !db) { return; }
         setIsLoading(true);
         try {
             const { user } = await createUserWithEmailAndPassword(auth, data.email, data.password);
             await updateProfile(user, {
                 displayName: data.username,
             });
+            // Profile document creation is now handled by onAuthStateChanged in Header.tsx
             router.push('/lobby');
         } catch (error) {
             const authError = error as AuthError;
