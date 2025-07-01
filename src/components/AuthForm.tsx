@@ -9,13 +9,14 @@ import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { createUserWithEmailAndPassword, signInWithEmailAndPassword, updateProfile, GoogleAuthProvider, signInWithPopup, type User } from 'firebase/auth';
 import { useToast } from '@/hooks/use-toast';
-import { auth, db } from '@/lib/firebase';
+import { auth, db, isFirebaseConfigured } from '@/lib/firebase';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from '@/components/ui/form';
 import { Input } from '@/components/ui/input';
-import { ArrowRight, Loader2 } from 'lucide-react';
+import { ArrowRight, Loader2, Terminal } from 'lucide-react';
 import { doc, getDoc, setDoc, serverTimestamp } from 'firebase/firestore';
+import { Alert, AlertDescription, AlertTitle } from './ui/alert';
 
 
 const GoogleIcon = (props: React.SVGProps<SVGSVGElement>) => (
@@ -77,17 +78,8 @@ function LoginForm() {
 
   const handleGoogleSignIn = async () => {
     setIsLoading(true);
-    if (!auth) {
-        toast({
-            title: "Authentication Unavailable",
-            description: "Firebase configuration is missing or incomplete.",
-            variant: "destructive",
-        });
-        setIsLoading(false);
-        return;
-    }
     try {
-        const { user } = await signInWithPopup(auth, new GoogleAuthProvider());
+        const { user } = await signInWithPopup(auth!, new GoogleAuthProvider());
         await createUserProfileDocument(user);
         router.push('/lobby');
     } catch (error: any) {
@@ -122,17 +114,8 @@ function LoginForm() {
 
   const onSubmit = async (data: LoginFormData) => {
     setIsLoading(true);
-    if (!auth) {
-      toast({
-        title: "Authentication Unavailable",
-        description: "Firebase configuration is missing or incomplete.",
-        variant: "destructive",
-      });
-      setIsLoading(false);
-      return;
-    }
     try {
-      const { user } = await signInWithEmailAndPassword(auth, data.email, data.password);
+      const { user } = await signInWithEmailAndPassword(auth!, data.email, data.password);
       await createUserProfileDocument(user);
       router.push('/lobby');
     } catch (error: any) {
@@ -157,7 +140,7 @@ function LoginForm() {
               <FormItem>
                 <FormLabel>Email</FormLabel>
                 <FormControl>
-                  <Input type="email" placeholder="you@example.com" {...field} disabled={isLoading || !auth} />
+                  <Input type="email" placeholder="you@example.com" {...field} disabled={isLoading || !isFirebaseConfigured} />
                 </FormControl>
                 <FormMessage />
               </FormItem>
@@ -170,13 +153,13 @@ function LoginForm() {
               <FormItem>
                 <FormLabel>Password</FormLabel>
                 <FormControl>
-                  <Input type="password" placeholder="••••••••" {...field} disabled={isLoading || !auth} />
+                  <Input type="password" placeholder="••••••••" {...field} disabled={isLoading || !isFirebaseConfigured} />
                 </FormControl>
                 <FormMessage />
               </FormItem>
             )}
           />
-          <Button type="submit" className="w-full" disabled={isLoading || !auth}>
+          <Button type="submit" className="w-full" disabled={isLoading || !isFirebaseConfigured}>
             {isLoading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
             Log In
             {!isLoading && <ArrowRight className="ml-2 h-4 w-4" />}
@@ -193,7 +176,7 @@ function LoginForm() {
               </span>
           </div>
       </div>
-      <Button variant="outline" className="w-full" onClick={handleGoogleSignIn} disabled={isLoading || !auth}>
+      <Button variant="outline" className="w-full" onClick={handleGoogleSignIn} disabled={isLoading || !isFirebaseConfigured}>
           {isLoading ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <GoogleIcon className="mr-2 h-4 w-4" />}
           Sign in with Google
       </Button>
@@ -212,17 +195,8 @@ function SignupForm() {
     
     const handleGoogleSignIn = async () => {
         setIsLoading(true);
-        if (!auth) {
-            toast({
-                title: "Authentication Unavailable",
-                description: "Firebase configuration is missing or incomplete.",
-                variant: "destructive",
-            });
-            setIsLoading(false);
-            return;
-        }
         try {
-            const { user } = await signInWithPopup(auth, new GoogleAuthProvider());
+            const { user } = await signInWithPopup(auth!, new GoogleAuthProvider());
             await createUserProfileDocument(user);
             router.push('/lobby');
         } catch (error: any) {
@@ -257,17 +231,8 @@ function SignupForm() {
 
     const onSubmit = async (data: SignupFormData) => {
         setIsLoading(true);
-        if (!auth) {
-          toast({
-            title: "Authentication Unavailable",
-            description: "Firebase configuration is missing or incomplete.",
-            variant: "destructive",
-          });
-          setIsLoading(false);
-          return;
-        }
         try {
-            const { user } = await createUserWithEmailAndPassword(auth, data.email, data.password);
+            const { user } = await createUserWithEmailAndPassword(auth!, data.email, data.password);
             await updateProfile(user, {
                 displayName: data.username,
             });
@@ -295,7 +260,7 @@ function SignupForm() {
                     <FormItem>
                       <FormLabel>Username</FormLabel>
                       <FormControl>
-                        <Input placeholder="code_master" {...field} disabled={isLoading || !auth} />
+                        <Input placeholder="code_master" {...field} disabled={isLoading || !isFirebaseConfigured} />
                       </FormControl>
                       <FormMessage />
                     </FormItem>
@@ -308,7 +273,7 @@ function SignupForm() {
                     <FormItem>
                       <FormLabel>Email</FormLabel>
                       <FormControl>
-                        <Input type="email" placeholder="you@example.com" {...field} disabled={isLoading || !auth}/>
+                        <Input type="email" placeholder="you@example.com" {...field} disabled={isLoading || !isFirebaseConfigured}/>
                       </FormControl>
                       <FormMessage />
                     </FormItem>
@@ -321,13 +286,13 @@ function SignupForm() {
                     <FormItem>
                       <FormLabel>Password</FormLabel>
                       <FormControl>
-                        <Input type="password" placeholder="••••••••" {...field} disabled={isLoading || !auth}/>
+                        <Input type="password" placeholder="••••••••" {...field} disabled={isLoading || !isFirebaseConfigured}/>
                       </FormControl>
                       <FormMessage />
                     </FormItem>
                   )}
                 />
-                <Button type="submit" className="w-full" disabled={isLoading || !auth}>
+                <Button type="submit" className="w-full" disabled={isLoading || !isFirebaseConfigured}>
                     {isLoading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
                     Sign Up
                     {!isLoading && <ArrowRight className="ml-2 h-4 w-4" />}
@@ -344,13 +309,40 @@ function SignupForm() {
                     </span>
                 </div>
             </div>
-            <Button variant="outline" className="w-full" onClick={handleGoogleSignIn} disabled={isLoading || !auth}>
+            <Button variant="outline" className="w-full" onClick={handleGoogleSignIn} disabled={isLoading || !isFirebaseConfigured}>
                 {isLoading ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <GoogleIcon className="mr-2 h-4 w-4" />}
                 Sign up with Google
             </Button>
         </>
     );
 }
+
+function FirebaseConfigWarning() {
+  if (isFirebaseConfigured) {
+    return null;
+  }
+
+  return (
+    <Alert variant="destructive" className="mb-6">
+      <Terminal className="h-4 w-4" />
+      <AlertTitle>Firebase Not Configured</AlertTitle>
+      <AlertDescription>
+        <p>
+          Authentication is disabled. To enable it, please add your Firebase project's web app configuration to the <strong>.env</strong> file in your project root.
+        </p>
+        <p className="mt-2 text-xs font-mono bg-black/20 p-2 rounded-md">
+          NEXT_PUBLIC_FIREBASE_API_KEY=...<br />
+          NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN=...<br />
+          NEXT_PUBLIC_FIREBASE_PROJECT_ID=...<br />
+          NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET=...<br />
+          NEXT_PUBLIC_FIREBASE_MESSAGING_SENDER_ID=...<br />
+          NEXT_PUBLIC_FIREBASE_APP_ID=...
+        </p>
+      </AlertDescription>
+    </Alert>
+  );
+}
+
 
 type AuthFormProps = {
   mode: 'login' | 'signup';
@@ -368,6 +360,7 @@ export function AuthForm({ mode }: AuthFormProps) {
         </CardDescription>
       </CardHeader>
       <CardContent>
+        <FirebaseConfigWarning />
         {isLogin ? <LoginForm /> : <SignupForm />}
         <div className="mt-6 text-center text-sm">
           {isLogin ? "Don't have an account? " : "Already have an account? "}

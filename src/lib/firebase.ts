@@ -16,6 +16,7 @@ let app: FirebaseApp | null = null;
 let auth: Auth | null = null;
 let db: Firestore | null = null;
 let rtdb: Database | null = null;
+let isFirebaseConfigured = false;
 
 if (
   firebaseConfig.apiKey &&
@@ -27,6 +28,7 @@ if (
     auth = getAuth(app);
     db = getFirestore(app);
     rtdb = getDatabase(app);
+    isFirebaseConfigured = true;
   } catch (error) {
     console.error("Firebase initialization error:", error);
   }
@@ -36,4 +38,4 @@ if (
   );
 }
 
-export { app, auth, db, rtdb };
+export { app, auth, db, rtdb, isFirebaseConfigured };
