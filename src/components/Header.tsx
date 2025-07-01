@@ -11,7 +11,7 @@ import { ref, onValue, set, onDisconnect } from "firebase/database";
 import { Button } from "@/components/ui/button";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel, DropdownMenuSeparator, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
-import { ArrowRight, Code, LogOut, User as UserIcon } from "lucide-react";
+import { ArrowRight, Code, LogOut, User as UserIcon, Trophy } from "lucide-react";
 
 
 const createUserProfileDocument = async (userAuth: User, additionalData: { [key: string]: any } = {}) => {
@@ -25,7 +25,7 @@ const createUserProfileDocument = async (userAuth: User, additionalData: { [key:
     
     try {
       await setDoc(userDocRef, {
-        displayName: displayName || additionalData.displayName || 'Anonymous Coder',
+        displayName: displayName || additionalData.username || 'Anonymous Coder',
         email,
         photoURL: photoURL || `https://placehold.co/100x100.png`,
         createdAt: serverTimestamp(),
@@ -79,7 +79,9 @@ export function Header() {
 
     return () => {
       unsubscribe();
-      set(userStatusRef, isOfflineForDatabase);
+      if (userStatusRef) {
+        set(userStatusRef, isOfflineForDatabase);
+      }
     };
   }, [user]);
 
@@ -117,8 +119,8 @@ export function Header() {
         </Link>
         <nav className="hidden md:flex items-center gap-6 text-sm font-medium">
           <Link href="/lobby" className="text-muted-foreground hover:text-foreground transition-colors" prefetch={false}>Topics</Link>
-          <Link href="/leaderboard" className="text-muted-foreground hover:text-foreground transition-colors" prefetch={false}>Leaderboards</Link>
-          <Link href="#" className="text-muted-foreground hover:text-foreground transition-colors" prefetch={false}>How it Works</Link>
+          <Link href="/leaderboard" className="text-muted-foreground hover:text-foreground transition-colors" prefetch={false}>Leaderboard</Link>
+          <Link href="/#how-it-works" className="text-muted-foreground hover:text-foreground transition-colors" prefetch={false}>How it Works</Link>
         </nav>
         <div className="flex items-center gap-4">
            {onlineUsersCount > 0 && (
@@ -151,6 +153,11 @@ export function Header() {
                   </div>
                 </DropdownMenuLabel>
                 <DropdownMenuSeparator />
+                <DropdownMenuItem onClick={() => router.push('/leaderboard')}>
+                  <Trophy className="mr-2 h-4 w-4" />
+                  <span>Leaderboard</span>
+                </DropdownMenuItem>
+                <DropdownMenuSeparator />
                 <DropdownMenuItem onClick={handleLogout}>
                   <LogOut className="mr-2 h-4 w-4" />
                   <span>Log out</span>
@@ -171,8 +178,8 @@ export function Header() {
             </>
           )) : (
              <Button asChild>
-              <Link href="/matching">
-                Find a Match
+              <Link href="/lobby">
+                Start a Clash
                 <ArrowRight className="ml-2 h-4 w-4" />
               </Link>
             </Button>

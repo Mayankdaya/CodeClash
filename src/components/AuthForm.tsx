@@ -1,7 +1,7 @@
 
 'use client';
 
-import { useState, type ReactNode, useEffect } from 'react';
+import { useState, useEffect } from 'react';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
@@ -18,7 +18,6 @@ import {
 } from 'firebase/auth';
 import { useToast } from '@/hooks/use-toast';
 import { auth, db } from '@/lib/firebase';
-import { doc, getDoc, setDoc, serverTimestamp } from 'firebase/firestore';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from '@/components/ui/form';
@@ -53,20 +52,28 @@ type SignupFormData = z.infer<typeof signupSchema>;
 // The createUserProfileDocument logic has been centralized in Header.tsx
 // It runs on onAuthStateChanged, which handles all login/signup events including redirect.
 
-function LoginForm() {
+function AuthFormContent({ mode }: { mode: 'login' | 'signup' }) {
   const router = useRouter();
   const { toast } = useToast();
   const [isLoading, setIsLoading] = useState(false);
   const [isGoogleLoading, setIsGoogleLoading] = useState(false);
   const [isProcessingRedirect, setIsProcessingRedirect] = useState(true);
 
+  // This effect handles the result of a Google Sign-In redirect
   useEffect(() => {
+    // This function will only run if auth is properly initialized.
     if (!auth) {
       setIsProcessingRedirect(false);
       return;
     }
-    // Check for redirect result from Google Sign-In
+
     getRedirectResult(auth)
+      .then((result) => {
+        // If result is null, it means the user just landed on the page
+        // without a redirect. If it's not null, the onAuthStateChanged
+        // listener in Header.tsx will handle the user and profile creation,
+        // and the listener in login/signup page will redirect to /lobby.
+      })
       .catch((error) => {
         const authError = error as AuthError;
         toast({
@@ -80,25 +87,24 @@ function LoginForm() {
       });
   }, [toast]);
 
-
-  const form = useForm<LoginFormData>({
+  const loginForm = useForm<LoginFormData>({
     resolver: zodResolver(loginSchema),
     defaultValues: { email: '', password: '' },
   });
 
+  const signupForm = useForm<SignupFormData>({
+    resolver: zodResolver(signupSchema),
+    defaultValues: { username: '', email: '', password: '' },
+  });
+
   const handleGoogleSignIn = async () => {
-    if (!auth) {
-        toast({
-            title: "Firebase Not Configured",
-            description: "There was an issue initializing Firebase services. Please check your configuration.",
-            variant: "destructive",
-        });
-        return;
-    }
+    if (!auth) return;
     setIsGoogleLoading(true);
     try {
       const provider = new GoogleAuthProvider();
       await signInWithRedirect(auth, provider);
+      // After this, the page will redirect to Google, then back.
+      // The useEffect above will handle the result.
     } catch (error) {
        const authError = error as AuthError;
         toast({
@@ -110,12 +116,12 @@ function LoginForm() {
     }
   };
 
-  const onSubmit = async (data: LoginFormData) => {
-    if (!auth) { return; }
+  const onLoginSubmit = async (data: LoginFormData) => {
+    if (!auth) return;
     setIsLoading(true);
     try {
       await signInWithEmailAndPassword(auth, data.email, data.password);
-      router.push('/lobby');
+      // onAuthStateChanged will handle redirect
     } catch (error) {
       const authError = error as AuthError;
       toast({
@@ -128,12 +134,53 @@ function LoginForm() {
     }
   };
 
+  const onSignupSubmit = async (data: SignupFormData) => {
+    if (!auth || !db) return;
+    setIsLoading(true);
+    try {
+        const { user } = await createUserWithEmailAndPassword(auth, data.email, data.password);
+        // This updates the user profile in Firebase Auth.
+        // The onAuthStateChanged listener in Header.tsx will then create the Firestore document.
+        await updateProfile(user, {
+            displayName: data.username,
+        });
+        // onAuthStateChanged will handle redirect
+    } catch (error) {
+        const authError = error as AuthError;
+        toast({
+            title: "Sign Up Failed",
+            description: authError.message,
+            variant: "destructive",
+        });
+    } finally {
+        setIsLoading(false);
+    }
+  };
+
+  const isLogin = mode === 'login';
   const anyLoading = isLoading || isGoogleLoading || isProcessingRedirect;
+  const form = isLogin ? loginForm : signupForm;
+  const onSubmit = isLogin ? onLoginSubmit : onSignupSubmit;
 
   return (
     <>
-      <Form {...form}>
-        <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-6">
+      <Form {...(form as any)}>
+        <form onSubmit={form.handleSubmit(onSubmit as any)} className="space-y-6">
+          {!isLogin && (
+            <FormField
+              control={signupForm.control}
+              name="username"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>Username</FormLabel>
+                  <FormControl>
+                    <Input placeholder="code_master" {...field} disabled={anyLoading} />
+                  </FormControl>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+          )}
           <FormField
             control={form.control}
             name="email"
@@ -162,12 +209,12 @@ function LoginForm() {
           />
           <Button type="submit" className="w-full" disabled={anyLoading}>
             {(isLoading || isProcessingRedirect) && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-            Log In
+            {isLogin ? 'Log In' : 'Sign Up'}
             {!isLoading && !isProcessingRedirect && <ArrowRight className="ml-2 h-4 w-4" />}
           </Button>
         </form>
       </Form>
-       <div className="relative my-6">
+      <div className="relative my-6">
           <div className="absolute inset-0 flex items-center">
               <span className="w-full border-t" />
           </div>
@@ -179,151 +226,10 @@ function LoginForm() {
       </div>
       <Button variant="outline" className="w-full" onClick={handleGoogleSignIn} disabled={anyLoading}>
           {(isGoogleLoading || isProcessingRedirect) ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <GoogleIcon className="mr-2 h-4 w-4" />}
-          Sign in with Google
+          {isLogin ? 'Sign in with Google' : 'Sign up with Google'}
       </Button>
     </>
   );
-}
-
-function SignupForm() {
-    const router = useRouter();
-    const { toast } = useToast();
-    const [isLoading, setIsLoading] = useState(false);
-    const [isGoogleLoading, setIsGoogleLoading] = useState(false);
-    const [isProcessingRedirect, setIsProcessingRedirect] = useState(true);
-
-    useEffect(() => {
-        if (!auth) {
-        setIsProcessingRedirect(false);
-        return;
-        }
-        // Check for redirect result from Google Sign-In
-        getRedirectResult(auth)
-        .catch((error) => {
-            const authError = error as AuthError;
-            toast({
-            title: "Google Sign-In Failed",
-            description: authError.message || 'An unknown error occurred.',
-            variant: "destructive",
-            });
-        })
-        .finally(() => {
-            setIsProcessingRedirect(false);
-        });
-    }, [toast]);
-
-    const form = useForm<SignupFormData>({
-        resolver: zodResolver(signupSchema),
-        defaultValues: { username: '', email: '', password: '' },
-    });
-    
-    const handleGoogleSignIn = async () => {
-      if (!auth) { return; }
-      setIsGoogleLoading(true);
-      try {
-          const provider = new GoogleAuthProvider();
-          await signInWithRedirect(auth, provider);
-      } catch (error) {
-         const authError = error as AuthError;
-         toast({
-              title: "Google Sign-Up Failed",
-              description: authError.message,
-              variant: "destructive",
-         });
-         setIsGoogleLoading(false);
-      }
-    };
-
-    const onSubmit = async (data: SignupFormData) => {
-        if (!auth || !db) { return; }
-        setIsLoading(true);
-        try {
-            const { user } = await createUserWithEmailAndPassword(auth, data.email, data.password);
-            await updateProfile(user, {
-                displayName: data.username,
-            });
-            // Profile document creation is now handled by onAuthStateChanged in Header.tsx
-            router.push('/lobby');
-        } catch (error) {
-            const authError = error as AuthError;
-            toast({
-                title: "Sign Up Failed",
-                description: authError.message,
-                variant: "destructive",
-            });
-        } finally {
-            setIsLoading(false);
-        }
-    };
-
-    const anyLoading = isLoading || isGoogleLoading || isProcessingRedirect;
-
-    return (
-        <>
-            <Form {...form}>
-              <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-6">
-                <FormField
-                  control={form.control}
-                  name="username"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>Username</FormLabel>
-                      <FormControl>
-                        <Input placeholder="code_master" {...field} disabled={anyLoading} />
-                      </FormControl>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
-                <FormField
-                  control={form.control}
-                  name="email"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>Email</FormLabel>
-                      <FormControl>
-                        <Input type="email" placeholder="you@example.com" {...field} disabled={anyLoading}/>
-                      </FormControl>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
-                <FormField
-                  control={form.control}
-                  name="password"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>Password</FormLabel>
-                      <FormControl>
-                        <Input type="password" placeholder="••••••••" {...field} disabled={anyLoading}/>
-                      </FormControl>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
-                <Button type="submit" className="w-full" disabled={anyLoading}>
-                    {(isLoading || isProcessingRedirect) && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-                    Sign Up
-                    {!isLoading && !isProcessingRedirect && <ArrowRight className="ml-2 h-4 w-4" />}
-                </Button>
-              </form>
-            </Form>
-            <div className="relative my-6">
-                <div className="absolute inset-0 flex items-center">
-                    <span className="w-full border-t" />
-                </div>
-                <div className="relative flex justify-center text-xs uppercase">
-                    <span className="bg-card px-2 text-muted-foreground">
-                        Or
-                    </span>
-                </div>
-            </div>
-            <Button variant="outline" className="w-full" onClick={handleGoogleSignIn} disabled={anyLoading}>
-                {(isGoogleLoading || isProcessingRedirect) ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <GoogleIcon className="mr-2 h-4 w-4" />}
-                Sign up with Google
-            </Button>
-        </>
-    );
 }
 
 type AuthFormProps = {
@@ -342,7 +248,7 @@ export function AuthForm({ mode }: AuthFormProps) {
         </CardDescription>
       </CardHeader>
       <CardContent>
-        {isLogin ? <LoginForm /> : <SignupForm />}
+        <AuthFormContent mode={mode} />
         <div className="mt-6 text-center text-sm">
           {isLogin ? "Don't have an account? " : "Already have an account? "}
           <Link href={isLogin ? '/signup' : '/login'} className="font-medium text-primary hover:underline">

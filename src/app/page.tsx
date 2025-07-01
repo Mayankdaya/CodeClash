@@ -102,7 +102,7 @@ export default function Home() {
                   <CardTitle className="text-2xl">Instant Matchmaking</CardTitle>
                 </CardHeader>
                 <CardContent className="text-center text-muted-foreground">
-                  Choose your topic and instantly get matched with 1-3 other developers ready to battle. No sign-up required to jump in.
+                  Choose your topic and instantly get matched with other developers ready to battle. No sign-up required to jump in.
                 </CardContent>
               </Card>
               <Card className="bg-card/50 backdrop-blur-lg border border-white/10 rounded-2xl shadow-lg transition-all duration-300 hover:shadow-accent/20 hover:-translate-y-2">
@@ -110,10 +110,10 @@ export default function Home() {
                   <div className="p-4 bg-primary/10 rounded-full mb-4 ring-2 ring-inset ring-primary/20">
                     <Code className="h-10 w-10 text-primary" />
                   </div>
-                  <CardTitle className="text-2xl">Real-Time Collaboration</CardTitle>
+                  <CardTitle className="text-2xl">Real-Time Arena</CardTitle>
                 </CardHeader>
                 <CardContent className="text-center text-muted-foreground">
-                  Share ideas, chat, and see your opponents' code in real-time. A synchronized editor keeps everyone on the same page.
+                  Share ideas, chat, see your opponents' video, and code in a synchronized editor that keeps everyone on the same page.
                 </CardContent>
               </Card>
               <Card className="bg-card/50 backdrop-blur-lg border border-white/10 rounded-2xl shadow-lg transition-all duration-300 hover:shadow-accent/20 hover:-translate-y-2">
@@ -132,7 +132,7 @@ export default function Home() {
         </section>
 
         {/* How It Works Section */}
-        <section className="py-16 md:py-24 bg-card/20 border-y border-white/10">
+        <section id="how-it-works" className="py-16 md:py-24 bg-card/20 border-y border-white/10">
           <div className="container max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
             <div className="text-center mb-16">
               <h2 className="text-4xl font-bold tracking-tight sm:text-5xl">How It Works</h2>
@@ -186,7 +186,6 @@ export default function Home() {
             </div>
           </div>
         </section>
-
       </main>
     </div>
   );
