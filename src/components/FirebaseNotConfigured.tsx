@@ -5,12 +5,12 @@ import { AlertTriangle } from "lucide-react";
 export function FirebaseNotConfigured() {
   const envExample = `
 NEXT_PUBLIC_FIREBASE_API_KEY="YOUR_API_KEY"
-NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN="YOUR_AUTH_DOMAIN"
-NEXT_PUBLIC_FIREBASE_PROJECT_ID="YOUR_PROJECT_ID"
-NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET="YOUR_STORAGE_BUCKET"
+NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN="codeclash-4b6f5.firebaseapp.com"
+NEXT_PUBLIC_FIREBASE_PROJECT_ID="codeclash-4b6f5"
+NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET="codeclash-4b6f5.appspot.com"
 NEXT_PUBLIC_FIREBASE_MESSAGING_SENDER_ID="YOUR_MESSAGING_SENDER_ID"
 NEXT_PUBLIC_FIREBASE_APP_ID="YOUR_APP_ID"
-NEXT_PUBLIC_FIREBASE_DATABASE_URL="YOUR_DATABASE_URL"
+NEXT_PUBLIC_FIREBASE_DATABASE_URL="https://codeclash-4b6f5-default-rtdb.firebaseio.com"
   `.trim();
 
   return (
@@ -36,12 +36,14 @@ NEXT_PUBLIC_FIREBASE_DATABASE_URL="YOUR_DATABASE_URL"
             <p className="text-muted-foreground mb-3">Create a file named exactly <code className="font-mono text-base bg-muted px-1.5 py-1 rounded-md">.env.local</code> at the top level of your project, next to <code className="font-mono text-base bg-muted px-1.5 py-1 rounded-md">package.json</code>.</p>
             
             <h2 className="text-xl font-semibold mb-2">Step 2: Add your Firebase Credentials</h2>
-            <p className="text-muted-foreground mb-3">Copy the block below into your <code className="font-mono text-base bg-muted px-1.5 py-1 rounded-md">.env.local</code> file and replace the placeholder values with the actual credentials from your Firebase project settings.</p>
+            <p className="text-muted-foreground mb-3">
+              Based on the URL you provided, I've pre-filled some of the values for you. Copy the block below into your <code className="font-mono text-base bg-muted px-1.5 py-1 rounded-md">.env.local</code> file and replace the remaining placeholder values with the actual credentials from your Firebase project settings.
+            </p>
             <pre className="w-full rounded-lg bg-muted p-4">
               <code className="text-sm font-mono whitespace-pre-wrap">{envExample}</code>
             </pre>
-             <a href="https://console.firebase.google.com/" target="_blank" rel="noopener noreferrer" className="text-sm mt-3 inline-block text-primary hover:underline">
-              Find your credentials in the Firebase Console &rarr;
+             <a href="https://console.firebase.google.com/project/codeclash-4b6f5/settings/general" target="_blank" rel="noopener noreferrer" className="text-sm mt-3 inline-block text-primary hover:underline">
+              Find the remaining credentials in your Firebase Project Settings &rarr;
             </a>
           </div>
 
