@@ -243,20 +243,12 @@ export default function ClashClient({ id }: { id: string }) {
         if (data.problem && data.problem.testCases) {
            const parsedTestCases = (data.problem.testCases as any[]).map(tc => {
                 try {
-                    // This handles cases where the entire input or expected value is a stringified JSON.
                     const parsedInput = typeof tc.input === 'string' ? JSON.parse(tc.input) : tc.input;
-                    
-                    // The backend now sanitizes undefined to null. This ensures consistency.
                     const parsedExpected = tc.expected !== undefined ? (typeof tc.expected === 'string' ? JSON.parse(tc.expected) : tc.expected) : null;
 
-                    // This handles cases where an argument *within* the input array is a stringified JSON.
                     const sanizitedInput = Array.isArray(parsedInput) ? parsedInput.map(arg => {
                         if (typeof arg === 'string') {
-                            try {
-                                return JSON.parse(arg);
-                            } catch (e) {
-                                return arg;
-                            }
+                            try { return JSON.parse(arg); } catch (e) { return arg; }
                         }
                         return arg;
                     }) : parsedInput;
@@ -264,7 +256,7 @@ export default function ClashClient({ id }: { id: string }) {
                     return { ...tc, input: sanizitedInput, expected: parsedExpected };
                 } catch (e) {
                     console.error("Failed to parse test case, returning as is:", tc, e);
-                    return { ...tc, expected: tc.expected ?? null };
+                    return { ...tc, expected: tc.expected !== undefined ? tc.expected : null };
                 }
             });
             data.problem = { ...data.problem, testCases: parsedTestCases };
@@ -621,8 +613,8 @@ export default function ClashClient({ id }: { id: string }) {
                                 <TabsTrigger value="solution"><KeySquare className="mr-2 h-4 w-4"/>Solution</TabsTrigger>
                             </TabsList>
                         </div>
-                        {leftPanelTab === 'problem' && (
-                          <div className="flex-1 min-h-0 overflow-y-auto p-4 pr-2">
+                        <TabsContent value="problem" className="flex-1 min-h-0">
+                          <div className="h-full overflow-y-auto p-4 pr-2">
                             <h1 className="text-2xl font-bold mb-2">{problem.title}</h1>
                             <div className='prose prose-invert max-w-none prose-p:text-muted-foreground prose-strong:text-foreground'>
                             <p className="whitespace-pre-wrap">{problem.description}</p>
@@ -640,9 +632,8 @@ export default function ClashClient({ id }: { id: string }) {
                             ))}
                             </div>
                           </div>
-                        )}
-                        {leftPanelTab === 'solution' && (
-                          <div className="m-0 flex-1 flex flex-col min-h-0">
+                        </TabsContent>
+                        <TabsContent value="solution" className="flex-1 flex flex-col min-h-0">
                             <div className="p-2 border-b border-border flex items-center justify-end shrink-0">
                                 <Select value={solutionLanguage} onValueChange={handleSolutionLanguageChange} disabled={isTranslatingSolution}>
                                     <SelectTrigger className="w-[180px] h-9">
@@ -664,16 +655,17 @@ export default function ClashClient({ id }: { id: string }) {
                                         <p className="mt-2 text-sm">Translating solution to {solutionLanguage}...</p>
                                     </div>
                                 )}
-                                <CodeEditor
-                                    key={`solution-${solutionLanguage}`}
-                                    language={solutionLanguage}
-                                    value={solutions[solutionLanguage] || ''}
-                                    onChange={() => {}}
-                                    disabled={true}
-                                />
+                                {leftPanelTab === 'solution' && (
+                                    <CodeEditor
+                                        key={`solution-${solutionLanguage}`}
+                                        language={solutionLanguage}
+                                        value={solutions[solutionLanguage] || ''}
+                                        onChange={() => {}}
+                                        disabled={true}
+                                    />
+                                )}
                             </div>
-                          </div>
-                        )}
+                        </TabsContent>
                     </Tabs>
                   </Panel>
                   <PanelResizeHandle className="w-2 bg-border/50 hover:bg-primary transition-colors data-[resize-handle-state=drag]:bg-primary" />
