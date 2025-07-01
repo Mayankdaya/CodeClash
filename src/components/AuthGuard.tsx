@@ -3,7 +3,7 @@
 
 import { useEffect, useState, type ReactNode } from 'react';
 import { useRouter } from 'next/navigation';
-import { onAuthStateChanged, type User } from 'firebase/auth';
+import { onAuthStateChanged } from 'firebase/auth';
 import { auth } from '@/lib/firebase';
 import { Loader2 } from 'lucide-react';
 import { ensureUserProfile } from '@/lib/user';
@@ -14,15 +14,14 @@ export default function AuthGuard({ children }: { children: ReactNode }) {
 
   useEffect(() => {
     if (!auth) {
-      // This case handles when Firebase isn't configured.
-      // Redirect to a safe page, though FirebaseNotConfigured component should prevent this.
+      // Firebase not configured.
       router.push('/');
       return;
     }
 
     const unsubscribe = onAuthStateChanged(auth, async (user) => {
       if (user) {
-        // User is authenticated, now ensure their profile exists in the database.
+        // User is authenticated, ensure their profile exists.
         await ensureUserProfile(user);
         // Profile is ready, allow rendering children.
         setStatus('success');
@@ -32,8 +31,9 @@ export default function AuthGuard({ children }: { children: ReactNode }) {
       }
     });
 
+    // Cleanup subscription on unmount
     return () => unsubscribe();
-  }, [router]);
+  }, [router]); // router is a stable dependency
 
   if (status === 'loading') {
     return (

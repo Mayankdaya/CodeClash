@@ -70,19 +70,18 @@ export function AuthForm({ mode }: AuthFormProps) {
     if (!auth) return;
     setIsLoading(true);
     try {
-      await signInWithEmailAndPassword(auth, data.email, data.password);
       // The parent page's onAuthStateChanged listener will handle navigation.
+      await signInWithEmailAndPassword(auth, data.email, data.password);
     } catch (error) {
       const authError = error as AuthError;
       toast({
         title: "Login Failed",
         description: authError.code === 'auth/invalid-credential' 
           ? "Invalid email or password." 
-          : authError.message,
+          : "An unexpected error occurred. Please try again.",
         variant: "destructive",
       });
-    } finally {
-        setIsLoading(false);
+      setIsLoading(false);
     }
   };
 
@@ -97,34 +96,37 @@ export function AuthForm({ mode }: AuthFormProps) {
         await ensureUserProfile(user, { username: data.username });
     } catch (error) {
         const authError = error as AuthError;
+        let description = "An unexpected error occurred. Please try again.";
+        if (authError.code === 'auth/email-already-in-use') {
+            description = "This email is already in use. Please log in instead.";
+        }
         toast({
             title: "Sign Up Failed",
-            description: authError.message,
+            description,
             variant: "destructive",
         });
-    } finally {
         setIsLoading(false);
     }
   };
   
   const handleGoogleSignIn = async () => {
     if (!auth) return;
-    setIsLoading(true);
+    setIsLoading(true); // Show loading state on the button.
     const provider = new GoogleAuthProvider();
     provider.setCustomParameters({
-      prompt: 'select_account'
+      prompt: 'select_account' // Always ask user to select an account.
     });
     try {
-      // This will redirect the user. The result is handled on the page component.
+      // This will redirect the user. The result is handled on the login/signup page component.
       await signInWithRedirect(auth, provider);
     } catch (error) {
       const authError = error as AuthError;
       toast({
-        title: "Sign In Failed",
-        description: authError.message,
+        title: "Google Sign In Failed",
+        description: "Could not start the Google Sign-In process. Please try again.",
         variant: "destructive",
       });
-      setIsLoading(false);
+      setIsLoading(false); // Stop loading if redirect fails.
     }
   };
 

@@ -9,6 +9,7 @@ import { auth } from '@/lib/firebase';
 import { useRouter } from 'next/navigation';
 import { Loader2 } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
+import { ensureUserProfile } from '@/lib/user';
 
 export default function LoginPage() {
   const router = useRouter();
@@ -17,25 +18,24 @@ export default function LoginPage() {
 
   useEffect(() => {
     if (!auth) {
-      // Firebase not configured. The FirebaseConfigGuard will show an error.
-      // We can stop loading, but the app won't be usable.
       setIsLoading(false);
       return;
     }
 
-    // This effect should run only once on component mount.
-    // The router and toast objects from hooks are stable, but to be explicit
-    // and prevent any possibility of a loop, we use an empty dependency array.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+    // This effect runs only once to check the auth state and handle redirects.
+    // It is critical that the dependency array is empty.
+    
+    // First, check if this is a return from a Google Sign-In redirect.
     getRedirectResult(auth)
       .then((result) => {
         if (result) {
-          // A sign-in was just completed via redirect.
-          // The onAuthStateChanged listener below will handle the navigation.
+          // A sign-in was just completed. Ensure profile exists.
+          ensureUserProfile(result.user);
           toast({
             title: 'Sign In Successful',
             description: `Welcome back, ${result.user.displayName}!`,
           });
+          // The onAuthStateChanged listener below will handle the redirect.
         }
       })
       .catch((error: AuthError) => {
@@ -61,6 +61,7 @@ export default function LoginPage() {
         // This return is for the cleanup of onAuthStateChanged
         return () => unsubscribe();
       });
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []); // <-- Empty dependency array is critical to prevent infinite loops.
 
 
