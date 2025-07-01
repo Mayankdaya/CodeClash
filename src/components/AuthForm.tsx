@@ -127,9 +127,15 @@ function AuthFormContent({ mode }: { mode: 'login' | 'signup' }) {
       // onAuthStateChanged will handle redirect
     } catch (error) {
       const authError = error as AuthError;
+      let description = "An unexpected error occurred. Please try again.";
+      if (authError.code === 'auth/invalid-credential') {
+        description = "Invalid email or password. If you originally signed up using Google, please log in with Google instead.";
+      } else {
+        description = authError.message;
+      }
       toast({
         title: "Login Failed",
-        description: authError.code === 'auth/invalid-credential' ? 'Invalid email or password.' : authError.message,
+        description: description,
         variant: "destructive",
       });
     } finally {
