@@ -566,7 +566,7 @@ export default function ClashClient({ id }: { id: string }) {
 
           <div className="flex-1 min-h-0">
             <PanelGroup direction="horizontal">
-                <Panel defaultSize={45} minSize={30}>
+                <Panel defaultSize={35} minSize={25}>
                     <div className="h-full flex flex-col bg-card/50 border border-white/10 rounded-xl overflow-hidden">
                         <div className="p-4 border-b border-border shrink-0 flex items-center gap-2">
                             <BookOpen className="h-5 w-5 text-primary"/>
@@ -593,7 +593,7 @@ export default function ClashClient({ id }: { id: string }) {
                     </div>
                 </Panel>
                 <PanelResizeHandle className="w-2 bg-border/50 hover:bg-primary transition-colors data-[resize-handle-state=drag]:bg-primary" />
-                <Panel minSize={30}>
+                <Panel defaultSize={40} minSize={30}>
                     <PanelGroup direction="vertical">
                         <Panel defaultSize={60} minSize={25}>
                             <div className="h-full flex flex-col bg-card/50 border border-white/10 rounded-xl min-h-0 overflow-hidden">
@@ -637,10 +637,9 @@ export default function ClashClient({ id }: { id: string }) {
                             <div className="h-full flex flex-col bg-card/50 border border-white/10 rounded-xl overflow-hidden">
                                 <Tabs value={consoleTab} onValueChange={setConsoleTab} className="flex-1 flex flex-col min-h-0">
                                     <div className='p-2 border-b border-border/50 shrink-0'>
-                                        <TabsList className="grid w-full grid-cols-3">
+                                        <TabsList className="grid w-full grid-cols-2">
                                             <TabsTrigger value="test-result"><Terminal className="mr-2 h-4 w-4"/>Test Result</TabsTrigger>
                                             <TabsTrigger value="testcases"><TestTube2 className="mr-2 h-4 w-4"/>Testcases</TabsTrigger>
-                                            <TabsTrigger value="chat"><MessageSquare className="mr-2 h-4 w-4"/>Chat & Video</TabsTrigger>
                                         </TabsList>
                                     </div>
                                     <div className="flex-1 min-h-0">
@@ -678,50 +677,6 @@ export default function ClashClient({ id }: { id: string }) {
                                             ))}
                                         </div>
                                         </TabsContent>
-                                        <TabsContent value="chat" className="m-0 h-full flex flex-col min-h-0">
-                                            <div className="p-4 pt-0">
-                                                <div className="grid grid-cols-2 gap-1 mb-1">
-                                                    <UserVideo />
-                                                    <div className="relative aspect-video w-full bg-muted/30 rounded-lg flex items-center justify-center overflow-hidden">
-                                                        <Image src={opponent.userAvatar || 'https://placehold.co/600x400.png'} data-ai-hint="person coding" alt={opponent.userName} width={320} height={180} className="w-full h-full object-cover" />
-                                                        <div className="absolute bottom-1 left-2 text-xs bg-black/50 text-white px-1.5 py-0.5 rounded">{opponent.userName}</div>
-                                                    </div>
-                                                </div>
-                                            </div>
-                                            <div className="flex-1 flex flex-col min-h-0 border-t pt-2 px-4 pb-4">
-                                                <div className="flex-1 pr-2 -mr-2 overflow-y-auto">
-                                                    <div className="space-y-2 text-sm pr-2">
-                                                    {messages.map((message) => {
-                                                        const isMe = message.senderId === auth.currentUser?.uid;
-                                                        return (
-                                                        <div key={message.id} className={cn('flex items-start gap-2', isMe && 'flex-row-reverse')}>
-                                                            <Avatar className="h-8 w-8">
-                                                            <AvatarImage src={message.senderAvatar} data-ai-hint={isMe ? "man portrait" : "woman portrait"}/>
-                                                            <AvatarFallback>{message.senderName.substring(0, 2).toUpperCase()}</AvatarFallback>
-                                                            </Avatar>
-                                                            <div className={cn(isMe && 'text-right')}>
-                                                            <p className="font-bold">{message.senderName}</p>
-                                                            <p className={cn('p-2 rounded-lg mt-1', isMe ? 'bg-primary/80 text-primary-foreground' : 'bg-muted/50')}>
-                                                                {message.text}
-                                                            </p>
-                                                            </div>
-                                                        </div>
-                                                        );
-                                                    })}
-                                                    <div ref={endOfMessagesRef} />
-                                                    </div>
-                                                </div>
-                                                <div className="mt-1 flex gap-2 shrink-0">
-                                                    <Input placeholder="Send a message..." value={newMessage} onChange={(e) => setNewMessage(e.target.value)}
-                                                    onKeyDown={(e) => {
-                                                        if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); handleSendMessage(); }
-                                                    }}/>
-                                                    <Button variant="secondary" size="icon" onClick={handleSendMessage} disabled={!newMessage.trim()}>
-                                                    <Send className="h-4 w-4" />
-                                                    </Button>
-                                                </div>
-                                            </div>
-                                        </TabsContent>
                                     </div>
                                 </Tabs>
                                 <div className='flex justify-end p-2 border-t border-t-border/50 gap-2 shrink-0'>
@@ -731,6 +686,59 @@ export default function ClashClient({ id }: { id: string }) {
                             </div>
                         </Panel>
                     </PanelGroup>
+                </Panel>
+                 <PanelResizeHandle className="w-2 bg-border/50 hover:bg-primary transition-colors data-[resize-handle-state=drag]:bg-primary" />
+                <Panel defaultSize={25} minSize={20}>
+                    <div className="h-full flex flex-col bg-card/50 border border-white/10 rounded-xl overflow-hidden">
+                        <div className="p-4 border-b border-border shrink-0 flex items-center gap-2">
+                            <MessageSquare className="h-5 w-5 text-primary"/>
+                            <h1 className="text-xl font-bold">Chat & Video</h1>
+                        </div>
+                        
+                        <div className="p-4">
+                            <div className="grid grid-cols-2 gap-2">
+                                <UserVideo />
+                                <div className="relative aspect-video w-full bg-muted/30 rounded-lg flex items-center justify-center overflow-hidden">
+                                    <Image src={opponent.userAvatar || 'https://placehold.co/600x400.png'} data-ai-hint="person coding" alt={opponent.userName} width={320} height={180} className="w-full h-full object-cover" />
+                                    <div className="absolute bottom-1 left-2 text-xs bg-black/50 text-white px-1.5 py-0.5 rounded">{opponent.userName}</div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div className="flex-1 flex flex-col min-h-0 border-t border-border/50 pt-2 px-4 pb-4">
+                            <div className="flex-1 pr-2 -mr-2 overflow-y-auto">
+                                <div className="space-y-2 text-sm pr-2">
+                                {messages.map((message) => {
+                                    const isMe = message.senderId === auth.currentUser?.uid;
+                                    return (
+                                    <div key={message.id} className={cn('flex items-start gap-2', isMe && 'flex-row-reverse')}>
+                                        <Avatar className="h-8 w-8">
+                                        <AvatarImage src={message.senderAvatar} data-ai-hint={isMe ? "man portrait" : "woman portrait"}/>
+                                        <AvatarFallback>{message.senderName.substring(0, 2).toUpperCase()}</AvatarFallback>
+                                        </Avatar>
+                                        <div className={cn(isMe && 'text-right')}>
+                                        <p className="font-bold">{message.senderName}</p>
+                                        <p className={cn('p-2 rounded-lg mt-1', isMe ? 'bg-primary/80 text-primary-foreground' : 'bg-muted/50')}>
+                                            {message.text}
+                                        </p>
+                                        </div>
+                                    </div>
+                                    );
+                                })}
+                                <div ref={endOfMessagesRef} />
+                                </div>
+                            </div>
+                            <div className="mt-2 flex gap-2 shrink-0">
+                                <Input placeholder="Send a message..." value={newMessage} onChange={(e) => setNewMessage(e.target.value)}
+                                onKeyDown={(e) => {
+                                    if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); handleSendMessage(); }
+                                }}/>
+                                <Button variant="secondary" size="icon" onClick={handleSendMessage} disabled={!newMessage.trim()}>
+                                <Send className="h-4 w-4" />
+                                </Button>
+                            </div>
+                        </div>
+                    </div>
                 </Panel>
             </PanelGroup>
           </div>
