@@ -621,47 +621,49 @@ export default function ClashClient({ id }: { id: string }) {
                                 <TabsTrigger value="solution"><KeySquare className="mr-2 h-4 w-4"/>Solution</TabsTrigger>
                             </TabsList>
                         </div>
-                        <TabsContent value="problem" className="flex-1 min-h-0 overflow-y-auto p-4 pr-2 m-0">
-                          <h1 className="text-2xl font-bold mb-2">{problem.title}</h1>
-                          <div className='prose prose-invert max-w-none prose-p:text-muted-foreground prose-strong:text-foreground'>
-                          <p className="whitespace-pre-wrap">{problem.description}</p>
-                          {problem.examples && problem.examples.map((example, index) => (
-                              <div key={index}>
-                              <p><strong>Example {index + 1}:</strong></p>
-                              <pre className='mt-2 p-2 rounded-md bg-muted/50 text-base whitespace-pre-wrap font-code not-prose'>
-                                  <code>
-                                  <strong>Input:</strong> {example.input}<br/>
-                                  <strong>Output:</strong> {example.output}
-                                  {example.explanation && <><br/><strong>Explanation:</strong> {example.explanation}</>}
-                                  </code>
-                              </pre>
-                              </div>
-                          ))}
+                        {leftPanelTab === 'problem' && (
+                          <div className="flex-1 min-h-0 overflow-y-auto p-4 pr-2">
+                            <h1 className="text-2xl font-bold mb-2">{problem.title}</h1>
+                            <div className='prose prose-invert max-w-none prose-p:text-muted-foreground prose-strong:text-foreground'>
+                            <p className="whitespace-pre-wrap">{problem.description}</p>
+                            {problem.examples && problem.examples.map((example, index) => (
+                                <div key={index}>
+                                <p><strong>Example {index + 1}:</strong></p>
+                                <pre className='mt-2 p-2 rounded-md bg-muted/50 text-base whitespace-pre-wrap font-code not-prose'>
+                                    <code>
+                                    <strong>Input:</strong> {example.input}<br/>
+                                    <strong>Output:</strong> {example.output}
+                                    {example.explanation && <><br/><strong>Explanation:</strong> {example.explanation}</>}
+                                    </code>
+                                </pre>
+                                </div>
+                            ))}
+                            </div>
                           </div>
-                        </TabsContent>
-                        <TabsContent value="solution" className="m-0 flex-1 flex flex-col min-h-0">
-                          <div className="p-2 border-b border-border flex items-center justify-end shrink-0">
-                              <Select value={solutionLanguage} onValueChange={handleSolutionLanguageChange} disabled={isTranslatingSolution}>
-                                  <SelectTrigger className="w-[180px] h-9">
-                                      <SelectValue placeholder="Select Language" />
-                                  </SelectTrigger>
-                                  <SelectContent>
-                                      {languages.map((lang) => (
-                                          <SelectItem key={lang} value={lang} className='capitalize'>
-                                          {lang.charAt(0).toUpperCase() + lang.slice(1)}
-                                          </SelectItem>
-                                      ))}
-                                  </SelectContent>
-                              </Select>
-                          </div>
-                          <div className="flex-1 min-h-0 relative">
-                              {isTranslatingSolution && (
-                                  <div className="absolute inset-0 bg-slate-900/80 backdrop-blur-sm flex flex-col items-center justify-center z-10 text-foreground rounded-md">
-                                      <Loader2 className="h-8 w-8 animate-spin" />
-                                      <p className="mt-2 text-sm">Translating solution to {solutionLanguage}...</p>
-                                  </div>
-                              )}
-                              {leftPanelTab === 'solution' && (
+                        )}
+                        {leftPanelTab === 'solution' && (
+                          <div className="m-0 flex-1 flex flex-col min-h-0">
+                            <div className="p-2 border-b border-border flex items-center justify-end shrink-0">
+                                <Select value={solutionLanguage} onValueChange={handleSolutionLanguageChange} disabled={isTranslatingSolution}>
+                                    <SelectTrigger className="w-[180px] h-9">
+                                        <SelectValue placeholder="Select Language" />
+                                    </SelectTrigger>
+                                    <SelectContent>
+                                        {languages.map((lang) => (
+                                            <SelectItem key={lang} value={lang} className='capitalize'>
+                                            {lang.charAt(0).toUpperCase() + lang.slice(1)}
+                                            </SelectItem>
+                                        ))}
+                                    </SelectContent>
+                                </Select>
+                            </div>
+                            <div className="flex-1 min-h-0 relative">
+                                {isTranslatingSolution && (
+                                    <div className="absolute inset-0 bg-slate-900/80 backdrop-blur-sm flex flex-col items-center justify-center z-10 text-foreground rounded-md">
+                                        <Loader2 className="h-8 w-8 animate-spin" />
+                                        <p className="mt-2 text-sm">Translating solution to {solutionLanguage}...</p>
+                                    </div>
+                                )}
                                 <CodeEditor
                                     key={`solution-${solutionLanguage}`}
                                     language={solutionLanguage}
@@ -669,9 +671,9 @@ export default function ClashClient({ id }: { id: string }) {
                                     onChange={() => {}}
                                     disabled={true}
                                 />
-                              )}
+                            </div>
                           </div>
-                        </TabsContent>
+                        )}
                     </Tabs>
                   </Panel>
                   <PanelResizeHandle className="w-2 bg-border/50 hover:bg-primary transition-colors data-[resize-handle-state=drag]:bg-primary" />
