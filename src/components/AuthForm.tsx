@@ -49,9 +49,6 @@ type LoginFormData = z.infer<typeof loginSchema>;
 type SignupFormData = z.infer<typeof signupSchema>;
 
 
-// The createUserProfileDocument logic has been centralized in Header.tsx
-// It runs on onAuthStateChanged, which handles all login/signup events including redirect.
-
 function AuthFormContent({ mode }: { mode: 'login' | 'signup' }) {
   const router = useRouter();
   const { toast } = useToast();
@@ -59,9 +56,7 @@ function AuthFormContent({ mode }: { mode: 'login' | 'signup' }) {
   const [isGoogleLoading, setIsGoogleLoading] = useState(false);
   const [isProcessingRedirect, setIsProcessingRedirect] = useState(true);
 
-  // This effect handles the result of a Google Sign-In redirect
   useEffect(() => {
-    // This function will only run if auth is properly initialized.
     if (!auth) {
       setIsProcessingRedirect(false);
       return;
@@ -69,13 +64,9 @@ function AuthFormContent({ mode }: { mode: 'login' | 'signup' }) {
 
     getRedirectResult(auth)
       .then((result) => {
-        // If result is not null, it means the user has successfully signed in
-        // via redirect. We can proactively redirect to the lobby here to ensure
-        // a smooth user experience.
         if (result) {
           router.push('/lobby');
         } else {
-          // No redirect result, so we are done processing.
           setIsProcessingRedirect(false);
         }
       })
@@ -103,20 +94,8 @@ function AuthFormContent({ mode }: { mode: 'login' | 'signup' }) {
   const handleGoogleSignIn = async () => {
     if (!auth) return;
     setIsGoogleLoading(true);
-    try {
-      const provider = new GoogleAuthProvider();
-      await signInWithRedirect(auth, provider);
-      // After this, the page will redirect to Google, then back.
-      // The useEffect above will handle the result.
-    } catch (error) {
-       const authError = error as AuthError;
-        toast({
-            title: "Google Sign-In Failed",
-            description: authError.message,
-            variant: "destructive",
-       });
-       setIsGoogleLoading(false);
-    }
+    const provider = new GoogleAuthProvider();
+    await signInWithRedirect(auth, provider);
   };
 
   const onLoginSubmit = async (data: LoginFormData) => {
@@ -124,7 +103,6 @@ function AuthFormContent({ mode }: { mode: 'login' | 'signup' }) {
     setIsLoading(true);
     try {
       await signInWithEmailAndPassword(auth, data.email, data.password);
-      // onAuthStateChanged will handle redirect
     } catch (error) {
       const authError = error as AuthError;
       let description = "An unexpected error occurred. Please try again.";
@@ -148,12 +126,9 @@ function AuthFormContent({ mode }: { mode: 'login' | 'signup' }) {
     setIsLoading(true);
     try {
         const { user } = await createUserWithEmailAndPassword(auth, data.email, data.password);
-        // This updates the user profile in Firebase Auth.
-        // The onAuthStateChanged listener in Header.tsx will then create the Firestore document.
         await updateProfile(user, {
             displayName: data.username,
         });
-        // onAuthStateChanged will handle redirect
     } catch (error) {
         const authError = error as AuthError;
         toast({
@@ -167,9 +142,18 @@ function AuthFormContent({ mode }: { mode: 'login' | 'signup' }) {
   };
 
   const isLogin = mode === 'login';
-  const anyLoading = isLoading || isGoogleLoading || isProcessingRedirect;
+  const anyLoading = isLoading || isGoogleLoading;
   const form = isLogin ? loginForm : signupForm;
   const onSubmit = isLogin ? onLoginSubmit : onSignupSubmit;
+
+  if (isProcessingRedirect) {
+    return (
+      <div className="flex flex-col items-center justify-center space-y-4 py-8">
+        <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
+        <p className="text-muted-foreground">Finalizing login...</p>
+      </div>
+    );
+  }
 
   return (
     <>
@@ -217,9 +201,9 @@ function AuthFormContent({ mode }: { mode: 'login' | 'signup' }) {
             )}
           />
           <Button type="submit" className="w-full" disabled={anyLoading}>
-            {(isLoading || isProcessingRedirect) && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+            {isLoading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
             {isLogin ? 'Log In' : 'Sign Up'}
-            {!isLoading && !isProcessingRedirect && <ArrowRight className="ml-2 h-4 w-4" />}
+            {!isLoading && <ArrowRight className="ml-2 h-4 w-4" />}
           </Button>
         </form>
       </Form>
@@ -234,7 +218,7 @@ function AuthFormContent({ mode }: { mode: 'login' | 'signup' }) {
           </div>
       </div>
       <Button variant="outline" className="w-full" onClick={handleGoogleSignIn} disabled={anyLoading}>
-          {(isGoogleLoading || isProcessingRedirect) ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <GoogleIcon className="mr-2 h-4 w-4" />}
+          {isGoogleLoading ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <GoogleIcon className="mr-2 h-4 w-4" />}
           {isLogin ? 'Sign in with Google' : 'Sign up with Google'}
       </Button>
     </>
