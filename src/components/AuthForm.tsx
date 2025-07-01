@@ -53,76 +53,21 @@ function LoginForm() {
   const handleGoogleSignIn = async () => {
     setIsLoading(true);
     try {
-      if (!auth) {
-        throw new Error("Firebase Authentication is not available. Please check your configuration.");
-      }
       const provider = new GoogleAuthProvider();
       await signInWithPopup(auth, provider);
       router.push('/lobby');
     } catch (error: any) {
-        let description: ReactNode = "An unknown error occurred. Please try again.";
-        const projectId = process.env.NEXT_PUBLIC_FIREBASE_PROJECT_ID;
-        const authDomain = process.env.NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN;
-
-        if (error.code === 'auth/unauthorized-domain') {
-            description = (
-              <div className="space-y-2 text-left">
-                <p className="font-semibold">This domain is not authorized.</p>
-                <p>Your app is using the following configuration:</p>
-                <ul className="list-disc pl-5 text-xs bg-black/20 p-2 rounded-md font-mono">
-                  <li>Project ID: <span className="font-bold">{projectId || 'NOT FOUND'}</span></li>
-                  <li>Auth Domain: <span className="font-bold">{authDomain || 'NOT FOUND'}</span></li>
-                </ul>
-                <p className="font-semibold pt-2">Please take the following steps:</p>
-                <ol className="list-decimal pl-5 space-y-1 text-sm">
-                  <li>
-                    Ensure you are using a <strong className="text-white">.env.local</strong> file in the root of your project.
-                  </li>
-                  <li>
-                    Verify that the Project ID and Auth Domain above exactly match your Firebase project settings.
-                  </li>
-                  <li>
-                    In your{' '}
-                    <a
-                      href={`https://console.firebase.google.com/project/${projectId || '_'}/authentication/settings`}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="font-bold underline hover:text-primary"
-                    >
-                      Firebase authorized domains
-                    </a>
-                    , ensure <strong className="text-white">localhost</strong> is listed.
-                  </li>
-                   <li>
-                    After making any changes to your <strong className="text-white">.env.local</strong> file, you <strong className="uppercase">must</strong> restart the development server.
-                  </li>
-                </ol>
-              </div>
-            );
-        } else if (error.message) {
-            description = error.message;
-        }
-
-        toast({
+       toast({
             title: "Google Sign-In Failed",
-            description: description,
+            description: error.message || "An unknown error occurred. Please check the console and your Firebase configuration.",
             variant: "destructive",
-            duration: Infinity,
-        });
+       });
     } finally {
         setIsLoading(false);
     }
   };
 
   const onSubmit = async (data: LoginFormData) => {
-    if (!auth) {
-       toast({
-        title: "Login Failed",
-        description: "Firebase Authentication is not available. Please check your configuration.",
-        variant: "destructive",
-      });
-      return;
-    }
     setIsLoading(true);
     try {
       await signInWithEmailAndPassword(auth, data.email, data.password);
@@ -205,76 +150,21 @@ function SignupForm() {
     const handleGoogleSignIn = async () => {
       setIsLoading(true);
       try {
-          if (!auth) {
-            throw new Error("Firebase Authentication is not available. Please check your configuration.");
-          }
           const provider = new GoogleAuthProvider();
           await signInWithPopup(auth, provider);
           router.push('/lobby');
       } catch (error: any) {
-          let description: ReactNode = "An unknown error occurred. Please try again.";
-          const projectId = process.env.NEXT_PUBLIC_FIREBASE_PROJECT_ID;
-          const authDomain = process.env.NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN;
-  
-          if (error.code === 'auth/unauthorized-domain') {
-              description = (
-                <div className="space-y-2 text-left">
-                  <p className="font-semibold">This domain is not authorized.</p>
-                  <p>Your app is using the following configuration:</p>
-                  <ul className="list-disc pl-5 text-xs bg-black/20 p-2 rounded-md font-mono">
-                    <li>Project ID: <span className="font-bold">{projectId || 'NOT FOUND'}</span></li>
-                    <li>Auth Domain: <span className="font-bold">{authDomain || 'NOT FOUND'}</span></li>
-                  </ul>
-                  <p className="font-semibold pt-2">Please take the following steps:</p>
-                  <ol className="list-decimal pl-5 space-y-1 text-sm">
-                    <li>
-                      Ensure you are using a <strong className="text-white">.env.local</strong> file in the root of your project.
-                    </li>
-                    <li>
-                      Verify that the Project ID and Auth Domain above exactly match your Firebase project settings.
-                    </li>
-                    <li>
-                      In your{' '}
-                      <a
-                        href={`https://console.firebase.google.com/project/${projectId || '_'}/authentication/settings`}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className="font-bold underline hover:text-primary"
-                      >
-                        Firebase authorized domains
-                      </a>
-                      , ensure <strong className="text-white">localhost</strong> is listed.
-                    </li>
-                     <li>
-                      After making any changes to your <strong className="text-white">.env.local</strong> file, you <strong className="uppercase">must</strong> restart the development server.
-                    </li>
-                  </ol>
-                </div>
-              );
-          } else if (error.message) {
-              description = error.message;
-          }
-  
-          toast({
-              title: "Google Sign-In Failed",
-              description: description,
+         toast({
+              title: "Google Sign-Up Failed",
+              description: error.message || "An unknown error occurred. Please check the console and your Firebase configuration.",
               variant: "destructive",
-              duration: Infinity,
-          });
+         });
       } finally {
           setIsLoading(false);
       }
     };
 
     const onSubmit = async (data: SignupFormData) => {
-        if (!auth) {
-          toast({
-            title: "Sign Up Failed",
-            description: "Firebase Authentication is not available. Please check your configuration.",
-            variant: "destructive",
-          });
-          return;
-        }
         setIsLoading(true);
         try {
             const { user } = await createUserWithEmailAndPassword(auth, data.email, data.password);

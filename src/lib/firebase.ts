@@ -12,30 +12,20 @@ const firebaseConfig = {
   appId: process.env.NEXT_PUBLIC_FIREBASE_APP_ID,
 };
 
-let app: FirebaseApp | null = null;
-let auth: Auth | null = null;
-let db: Firestore | null = null;
-let rtdb: Database | null = null;
-
 // This check prevents the app from crashing on the server or if the config is missing.
-// The AuthForm will handle the user-facing message.
 if (
-  firebaseConfig.apiKey &&
-  firebaseConfig.authDomain &&
-  firebaseConfig.projectId
+  !firebaseConfig.apiKey ||
+  !firebaseConfig.authDomain ||
+  !firebaseConfig.projectId
 ) {
-  try {
-    app = getApps().length > 0 ? getApp() : initializeApp(firebaseConfig);
-    auth = getAuth(app);
-    db = getFirestore(app);
-    rtdb = getDatabase(app);
-  } catch (error) {
-    console.error("Firebase initialization error:", error);
-  }
-} else {
-  console.warn(
-    "Firebase configuration is missing or incomplete. Authentication and database features will be disabled."
-  );
+  throw new Error("Firebase configuration in .env.local is missing or incomplete. Authentication and database features will be disabled. Please make sure all NEXT_PUBLIC_FIREBASE_* variables are set.");
 }
+
+
+const app: FirebaseApp = getApps().length > 0 ? getApp() : initializeApp(firebaseConfig);
+const auth: Auth = getAuth(app);
+const db: Firestore = getFirestore(app);
+const rtdb: Database = getDatabase(app);
+
 
 export { app, auth, db, rtdb };
