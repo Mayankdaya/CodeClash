@@ -7,7 +7,7 @@ import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle }
 import { Header } from "@/components/Header";
 import { 
   ArrowRight, Coins, List, Search, GitMerge, Link as LinkIcon, ToyBrick, MoveHorizontal, 
-  Type, Repeat, Binary, Container, Pocket, GitBranchPlus, Workflow, SpellCheck 
+  Type, Repeat, Binary, Container, Pocket, GitBranchPlus, Workflow, SpellCheck, Users
 } from "lucide-react";
 import Link from "next/link";
 import AuthGuard from "@/components/AuthGuard";
@@ -109,12 +109,14 @@ const topics = [
 
 export default function LobbyPage() {
   const [onlineUsersCount, setOnlineUsersCount] = useState(0);
+  const [waitingCounts, setWaitingCounts] = useState<Record<string, number>>({});
 
   useEffect(() => {
     if (!rtdb) return;
 
+    // Listener for online users
     const statusRef = ref(rtdb, 'status');
-    const unsubscribe = onValue(statusRef, (snapshot) => {
+    const onlineUnsubscribe = onValue(statusRef, (snapshot) => {
       if (snapshot.exists()) {
         const statuses = snapshot.val();
         const onlineCount = Object.values(statuses).filter(
@@ -126,7 +128,23 @@ export default function LobbyPage() {
       }
     });
 
-    return () => unsubscribe();
+    // Listener for matchmaking queues
+    const matchmakingRef = ref(rtdb, 'matchmaking');
+    const matchmakingUnsubscribe = onValue(matchmakingRef, (snapshot) => {
+      const counts: Record<string, number> = {};
+      if (snapshot.exists()) {
+        const allQueues = snapshot.val();
+        for (const topicId in allQueues) {
+          counts[topicId] = Object.keys(allQueues[topicId]).length;
+        }
+      }
+      setWaitingCounts(counts);
+    });
+
+    return () => {
+      onlineUnsubscribe();
+      matchmakingUnsubscribe();
+    };
   }, []);
   
   return (
@@ -149,26 +167,35 @@ export default function LobbyPage() {
               )}
             </div>
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
-              {topics.map((topic) => (
-                <Card key={topic.title} className="bg-card/50 backdrop-blur-lg border border-white/10 rounded-2xl shadow-lg flex flex-col">
-                  <CardHeader className="flex-row items-center gap-4 space-y-0 pb-4">
-                    <div className="p-3 bg-primary/10 rounded-full ring-1 ring-inset ring-primary/20">
-                      <topic.icon className="h-6 w-6 text-primary" />
-                    </div>
-                    <CardTitle className="text-xl">{topic.title}</CardTitle>
-                  </CardHeader>
-                  <CardContent className="flex-grow">
-                    <CardDescription>{topic.description}</CardDescription>
-                  </CardContent>
-                  <CardFooter>
-                    <Button className="w-full bg-primary/90 text-primary-foreground hover:bg-primary" asChild>
-                      <Link href={`/matching?topic=${topic.id}`}>
-                        Find Opponent <ArrowRight className="ml-2 h-4 w-4" />
-                      </Link>
-                    </Button>
-                  </CardFooter>
-                </Card>
-              ))}
+              {topics.map((topic) => {
+                const waitingCount = waitingCounts[topic.id] || 0;
+                return (
+                  <Card key={topic.title} className="bg-card/50 backdrop-blur-lg border border-white/10 rounded-2xl shadow-lg flex flex-col">
+                    <CardHeader className="flex-row items-center gap-4 space-y-0 pb-4">
+                      <div className="p-3 bg-primary/10 rounded-full ring-1 ring-inset ring-primary/20">
+                        <topic.icon className="h-6 w-6 text-primary" />
+                      </div>
+                      <CardTitle className="text-xl">{topic.title}</CardTitle>
+                    </CardHeader>
+                    <CardContent className="flex-grow">
+                      <CardDescription>{topic.description}</CardDescription>
+                    </CardContent>
+                    <CardFooter className="flex-col items-stretch">
+                       {waitingCount > 0 && (
+                        <div className="text-xs text-center text-accent-foreground/80 flex items-center justify-center gap-2 p-1 bg-accent/20 rounded-md mb-2">
+                          <Users className="h-3 w-3" />
+                          {waitingCount} {waitingCount === 1 ? 'player' : 'players'} waiting
+                        </div>
+                      )}
+                      <Button className="w-full bg-primary/90 text-primary-foreground hover:bg-primary" asChild>
+                        <Link href={`/matching?topic=${topic.id}`}>
+                          Find Opponent <ArrowRight className="ml-2 h-4 w-4" />
+                        </Link>
+                      </Button>
+                    </CardFooter>
+                  </Card>
+                );
+              })}
             </div>
           </div>
         </main>
