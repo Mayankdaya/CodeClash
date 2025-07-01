@@ -13,16 +13,19 @@ const firebaseConfig = {
   databaseURL: process.env.NEXT_PUBLIC_FIREBASE_DATABASE_URL,
 };
 
+export const isConfigured = 
+  !!firebaseConfig.apiKey &&
+  !!firebaseConfig.authDomain &&
+  !!firebaseConfig.projectId &&
+  !!firebaseConfig.storageBucket &&
+  !!firebaseConfig.messagingSenderId &&
+  !!firebaseConfig.appId &&
+  !!firebaseConfig.databaseURL;
+
 let app: FirebaseApp | null = null;
 let auth: Auth | null = null;
 let db: Firestore | null = null;
 let rtdb: Database | null = null;
-
-const isConfigured = 
-  firebaseConfig.apiKey &&
-  firebaseConfig.projectId &&
-  firebaseConfig.authDomain &&
-  firebaseConfig.databaseURL;
 
 if (isConfigured) {
   try {
@@ -32,15 +35,12 @@ if (isConfigured) {
     rtdb = getDatabase(app);
   } catch (e) {
     console.error("Failed to initialize Firebase.", e)
-    // In case of an initialization error (e.g., invalid config),
-    // ensure services are null.
     app = null;
     auth = null;
     db = null;
     rtdb = null;
   }
 } else {
-    // This warning will be visible in the server logs
     console.warn(
         "Firebase configuration is missing or incomplete. " +
         "Please check your `.env.local` file and ensure all `NEXT_PUBLIC_FIREBASE_*` variables are set. " +
