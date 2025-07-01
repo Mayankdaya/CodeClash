@@ -16,8 +16,9 @@ let app: FirebaseApp | null = null;
 let auth: Auth | null = null;
 let db: Firestore | null = null;
 let rtdb: Database | null = null;
-let isFirebaseConfigured = false;
 
+// This check prevents the app from crashing on the server or if the config is missing.
+// The AuthForm will handle the user-facing message.
 if (
   firebaseConfig.apiKey &&
   firebaseConfig.authDomain &&
@@ -28,7 +29,6 @@ if (
     auth = getAuth(app);
     db = getFirestore(app);
     rtdb = getDatabase(app);
-    isFirebaseConfigured = true;
   } catch (error) {
     console.error("Firebase initialization error:", error);
   }
@@ -38,4 +38,4 @@ if (
   );
 }
 
-export { app, auth, db, rtdb, isFirebaseConfigured };
+export { app, auth, db, rtdb };

@@ -9,13 +9,12 @@ import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { createUserWithEmailAndPassword, signInWithEmailAndPassword, updateProfile, GoogleAuthProvider, signInWithPopup } from 'firebase/auth';
 import { useToast } from '@/hooks/use-toast';
-import { auth, isFirebaseConfigured } from '@/lib/firebase';
+import { auth } from '@/lib/firebase';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from '@/components/ui/form';
 import { Input } from '@/components/ui/input';
-import { ArrowRight, Loader2, Terminal } from 'lucide-react';
-import { Alert, AlertDescription, AlertTitle } from './ui/alert';
+import { ArrowRight, Loader2 } from 'lucide-react';
 
 
 const GoogleIcon = (props: React.SVGProps<SVGSVGElement>) => (
@@ -52,55 +51,34 @@ function LoginForm() {
   });
 
   const handleGoogleSignIn = async () => {
-    if (!isFirebaseConfigured || !auth) {
-      toast({
-        title: "Firebase Not Configured",
-        description: "Please configure your .env file and restart the server.",
-        variant: "destructive",
-      });
-      return;
-    }
-    
-    if (!process.env.NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN) {
-      toast({
-          title: "Configuration Error",
-          description: "The Firebase Auth Domain is not set in your .env file. Cannot proceed with Google Sign-In.",
-          variant: "destructive",
-      });
-      return;
-    }
-
     setIsLoading(true);
     try {
-        const provider = new GoogleAuthProvider();
-        await signInWithPopup(auth, provider);
-        router.push('/lobby');
+      if (!auth) {
+        throw new Error("Firebase is not configured. Please check your .env file and restart the server.");
+      }
+      const provider = new GoogleAuthProvider();
+      await signInWithPopup(auth, provider);
+      router.push('/lobby');
     } catch (error: any) {
         let description: ReactNode = "An unknown error occurred. Please try again.";
         if (error.code === 'auth/unauthorized-domain') {
             description = (
               <span>
-                This domain is not authorized for Google Sign-In.
-                {process.env.NEXT_PUBLIC_FIREBASE_PROJECT_ID ? (
-                  <>
-                  {' '}Please add 'localhost' (and any other domains you use for development) to your{' '}
-                  <a
-                    href={`https://console.firebase.google.com/project/${process.env.NEXT_PUBLIC_FIREBASE_PROJECT_ID}/authentication/settings`}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="font-bold underline hover:text-primary"
-                  >
-                    Firebase authorized domains
-                  </a>
-                  .
-                  </>
-                ) : (
-                  " Check your Firebase project's 'Authentication > Settings > Authorized domains' settings and ensure your .env configuration is correct."
-                )}
+                This domain is not authorized.
+                <br /><br />
+                <strong>1. Double-check:</strong> Is `localhost` in your{' '}
+                <a
+                  href={`https://console.firebase.google.com/project/${process.env.NEXT_PUBLIC_FIREBASE_PROJECT_ID || '_'}/authentication/settings`}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="font-bold underline hover:text-primary"
+                >
+                  Firebase authorized domains
+                </a>?
+                <br />
+                <strong>2. Restart Server:</strong> If you've just updated your `.env` file, you MUST restart the development server for changes to apply.
               </span>
             );
-        } else if (error.code === 'auth/popup-closed-by-user') {
-            description = "The sign-in popup was closed before completing. Please try again.";
         } else if (error.message) {
             description = error.message;
         }
@@ -116,7 +94,14 @@ function LoginForm() {
   };
 
   const onSubmit = async (data: LoginFormData) => {
-    if (!auth) return;
+    if (!auth) {
+       toast({
+        title: "Login Failed",
+        description: "Firebase is not configured. Please check your .env file and restart the server.",
+        variant: "destructive",
+      });
+      return;
+    }
     setIsLoading(true);
     try {
       await signInWithEmailAndPassword(auth, data.email, data.password);
@@ -143,7 +128,7 @@ function LoginForm() {
               <FormItem>
                 <FormLabel>Email</FormLabel>
                 <FormControl>
-                  <Input type="email" placeholder="you@example.com" {...field} disabled={isLoading || !isFirebaseConfigured} />
+                  <Input type="email" placeholder="you@example.com" {...field} disabled={isLoading} />
                 </FormControl>
                 <FormMessage />
               </FormItem>
@@ -156,13 +141,13 @@ function LoginForm() {
               <FormItem>
                 <FormLabel>Password</FormLabel>
                 <FormControl>
-                  <Input type="password" placeholder="••••••••" {...field} disabled={isLoading || !isFirebaseConfigured} />
+                  <Input type="password" placeholder="••••••••" {...field} disabled={isLoading} />
                 </FormControl>
                 <FormMessage />
               </FormItem>
             )}
           />
-          <Button type="submit" className="w-full" disabled={isLoading || !isFirebaseConfigured}>
+          <Button type="submit" className="w-full" disabled={isLoading}>
             {isLoading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
             Log In
             {!isLoading && <ArrowRight className="ml-2 h-4 w-4" />}
@@ -179,7 +164,7 @@ function LoginForm() {
               </span>
           </div>
       </div>
-      <Button variant="outline" className="w-full" onClick={handleGoogleSignIn} disabled={isLoading || !isFirebaseConfigured}>
+      <Button variant="outline" className="w-full" onClick={handleGoogleSignIn} disabled={isLoading}>
           {isLoading ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <GoogleIcon className="mr-2 h-4 w-4" />}
           Sign in with Google
       </Button>
@@ -197,26 +182,11 @@ function SignupForm() {
     });
     
     const handleGoogleSignIn = async () => {
-      if (!isFirebaseConfigured || !auth) {
-        toast({
-          title: "Firebase Not Configured",
-          description: "Please configure your .env file and restart the server.",
-          variant: "destructive",
-        });
-        return;
-      }
-      
-      if (!process.env.NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN) {
-        toast({
-            title: "Configuration Error",
-            description: "The Firebase Auth Domain is not set in your .env file. Cannot proceed with Google Sign-In.",
-            variant: "destructive",
-        });
-        return;
-      }
-  
       setIsLoading(true);
       try {
+          if (!auth) {
+            throw new Error("Firebase is not configured. Please check your .env file and restart the server.");
+          }
           const provider = new GoogleAuthProvider();
           await signInWithPopup(auth, provider);
           router.push('/lobby');
@@ -225,27 +195,21 @@ function SignupForm() {
           if (error.code === 'auth/unauthorized-domain') {
               description = (
                 <span>
-                  This domain is not authorized for Google Sign-In.
-                  {process.env.NEXT_PUBLIC_FIREBASE_PROJECT_ID ? (
-                    <>
-                    {' '}Please add 'localhost' (and any other domains you use for development) to your{' '}
-                    <a
-                      href={`https://console.firebase.google.com/project/${process.env.NEXT_PUBLIC_FIREBASE_PROJECT_ID}/authentication/settings`}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="font-bold underline hover:text-primary"
-                    >
-                      Firebase authorized domains
-                    </a>
-                    .
-                    </>
-                  ) : (
-                    " Check your Firebase project's 'Authentication > Settings > Authorized domains' settings and ensure your .env configuration is correct."
-                  )}
+                  This domain is not authorized.
+                  <br /><br />
+                  <strong>1. Double-check:</strong> Is `localhost` in your{' '}
+                  <a
+                    href={`https://console.firebase.google.com/project/${process.env.NEXT_PUBLIC_FIREBASE_PROJECT_ID || '_'}/authentication/settings`}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="font-bold underline hover:text-primary"
+                  >
+                    Firebase authorized domains
+                  </a>?
+                  <br />
+                  <strong>2. Restart Server:</strong> If you've just updated your `.env` file, you MUST restart the development server for changes to apply.
                 </span>
               );
-          } else if (error.code === 'auth/popup-closed-by-user') {
-              description = "The sign-in popup was closed before completing. Please try again.";
           } else if (error.message) {
               description = error.message;
           }
@@ -261,7 +225,14 @@ function SignupForm() {
     };
 
     const onSubmit = async (data: SignupFormData) => {
-        if (!auth) return;
+        if (!auth) {
+          toast({
+            title: "Sign Up Failed",
+            description: "Firebase is not configured. Please check your .env file and restart the server.",
+            variant: "destructive",
+          });
+          return;
+        }
         setIsLoading(true);
         try {
             const { user } = await createUserWithEmailAndPassword(auth, data.email, data.password);
@@ -291,7 +262,7 @@ function SignupForm() {
                     <FormItem>
                       <FormLabel>Username</FormLabel>
                       <FormControl>
-                        <Input placeholder="code_master" {...field} disabled={isLoading || !isFirebaseConfigured} />
+                        <Input placeholder="code_master" {...field} disabled={isLoading} />
                       </FormControl>
                       <FormMessage />
                     </FormItem>
@@ -304,7 +275,7 @@ function SignupForm() {
                     <FormItem>
                       <FormLabel>Email</FormLabel>
                       <FormControl>
-                        <Input type="email" placeholder="you@example.com" {...field} disabled={isLoading || !isFirebaseConfigured}/>
+                        <Input type="email" placeholder="you@example.com" {...field} disabled={isLoading}/>
                       </FormControl>
                       <FormMessage />
                     </FormItem>
@@ -317,13 +288,13 @@ function SignupForm() {
                     <FormItem>
                       <FormLabel>Password</FormLabel>
                       <FormControl>
-                        <Input type="password" placeholder="••••••••" {...field} disabled={isLoading || !isFirebaseConfigured}/>
+                        <Input type="password" placeholder="••••••••" {...field} disabled={isLoading}/>
                       </FormControl>
                       <FormMessage />
                     </FormItem>
                   )}
                 />
-                <Button type="submit" className="w-full" disabled={isLoading || !isFirebaseConfigured}>
+                <Button type="submit" className="w-full" disabled={isLoading}>
                     {isLoading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
                     Sign Up
                     {!isLoading && <ArrowRight className="ml-2 h-4 w-4" />}
@@ -340,43 +311,13 @@ function SignupForm() {
                     </span>
                 </div>
             </div>
-            <Button variant="outline" className="w-full" onClick={handleGoogleSignIn} disabled={isLoading || !isFirebaseConfigured}>
+            <Button variant="outline" className="w-full" onClick={handleGoogleSignIn} disabled={isLoading}>
                 {isLoading ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <GoogleIcon className="mr-2 h-4 w-4" />}
                 Sign up with Google
             </Button>
         </>
     );
 }
-
-function FirebaseConfigWarning() {
-  if (isFirebaseConfigured) {
-    return null;
-  }
-
-  return (
-    <Alert variant="destructive" className="mb-6">
-      <Terminal className="h-4 w-4" />
-      <AlertTitle>Firebase Not Configured</AlertTitle>
-      <AlertDescription>
-        <p className="mb-2">
-          Authentication is disabled. To enable it, please copy your Firebase project's web app configuration into the <strong>.env</strong> file at the root of your project.
-        </p>
-        <p className="mt-2 text-xs font-mono bg-black/20 p-2 rounded-md">
-          NEXT_PUBLIC_FIREBASE_API_KEY=...<br />
-          NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN=...<br />
-          NEXT_PUBLIC_FIREBASE_PROJECT_ID=...<br />
-          NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET=...<br />
-          NEXT_PUBLIC_FIREBASE_MESSAGING_SENDER_ID=...<br />
-          NEXT_PUBLIC_FIREBASE_APP_ID=...
-        </p>
-         <p className="mt-3">
-          After saving the <strong>.env</strong> file, you must <strong>restart the development server</strong> for the changes to take effect.
-        </p>
-      </AlertDescription>
-    </Alert>
-  );
-}
-
 
 type AuthFormProps = {
   mode: 'login' | 'signup';
@@ -394,7 +335,6 @@ export function AuthForm({ mode }: AuthFormProps) {
         </CardDescription>
       </CardHeader>
       <CardContent>
-        <FirebaseConfigWarning />
         {isLogin ? <LoginForm /> : <SignupForm />}
         <div className="mt-6 text-center text-sm">
           {isLogin ? "Don't have an account? " : "Already have an account? "}
