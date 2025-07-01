@@ -33,7 +33,8 @@ export default function AuthGuard({ children }: { children: ReactNode }) {
 
     // Cleanup subscription on unmount
     return () => unsubscribe();
-  }, [router]); // router is a stable dependency
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []); // <-- Empty dependency array is critical to prevent infinite loops.
 
   if (status === 'loading') {
     return (
