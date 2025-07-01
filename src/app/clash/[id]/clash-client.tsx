@@ -16,7 +16,6 @@ import { Input } from '@/components/ui/input';
 import { Progress } from '@/components/ui/progress';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Header } from '@/components/Header';
-import AuthGuard from '@/components/AuthGuard';
 import { CodeEditor } from '@/components/CodeEditor';
 import { UserVideo } from '@/components/UserVideo';
 import { BookOpen, Send, Timer, Loader2, Lightbulb, CheckCircle2, XCircle, MessageSquare, TestTube2, Terminal } from 'lucide-react';
@@ -79,13 +78,11 @@ const executeInWorker = (code: string, entryPoint: string, testCases: TestCase[]
                 if (isArray1 && isArray2) {
                     if (obj1.length !== obj2.length) return false;
                     try {
-                      // Attempt to sort and compare for order-agnostic comparison
                       const sortFunc = (a, b) => JSON.stringify(a).localeCompare(JSON.stringify(b));
                       const sorted1 = [...obj1].sort(sortFunc);
                       const sorted2 = [...obj2].sort(sortFunc);
                       return JSON.stringify(sorted1) === JSON.stringify(sorted2);
                     } catch (e) {
-                      // Fallback to strict order comparison if sorting fails (e.g., complex objects)
                       return JSON.stringify(obj1) === JSON.stringify(obj2);
                     }
                 }
@@ -106,12 +103,10 @@ const executeInWorker = (code: string, entryPoint: string, testCases: TestCase[]
             const smartParse = (value) => {
                 if (typeof value !== 'string') return value;
                 try {
-                  // Attempt to parse if it looks like a JSON object or array.
                   if ((value.startsWith('[') && value.endsWith(']')) || (value.startsWith('{') && value.endsWith('}'))) {
                     return JSON.parse(value);
                   }
                 } catch (e) {
-                  // Not a valid JSON string, return as is
                 }
                 return value;
             };
@@ -187,14 +182,12 @@ const formatInputForDisplay = (input: any) => {
         try {
             args = JSON.parse(args);
         } catch (e) {
-            // Not a valid JSON string, return as is.
             return args;
         }
     }
     if (!Array.isArray(args)) {
         return JSON.stringify(args);
     }
-    // Handle arrays: stringify each element and join with a comma.
     return args.map(arg => JSON.stringify(arg)).join(', ');
 };
 
@@ -217,7 +210,7 @@ export default function ClashClient({ id }: { id: string }) {
   const [consoleTab, setConsoleTab] = useState('test-result');
   const [submissionResult, setSubmissionResult] = useState<{ status: 'Accepted' | 'Wrong Answer' | 'Error'; message: string; } | null>(null);
   
-  const [timeLeft, setTimeLeft] = useState(30 * 60); // 30 minutes
+  const [timeLeft, setTimeLeft] = useState(30 * 60);
 
   const [isGettingHint, setIsGettingHint] = useState(false);
   const [hint, setHint] = useState<string | null>(null);
@@ -225,45 +218,34 @@ export default function ClashClient({ id }: { id: string }) {
   const endOfMessagesRef = useRef<HTMLDivElement>(null);
   const languages = ["javascript", "python", "java", "cpp"];
 
-  // Get clash data and opponent info
   useEffect(() => {
     if (!db || !id) return;
 
     const clashDocRef = doc(db, 'clashes', id);
-    const unsubscribe = onSnapshot(clashDocRef, (docSnap) => {
+    const unsubscribeClash = onSnapshot(clashDocRef, (docSnap) => {
       if (docSnap.exists()) {
         const data = docSnap.data() as ClashData;
         
-        if (data.problem && data.problem.testCases) {
-           const parsedTestCases = (data.problem.testCases as any[]).map(tc => {
-                try {
-                    const parsedInput = typeof tc.input === 'string' ? JSON.parse(tc.input) : tc.input;
-                    const parsedExpected = tc.expected !== undefined ? (typeof tc.expected === 'string' ? JSON.parse(tc.expected) : tc.expected) : null;
-
-                    const sanizitedInput = Array.isArray(parsedInput) ? parsedInput.map(arg => {
-                        if (typeof arg === 'string') {
-                            try { return JSON.parse(arg); } catch (e) { return arg; }
-                        }
-                        return arg;
-                    }) : parsedInput;
-
-                    return { ...tc, input: sanizitedInput, expected: parsedExpected };
-                } catch (e) {
-                    console.error("Failed to parse test case, returning as is:", tc, e);
-                    return { ...tc, expected: tc.expected !== undefined ? tc.expected : null };
-                }
-            });
-            data.problem = { ...data.problem, testCases: parsedTestCases };
-        }
-        
         setClashData(data);
         
-        if (!problem && data.problem) { // Only set initial problem data once
-          setProblem(data.problem);
-          const starterCode = data.problem.starterCode || `function ${data.problem.entryPoint}() {\n  // your code here\n}`;
+        if (!problem && data.problem) {
+          const parsedTestCases = (data.problem.testCases as any[]).map(tc => {
+              try {
+                  return { ...tc, input: JSON.parse(tc.input), expected: JSON.parse(tc.expected) };
+              } catch (e) {
+                  console.error("Failed to parse test case, returning as is:", tc, e);
+                  return { ...tc, expected: tc.expected !== undefined ? tc.expected : null };
+              }
+          });
+
+          const initialProblem = { ...data.problem, testCases: parsedTestCases };
+          setProblem(initialProblem);
+          
+          const starterCode = initialProblem.starterCode || `function ${initialProblem.entryPoint}() {\n  // your code here\n}`;
           setCode(starterCode);
           setStarterCodes({ javascript: starterCode });
-        } else if (!data.problem) {
+
+        } else if (!data.problem && !problem) {
           toast({ title: "Problem not found", description: "The problem for this clash is missing.", variant: 'destructive' });
           router.push('/lobby');
           return;
@@ -274,8 +256,6 @@ export default function ClashClient({ id }: { id: string }) {
             const opponentParticipant = data.participants.find(p => p.userId !== currentUser.uid);
             if (opponentParticipant) {
               setOpponent(opponentParticipant);
-            } else {
-               toast({ title: "Opponent not found", description: "Could not find opponent data in this clash.", variant: 'destructive' });
             }
         }
       } else {
@@ -284,16 +264,10 @@ export default function ClashClient({ id }: { id: string }) {
       }
     });
     
-    return () => unsubscribe();
-  }, [id, router, toast, problem]);
-
-  // Chat listener
-  useEffect(() => {
-    if (!db || !id) return;
     const chatRef = collection(db, 'clashes', id, 'chat');
     const q = query(chatRef, orderBy('timestamp', 'asc'));
 
-    const unsubscribe = onSnapshot(q, (querySnapshot) => {
+    const unsubscribeChat = onSnapshot(q, (querySnapshot) => {
       const chatMessages: Message[] = [];
       querySnapshot.forEach((doc) => {
         chatMessages.push({ id: doc.id, ...doc.data() } as Message);
@@ -301,16 +275,16 @@ export default function ClashClient({ id }: { id: string }) {
       setMessages(chatMessages);
     });
 
-    return () => unsubscribe();
-  }, [id]);
+    return () => {
+      unsubscribeClash();
+      unsubscribeChat();
+    };
+  }, [id, router, toast, problem]);
 
-
-  // Scroll to bottom of chat
   useEffect(() => {
     endOfMessagesRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [messages]);
 
-  // Timer countdown
   useEffect(() => {
     if (timeLeft <= 0) return;
     const timer = setInterval(() => setTimeLeft((prev) => prev - 1), 1000);
@@ -327,64 +301,40 @@ export default function ClashClient({ id }: { id: string }) {
             const clashDoc = await transaction.get(clashDocRef);
             const userDoc = await transaction.get(userDocRef);
 
-            if (!clashDoc.exists()) {
-                throw "Document does not exist!";
-            }
+            if (!clashDoc.exists()) throw "Clash document does not exist!";
+            if (!userDoc.exists()) throw "User document does not exist!";
 
             const data = clashDoc.data() as ClashData;
             const currentUser = auth.currentUser!;
             
             const me = data.participants.find(p => p.userId === currentUser.uid);
-            if (!me || me.solvedTimestamp) {
-                return; // Already solved
-            }
+            if (!me || me.solvedTimestamp) return;
 
             const isFirstSolver = !data.participants.some(p => p.solvedTimestamp);
             let pointsAwarded = 100;
             let toastDescription = "You solved the problem!";
 
             if (isFirstSolver) {
-                pointsAwarded += 50; // Bonus points
+                pointsAwarded += 50;
                 toastDescription = "First blood! You solved the problem first and earned bonus points!";
             }
 
-            const updatedParticipants = data.participants.map(p => {
-                if (p.userId === currentUser.uid) {
-                    return { ...p, score: (p.score || 0) + pointsAwarded, solvedTimestamp: Date.now() };
-                }
-                return p;
-            });
+            const updatedParticipants = data.participants.map(p => 
+                p.userId === currentUser.uid 
+                    ? { ...p, score: (p.score || 0) + pointsAwarded, solvedTimestamp: Date.now() } 
+                    : p
+            );
 
             transaction.update(clashDocRef, { participants: updatedParticipants });
+            
+            const newTotalScore = (userDoc.data().totalScore || 0) + pointsAwarded;
+            transaction.update(userDocRef, { totalScore: newTotalScore });
 
-            const currentTotalScore = userDoc.exists() ? userDoc.data().totalScore : 0;
-            const newTotalScore = (currentTotalScore || 0) + pointsAwarded;
-
-            if (userDoc.exists()) {
-                transaction.update(userDocRef, { totalScore: newTotalScore });
-            } else {
-                // Fallback for safety: create the user document if it's missing.
-                transaction.set(userDocRef, {
-                    displayName: currentUser.displayName,
-                    email: currentUser.email,
-                    photoURL: currentUser.photoURL,
-                    totalScore: newTotalScore,
-                    createdAt: serverTimestamp(),
-                });
-            }
-
-            toast({
-                title: `+${pointsAwarded} Points!`,
-                description: toastDescription,
-            });
+            toast({ title: `+${pointsAwarded} Points!`, description: toastDescription });
         });
     } catch (e) {
         console.error("Transaction failed: ", e);
-        toast({
-            title: "Error",
-            description: "Could not update your score due to a server error.",
-            variant: "destructive"
-        });
+        toast({ title: "Error", description: "Could not update your score.", variant: "destructive" });
     }
   };
 
@@ -427,15 +377,7 @@ export default function ClashClient({ id }: { id: string }) {
       setStarterCodes(prev => ({ ...prev, [newLang]: newCode }));
     } catch (error) {
       console.error("Error translating code:", error);
-      toast({
-        title: "Error Translating Code",
-        description: "Could not generate a template for this language. Please try again.",
-        variant: "destructive",
-      });
-      if(starterCodes.javascript) {
-        setLanguage('javascript'); 
-        setCode(starterCodes.javascript);
-      }
+      toast({ title: "Error Translating Code", description: "Could not generate a template for this language.", variant: "destructive" });
     } finally {
       setIsTranslatingCode(false);
     }
@@ -457,48 +399,27 @@ export default function ClashClient({ id }: { id: string }) {
         const userFunctionCode = `(function() { ${code} return ${problem.entryPoint}; })()`;
         result = await executeInWorker(userFunctionCode, problem.entryPoint, testCasesToRun);
       } else {
-        result = await executeCode({
-          code,
-          language,
-          entryPoint: problem.entryPoint,
-          testCases: testCasesToRun,
-        });
+        result = await executeCode({ code, language, entryPoint: problem.entryPoint, testCases: testCasesToRun });
       }
 
       if (result.status === 'error') {
         setOutput(result.message || 'An unknown execution error occurred.');
-        if (isSubmission) {
-            setSubmissionResult({
-                status: 'Error',
-                message: `An error occurred: ${result.message || 'Unknown error'}`,
-            });
-        }
+        if (isSubmission) setSubmissionResult({ status: 'Error', message: `An error occurred: ${result.message || 'Unknown error'}` });
       } else {
         setOutput(result.results);
         if (isSubmission) {
             if (result.passedCount === result.totalCount) {
-                setSubmissionResult({
-                    status: 'Accepted',
-                    message: `Congratulations! All ${result.totalCount} test cases passed.`,
-                });
+                setSubmissionResult({ status: 'Accepted', message: `Congratulations! All ${result.totalCount} test cases passed.` });
                 awardPoints();
             } else {
-                setSubmissionResult({
-                    status: 'Wrong Answer',
-                    message: `Your solution failed. Passed ${result.passedCount} out of ${result.totalCount} test cases.`,
-                });
+                setSubmissionResult({ status: 'Wrong Answer', message: `Your solution failed. Passed ${result.passedCount} out of ${result.totalCount} test cases.` });
             }
         }
       }
     } catch (error: any) {
         const errorMessage = error.message || 'Unknown error';
         setOutput(`An unexpected error occurred: ${errorMessage}`);
-        if (isSubmission) {
-            setSubmissionResult({
-                status: 'Error',
-                message: `An unexpected framework error occurred: ${errorMessage}`,
-            });
-        }
+        if (isSubmission) setSubmissionResult({ status: 'Error', message: `An unexpected framework error occurred: ${errorMessage}` });
     } finally {
         if (isSubmission) setIsSubmitting(false);
         else setIsRunning(false);
@@ -512,19 +433,11 @@ export default function ClashClient({ id }: { id: string }) {
     if (!problem || !code) return;
     setIsGettingHint(true);
     try {
-        const result = await getHint({
-            problemTitle: problem.title,
-            problemDescription: problem.description,
-            userCode: code,
-        });
+        const result = await getHint({ problemTitle: problem.title, problemDescription: problem.description, userCode: code });
         setHint(result.hint);
     } catch (error) {
         console.error("Error getting hint:", error);
-        toast({
-            title: "Error",
-            description: "Could not fetch a hint at this time.",
-            variant: "destructive",
-        });
+        toast({ title: "Error", description: "Could not fetch a hint at this time.", variant: "destructive" });
     } finally {
         setIsGettingHint(false);
     }
@@ -538,7 +451,7 @@ export default function ClashClient({ id }: { id: string }) {
 
   const progressValue = (timeLeft / (30 * 60)) * 100;
 
-  if (!clashData || !problem) {
+  if (!clashData || !problem || !auth.currentUser) {
     return (
       <div className="flex h-dvh items-center justify-center bg-background">
         <Loader2 className="h-8 w-8 animate-spin" />
@@ -549,52 +462,18 @@ export default function ClashClient({ id }: { id: string }) {
   
   const RunButton = () => {
     const isDisabled = isRunning || isSubmitting || isTranslatingCode;
-    const button = (
-        <Button variant="secondary" onClick={handleRunCode} disabled={isDisabled}>
-            {isRunning && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-            Run
-        </Button>
-    );
-
+    const button = <Button variant="secondary" onClick={handleRunCode} disabled={isDisabled}> {isRunning && <Loader2 className="mr-2 h-4 w-4 animate-spin" />} Run </Button>;
     if (language !== 'javascript') {
-        return (
-          <TooltipProvider>
-            <Tooltip>
-                <TooltipTrigger asChild>
-                    <div tabIndex={0}>{button}</div>
-                </TooltipTrigger>
-                <TooltipContent>
-                    <p>Execution for {language} is powered by AI.</p>
-                </TooltipContent>
-            </Tooltip>
-          </TooltipProvider>
-        );
+        return <TooltipProvider><Tooltip><TooltipTrigger asChild><div tabIndex={0}>{button}</div></TooltipTrigger><TooltipContent><p>Execution for {language} is powered by AI.</p></TooltipContent></Tooltip></TooltipProvider>;
     }
     return button;
   };
   
   const SubmitButton = () => {
     const isDisabled = isRunning || isSubmitting || isTranslatingCode;
-    const button = (
-        <Button className="bg-green-600 hover:bg-green-700 text-white" onClick={handleSubmitCode} disabled={isDisabled}>
-            {isSubmitting && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-            Submit
-        </Button>
-    );
-
+    const button = <Button className="bg-green-600 hover:bg-green-700 text-white" onClick={handleSubmitCode} disabled={isDisabled}> {isSubmitting && <Loader2 className="mr-2 h-4 w-4 animate-spin" />} Submit </Button>;
      if (language !== 'javascript') {
-        return (
-          <TooltipProvider>
-            <Tooltip>
-                <TooltipTrigger asChild>
-                    <div tabIndex={0}>{button}</div>
-                </TooltipTrigger>
-                <TooltipContent>
-                    <p>Submission for {language} is powered by AI.</p>
-                </TooltipContent>
-            </Tooltip>
-          </TooltipProvider>
-        );
+        return <TooltipProvider><Tooltip><TooltipTrigger asChild><div tabIndex={0}>{button}</div></TooltipTrigger><TooltipContent><p>Submission for {language} is powered by AI.</p></TooltipContent></Tooltip></TooltipProvider>;
     }
     return button;
   }
@@ -602,7 +481,6 @@ export default function ClashClient({ id }: { id: string }) {
   const currentUserScore = clashData?.participants.find(p => p.userId === auth.currentUser?.uid)?.score ?? 0;
 
   return (
-    <AuthGuard>
       <div className="flex flex-col min-h-dvh bg-transparent text-foreground font-body">
         <Header />
         <main className="flex-1 flex flex-col p-4 gap-4">
@@ -677,20 +555,11 @@ export default function ClashClient({ id }: { id: string }) {
                             <div className="h-full flex flex-col bg-card/50 border border-white/10 rounded-xl min-h-0 overflow-hidden">
                                 <div className="p-2 border-b border-border flex items-center justify-between shrink-0">
                                     <Select value={language} onValueChange={handleLanguageChange} disabled={isRunning || isSubmitting || isTranslatingCode}>
-                                        <SelectTrigger className="w-[180px] h-9">
-                                            <SelectValue placeholder="Select Language" />
-                                        </SelectTrigger>
-                                        <SelectContent>
-                                            {languages.map((lang) => (
-                                                <SelectItem key={lang} value={lang} className='capitalize'>
-                                                {lang.charAt(0).toUpperCase() + lang.slice(1)}
-                                                </SelectItem>
-                                            ))}
-                                        </SelectContent>
+                                        <SelectTrigger className="w-[180px] h-9"><SelectValue placeholder="Select Language" /></SelectTrigger>
+                                        <SelectContent>{languages.map((lang) => (<SelectItem key={lang} value={lang} className='capitalize'>{lang.charAt(0).toUpperCase() + lang.slice(1)}</SelectItem>))}</SelectContent>
                                     </Select>
                                     <Button variant="outline" size="sm" onClick={handleGetHint} disabled={isRunning || isSubmitting || isGettingHint || isTranslatingCode}>
-                                        {isGettingHint ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Lightbulb className="mr-2 h-4 w-4" />}
-                                        Hint
+                                        {isGettingHint ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Lightbulb className="mr-2 h-4 w-4" />} Hint
                                     </Button>
                                 </div>
                                 <div className="flex-1 min-h-0 relative">
@@ -700,13 +569,7 @@ export default function ClashClient({ id }: { id: string }) {
                                             <p className="mt-2 text-sm">Generating {language} template...</p>
                                         </div>
                                     )}
-                                    <CodeEditor
-                                        key={language}
-                                        language={language}
-                                        value={code}
-                                        onChange={(value) => setCode(value || '')}
-                                        disabled={isRunning || isSubmitting || isTranslatingCode}
-                                    />
+                                    <CodeEditor key={language} language={language} value={code} onChange={(value) => setCode(value || '')} disabled={isRunning || isSubmitting || isTranslatingCode} />
                                 </div>
                             </div>
                         </Panel>
@@ -796,9 +659,7 @@ export default function ClashClient({ id }: { id: string }) {
                                         </Avatar>
                                         <div className={cn(
                                             'max-w-[75%] rounded-xl p-3', 
-                                            isMe 
-                                                ? 'bg-primary text-primary-foreground rounded-br-none' 
-                                                : 'bg-muted/50 rounded-bl-none'
+                                            isMe ? 'bg-primary text-primary-foreground rounded-br-none' : 'bg-muted/50 rounded-bl-none'
                                         )}>
                                             {!isMe && <p className="font-bold text-xs mb-1 text-primary">{message.senderName}</p>}
                                             <p className="text-sm break-words">{message.text}</p>
@@ -811,9 +672,7 @@ export default function ClashClient({ id }: { id: string }) {
                             </div>
                             <div className="mt-2 flex gap-2 shrink-0">
                                 <Input placeholder="Send a message..." value={newMessage} onChange={(e) => setNewMessage(e.target.value)}
-                                onKeyDown={(e) => {
-                                    if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); handleSendMessage(); }
-                                }}/>
+                                onKeyDown={(e) => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); handleSendMessage(); } }}/>
                                 <Button variant="secondary" size="icon" onClick={handleSendMessage} disabled={!newMessage.trim()}>
                                 <Send className="h-4 w-4" />
                                 </Button>
@@ -827,41 +686,24 @@ export default function ClashClient({ id }: { id: string }) {
         
         <AlertDialog open={!!hint} onOpenChange={(open) => !open && setHint(null)}>
           <AlertDialogContent>
-              <AlertDialogHeader>
-                  <AlertDialogTitle>Here's a Hint!</AlertDialogTitle>
-                  <AlertDialogDescription>
-                      {hint}
-                  </AlertDialogDescription>
-              </AlertDialogHeader>
-              <AlertDialogFooter>
-                  <AlertDialogAction onClick={() => setHint(null)}>Got it!</AlertDialogAction>
-              </AlertDialogFooter>
+              <AlertDialogHeader><AlertDialogTitle>Here's a Hint!</AlertDialogTitle><AlertDialogDescription>{hint}</AlertDialogDescription></AlertDialogHeader>
+              <AlertDialogFooter><AlertDialogAction onClick={() => setHint(null)}>Got it!</AlertDialogAction></AlertDialogFooter>
           </AlertDialogContent>
         </AlertDialog>
 
        <AlertDialog open={!!submissionResult} onOpenChange={(open) => !open && setSubmissionResult(null)}>
         <AlertDialogContent>
             <AlertDialogHeader>
-                <AlertDialogTitle
-                  className={cn(
+                <AlertDialogTitle className={cn(
                     submissionResult?.status === 'Accepted' && 'text-green-500',
                     submissionResult?.status === 'Wrong Answer' && 'text-red-500',
                     submissionResult?.status === 'Error' && 'text-yellow-500',
-                  )}
-                >
-                  {submissionResult?.status}
-                </AlertDialogTitle>
-                <AlertDialogDescription>
-                    {submissionResult?.message}
-                </AlertDialogDescription>
+                )}>{submissionResult?.status}</AlertDialogTitle>
+                <AlertDialogDescription>{submissionResult?.message}</AlertDialogDescription>
             </AlertDialogHeader>
-            <AlertDialogFooter>
-                <AlertDialogAction onClick={() => setSubmissionResult(null)}>Close</AlertDialogAction>
-            </AlertDialogFooter>
+            <AlertDialogFooter><AlertDialogAction onClick={() => setSubmissionResult(null)}>Close</AlertDialogAction></AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
-
       </div>
-    </AuthGuard>
   );
 }

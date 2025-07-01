@@ -28,15 +28,15 @@ export default function LoginPage() {
           // Google Sign-in was just completed. Process it and redirect.
           await ensureUserProfile(result.user);
           toast({ title: 'Sign In Successful', description: `Welcome, ${result.user.displayName}!` });
-          window.location.assign('/lobby');
-          // No need to set isVerifying to false, we are navigating away.
-          return;
+          // The UnauthGuard will handle the redirect to the lobby.
+          // We just need to make sure the component doesn't show the form while redirecting.
+          return; // Stay in verifying state while UnauthGuard redirects.
         }
       } catch (error: any) {
         console.error("Google Sign-In Error:", error);
         toast({ title: 'Sign In Failed', description: error.message, variant: 'destructive' });
       }
-      // Only set verifying to false if there was no redirect result.
+      // Only set verifying to false if there was no redirect result to process.
       setIsVerifying(false);
     };
 

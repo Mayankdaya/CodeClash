@@ -55,6 +55,7 @@ type AuthFormProps = {
 export function AuthForm({ mode }: AuthFormProps) {
   const { toast } = useToast();
   const [isLoading, setIsLoading] = useState(false);
+  const [isGoogleLoading, setIsGoogleLoading] = useState(false);
 
   const loginForm = useForm<LoginFormData>({
     resolver: zodResolver(loginSchema),
@@ -70,7 +71,7 @@ export function AuthForm({ mode }: AuthFormProps) {
     if (!auth) return;
     setIsLoading(true);
     try {
-      // The parent page's onAuthStateChanged listener will handle navigation.
+      // The UnauthGuard's onAuthStateChanged listener will handle navigation.
       await signInWithEmailAndPassword(auth, data.email, data.password);
     } catch (error) {
       const authError = error as AuthError;
@@ -91,9 +92,8 @@ export function AuthForm({ mode }: AuthFormProps) {
     try {
         const { user } = await createUserWithEmailAndPassword(auth, data.email, data.password);
         await updateProfile(user, { displayName: data.username });
-        // The parent page's onAuthStateChanged listener will handle navigation.
-        // We just need to create the profile.
         await ensureUserProfile(user, { username: data.username });
+        // The UnauthGuard's onAuthStateChanged listener will handle navigation.
     } catch (error) {
         const authError = error as AuthError;
         let description = "An unexpected error occurred. Please try again.";
@@ -111,28 +111,29 @@ export function AuthForm({ mode }: AuthFormProps) {
   
   const handleGoogleSignIn = async () => {
     if (!auth) return;
-    setIsLoading(true); // Show loading state on the button.
+    setIsGoogleLoading(true);
     const provider = new GoogleAuthProvider();
     provider.setCustomParameters({
-      prompt: 'select_account' // Always ask user to select an account.
+      prompt: 'select_account'
     });
     try {
       // This will redirect the user. The result is handled on the login/signup page component.
       await signInWithRedirect(auth, provider);
     } catch (error) {
-      const authError = error as AuthError;
+      console.error("Error starting Google Sign-In:", error);
       toast({
         title: "Google Sign In Failed",
         description: "Could not start the Google Sign-In process. Please try again.",
         variant: "destructive",
       });
-      setIsLoading(false); // Stop loading if redirect fails.
+      setIsGoogleLoading(false);
     }
   };
 
   const isLogin = mode === 'login';
   const form = isLogin ? loginForm : signupForm;
   const onSubmit = isLogin ? onLoginSubmit : onSignupSubmit;
+  const anyLoading = isLoading || isGoogleLoading;
 
   return (
     <Card className="w-full max-w-md mx-auto bg-card/50 backdrop-blur-lg border-white/10">
@@ -154,7 +155,7 @@ export function AuthForm({ mode }: AuthFormProps) {
                     <FormItem>
                         <FormLabel>Username</FormLabel>
                         <FormControl>
-                        <Input placeholder="code_master" {...field} disabled={isLoading} />
+                        <Input placeholder="code_master" {...field} disabled={anyLoading} />
                         </FormControl>
                         <FormMessage />
                     </FormItem>
@@ -168,7 +169,7 @@ export function AuthForm({ mode }: AuthFormProps) {
                     <FormItem>
                     <FormLabel>Email</FormLabel>
                     <FormControl>
-                        <Input type="email" placeholder="you@example.com" {...field} disabled={isLoading} />
+                        <Input type="email" placeholder="you@example.com" {...field} disabled={anyLoading} />
                     </FormControl>
                     <FormMessage />
                     </FormItem>
@@ -181,13 +182,13 @@ export function AuthForm({ mode }: AuthFormProps) {
                     <FormItem>
                     <FormLabel>Password</FormLabel>
                     <FormControl>
-                        <Input type="password" placeholder="••••••••" {...field} disabled={isLoading} />
+                        <Input type="password" placeholder="••••••••" {...field} disabled={anyLoading} />
                     </FormControl>
                     <FormMessage />
                     </FormItem>
                 )}
                 />
-                <Button type="submit" className="w-full" disabled={isLoading}>
+                <Button type="submit" className="w-full" disabled={anyLoading}>
                 {isLoading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
                 {isLogin ? 'Log In' : 'Sign Up'}
                 {!isLoading && <ArrowRight className="ml-2 h-4 w-4" />}
@@ -204,8 +205,8 @@ export function AuthForm({ mode }: AuthFormProps) {
               </div>
             </div>
 
-            <Button variant="outline" className="w-full" onClick={handleGoogleSignIn} disabled={isLoading}>
-                {isLoading ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <GoogleIcon className="mr-2 h-5 w-5" />}
+            <Button variant="outline" className="w-full" onClick={handleGoogleSignIn} disabled={anyLoading}>
+                {isGoogleLoading ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <GoogleIcon className="mr-2 h-5 w-5" />}
                 Sign in with Google
             </Button>
 

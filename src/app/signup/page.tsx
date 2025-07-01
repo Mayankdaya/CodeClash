@@ -28,13 +28,14 @@ export default function SignupPage() {
                     // Google Sign-in was just completed. Process it and redirect.
                     await ensureUserProfile(result.user);
                     toast({ title: 'Sign In Successful', description: `Welcome, ${result.user.displayName}!` });
-                    window.location.assign('/lobby');
-                    return;
+                    // The UnauthGuard will handle the redirect.
+                    return; // Stay in verifying state.
                 }
             } catch (error: any) {
                 console.error("Google Sign-In Error:", error);
                 toast({ title: 'Sign In Failed', description: error.message, variant: 'destructive' });
             }
+            // Only set verifying to false if there was no redirect result to process.
             setIsVerifying(false);
         };
 
@@ -53,15 +54,14 @@ export default function SignupPage() {
         )
     }
 
-
-  return (
-    <UnauthGuard>
-      <div className="flex flex-col min-h-dvh bg-transparent text-foreground font-body">
-        <Header />
-        <main className="flex-1 flex items-center justify-center py-12 px-4">
-          <AuthForm mode="signup" />
-        </main>
-      </div>
-    </UnauthGuard>
-  );
+    return (
+      <UnauthGuard>
+        <div className="flex flex-col min-h-dvh bg-transparent text-foreground font-body">
+          <Header />
+          <main className="flex-1 flex items-center justify-center py-12 px-4">
+            <AuthForm mode="signup" />
+          </main>
+        </div>
+      </UnauthGuard>
+    );
 }
