@@ -21,8 +21,11 @@ export default function SignupPage() {
       return;
     }
 
-    // First, check for a redirect result from Google.
-     getRedirectResult(auth)
+    // This effect should run only once on component mount.
+    // The router and toast objects from hooks are stable, but to be explicit
+    // and prevent any possibility of a loop, we use an empty dependency array.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    getRedirectResult(auth)
       .then((result) => {
         if (result) {
           // A sign-in was just completed via redirect.
@@ -56,7 +59,7 @@ export default function SignupPage() {
         // This return is for the cleanup of onAuthStateChanged
         return () => unsubscribe();
       });
-  }, [router, toast]);
+  }, []); // <-- Empty dependency array fixes the infinite loop.
 
 
   if (isLoading) {
