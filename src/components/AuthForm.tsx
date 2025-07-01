@@ -289,3 +289,5 @@ export function AuthForm({ mode }: AuthFormProps) {
     </Card>
   );
 }
+
+    
