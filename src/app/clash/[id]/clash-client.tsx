@@ -221,6 +221,7 @@ export default function ClashClient({ id }: { id: string }) {
   const [isGettingHint, setIsGettingHint] = useState(false);
   const [hint, setHint] = useState<string | null>(null);
 
+  const [leftPanelTab, setLeftPanelTab] = useState('problem');
   const [solutionLanguage, setSolutionLanguage] = useState('javascript');
   const [solutions, setSolutions] = useState<Record<string, string>>({});
   const [isTranslatingSolution, setIsTranslatingSolution] = useState(false);
@@ -246,7 +247,7 @@ export default function ClashClient({ id }: { id: string }) {
                     const parsedInput = typeof tc.input === 'string' ? JSON.parse(tc.input) : tc.input;
                     
                     // The backend now sanitizes undefined to null. This ensures consistency.
-                    const parsedExpected = tc.expected !== undefined && typeof tc.expected === 'string' ? JSON.parse(tc.expected) : tc.expected;
+                    const parsedExpected = tc.expected !== undefined ? (typeof tc.expected === 'string' ? JSON.parse(tc.expected) : tc.expected) : null;
 
                     // This handles cases where an argument *within* the input array is a stringified JSON.
                     const sanizitedInput = Array.isArray(parsedInput) ? parsedInput.map(arg => {
@@ -263,7 +264,7 @@ export default function ClashClient({ id }: { id: string }) {
                     return { ...tc, input: sanizitedInput, expected: parsedExpected };
                 } catch (e) {
                     console.error("Failed to parse test case, returning as is:", tc, e);
-                    return { ...tc };
+                    return { ...tc, expected: tc.expected ?? null };
                 }
             });
             data.problem = { ...data.problem, testCases: parsedTestCases };
@@ -613,7 +614,7 @@ export default function ClashClient({ id }: { id: string }) {
           <div className="flex-1 min-h-0">
               <PanelGroup direction="horizontal">
                   <Panel defaultSize={45} minSize={30}>
-                    <Tabs defaultValue="problem" className="h-full flex flex-col bg-card/50 border border-white/10 rounded-xl overflow-hidden">
+                    <Tabs value={leftPanelTab} onValueChange={setLeftPanelTab} className="h-full flex flex-col bg-card/50 border border-white/10 rounded-xl overflow-hidden">
                         <div className="p-2 border-b border-border shrink-0">
                             <TabsList className="grid w-full grid-cols-2">
                                 <TabsTrigger value="problem"><BookOpen className="mr-2 h-4 w-4"/>Problem</TabsTrigger>
@@ -660,13 +661,15 @@ export default function ClashClient({ id }: { id: string }) {
                                       <p className="mt-2 text-sm">Translating solution to {solutionLanguage}...</p>
                                   </div>
                               )}
-                              <CodeEditor
-                                  key={`solution-${solutionLanguage}`}
-                                  language={solutionLanguage}
-                                  value={solutions[solutionLanguage] || ''}
-                                  onChange={() => {}}
-                                  disabled={true}
-                              />
+                              {leftPanelTab === 'solution' && (
+                                <CodeEditor
+                                    key={`solution-${solutionLanguage}`}
+                                    language={solutionLanguage}
+                                    value={solutions[solutionLanguage] || ''}
+                                    onChange={() => {}}
+                                    disabled={true}
+                                />
+                              )}
                           </div>
                         </TabsContent>
                     </Tabs>
@@ -751,7 +754,7 @@ export default function ClashClient({ id }: { id: string }) {
                                                       <p className="font-bold mb-2 text-lg">Case {index + 1}</p>
                                                       <div className="bg-background/40 p-3 mt-1 rounded-md space-y-2">
                                                           <p><strong className='text-muted-foreground'>Input:</strong> {formatInputForDisplay(tc.input)}</p>
-                                                          <p><strong className='text-muted-foreground'>Output:</strong> {tc.expected !== undefined ? JSON.stringify(tc.expected) : <span className="text-muted-foreground/60 italic">(no output)</span>}</p>
+                                                          <p><strong className='text-muted-foreground'>Output:</strong> {tc.expected !== null ? JSON.stringify(tc.expected) : <span className="text-muted-foreground/60 italic">(no output)</span>}</p>
                                                       </div>
                                                   </div>
                                               ))}
