@@ -2,15 +2,14 @@
 'use client';
 
 import { useEffect, useState, type ReactNode } from 'react';
-import { useRouter } from 'next/navigation';
-import { onAuthStateChanged, getRedirectResult, type AuthError } from 'firebase/auth';
+import { getRedirectResult, type AuthError, onAuthStateChanged } from 'firebase/auth';
 import { auth } from '@/lib/firebase';
 import { Loader2 } from 'lucide-react';
 import { ensureUserProfile } from '@/lib/user';
 import { useToast } from '@/hooks/use-toast';
+import { Header } from '@/components/Header';
 
 export default function UnauthGuard({ children }: { children: ReactNode }) {
-  const router = useRouter();
   const { toast } = useToast();
   const [isVerifying, setIsVerifying] = useState(true);
 
@@ -19,31 +18,37 @@ export default function UnauthGuard({ children }: { children: ReactNode }) {
       setIsVerifying(false);
       return;
     }
-
-    // Set up the listener that will react to auth changes.
-    // This will catch both existing sessions and successful new logins.
-    const unsubscribe = onAuthStateChanged(auth, (user) => {
-      if (user) {
-        // User is authenticated, so we should redirect them.
-        router.replace('/lobby');
-      } else {
-        // No user is signed in. It's safe to stop loading and show the form.
-        setIsVerifying(false);
-      }
-    });
-
-    // Separately, check for a redirect result. This doesn't need to be
-    // tied to the listener's cleanup.
+    
+    // First, check for a redirect result from Google Sign-In
     getRedirectResult(auth)
       .then((result) => {
         if (result) {
           // A Google Sign-in was just completed.
-          // The listener above will see the new `user` and redirect.
-          ensureUserProfile(result.user);
-          toast({
-            title: 'Sign In Successful',
-            description: `Welcome, ${result.user.displayName}!`,
+          // The user is now authenticated, so we can ensure their profile exists
+          // and then redirect them to the lobby.
+          ensureUserProfile(result.user).then(() => {
+            toast({
+              title: 'Sign In Successful',
+              description: `Welcome, ${result.user.displayName}!`,
+            });
+            if (typeof window !== 'undefined') {
+              window.location.assign('/lobby');
+            }
           });
+        } else {
+          // No redirect result, so now check for an existing session.
+          const unsubscribe = onAuthStateChanged(auth, (user) => {
+            if (user) {
+              // User has an existing session, redirect them.
+              if (typeof window !== 'undefined') {
+                window.location.assign('/lobby');
+              }
+            } else {
+              // No user is signed in. It's safe to show the form.
+              setIsVerifying(false);
+            }
+          });
+          return () => unsubscribe();
         }
       })
       .catch((error: AuthError) => {
@@ -53,12 +58,9 @@ export default function UnauthGuard({ children }: { children: ReactNode }) {
           description: 'Could not complete sign in with Google. Please try again.',
           variant: 'destructive',
         });
+        setIsVerifying(false);
       });
-
-    // Return the cleanup function for the listener.
-    return () => unsubscribe();
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []); // <-- CRITICAL: Empty dependency array ensures this runs only once.
+  }, [toast]);
 
   if (isVerifying) {
     return (
