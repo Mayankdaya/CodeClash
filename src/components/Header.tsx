@@ -87,7 +87,7 @@ export function Header() {
         </Link>
         <nav className="hidden md:flex items-center gap-6 text-sm font-medium">
           <Link href="/lobby" className="text-muted-foreground hover:text-foreground transition-colors" prefetch={false}>Topics</Link>
-          <Link href="#" className="text-muted-foreground hover:text-foreground transition-colors" prefetch={false}>Leaderboards</Link>
+          <Link href="/leaderboard" className="text-muted-foreground hover:text-foreground transition-colors" prefetch={false}>Leaderboards</Link>
           <Link href="#" className="text-muted-foreground hover:text-foreground transition-colors" prefetch={false}>How it Works</Link>
         </nav>
         <div className="flex items-center gap-4">

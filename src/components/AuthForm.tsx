@@ -7,14 +7,16 @@ import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
-import { createUserWithEmailAndPassword, signInWithEmailAndPassword, updateProfile, GoogleAuthProvider, signInWithPopup } from 'firebase/auth';
+import { createUserWithEmailAndPassword, signInWithEmailAndPassword, updateProfile, GoogleAuthProvider, signInWithPopup, type User } from 'firebase/auth';
 import { useToast } from '@/hooks/use-toast';
-import { auth } from '@/lib/firebase';
+import { auth, db } from '@/lib/firebase';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from '@/components/ui/form';
 import { Input } from '@/components/ui/input';
 import { ArrowRight, Loader2 } from 'lucide-react';
+import { doc, getDoc, setDoc, serverTimestamp } from 'firebase/firestore';
+
 
 const GoogleIcon = (props: React.SVGProps<SVGSVGElement>) => (
   <svg role="img" viewBox="0 0 24 24" {...props}>
@@ -39,6 +41,31 @@ const signupSchema = z.object({
 type LoginFormData = z.infer<typeof loginSchema>;
 type SignupFormData = z.infer<typeof signupSchema>;
 
+const createUserProfileDocument = async (userAuth: User, additionalData: { [key: string]: any } = {}) => {
+  if (!db || !userAuth) return;
+
+  const userDocRef = doc(db, 'users', userAuth.uid);
+  const snapshot = await getDoc(userDocRef);
+
+  if (!snapshot.exists()) {
+    const { displayName, email, photoURL } = userAuth;
+    
+    try {
+      await setDoc(userDocRef, {
+        displayName: displayName || additionalData.displayName || 'Anonymous Coder',
+        email,
+        photoURL: photoURL || `https://placehold.co/100x100.png`,
+        createdAt: serverTimestamp(),
+        totalScore: 0,
+        ...additionalData,
+      });
+    } catch (error) {
+      console.error('Error creating user document', error);
+    }
+  }
+};
+
+
 function LoginForm() {
   const router = useRouter();
   const { toast } = useToast();
@@ -60,8 +87,8 @@ function LoginForm() {
         return;
     }
     try {
-        const provider = new GoogleAuthProvider();
-        await signInWithPopup(auth, provider);
+        const { user } = await signInWithPopup(auth, new GoogleAuthProvider());
+        await createUserProfileDocument(user);
         router.push('/lobby');
     } catch (error: any) {
         let description: ReactNode = error.message;
@@ -105,7 +132,8 @@ function LoginForm() {
       return;
     }
     try {
-      await signInWithEmailAndPassword(auth, data.email, data.password);
+      const { user } = await signInWithEmailAndPassword(auth, data.email, data.password);
+      await createUserProfileDocument(user);
       router.push('/lobby');
     } catch (error: any) {
       toast({
@@ -194,8 +222,8 @@ function SignupForm() {
             return;
         }
         try {
-            const provider = new GoogleAuthProvider();
-            await signInWithPopup(auth, provider);
+            const { user } = await signInWithPopup(auth, new GoogleAuthProvider());
+            await createUserProfileDocument(user);
             router.push('/lobby');
         } catch (error: any) {
             let description: ReactNode = error.message;
@@ -239,12 +267,11 @@ function SignupForm() {
           return;
         }
         try {
-            const userCredential = await createUserWithEmailAndPassword(auth, data.email, data.password);
-            if (userCredential.user) {
-              await updateProfile(userCredential.user, {
-                  displayName: data.username,
-              });
-            }
+            const { user } = await createUserWithEmailAndPassword(auth, data.email, data.password);
+            await updateProfile(user, {
+                displayName: data.username,
+            });
+            await createUserProfileDocument(user, { displayName: data.username });
             router.push('/lobby');
         } catch (error: any) {
             toast({

@@ -320,10 +320,13 @@ export default function ClashClient({ id }: { id: string }) {
   const awardPoints = async () => {
     if (!db || !auth.currentUser) return;
     const clashDocRef = doc(db, 'clashes', id);
+    const userDocRef = doc(db, 'users', auth.currentUser.uid);
 
     try {
         await runTransaction(db, async (transaction) => {
             const clashDoc = await transaction.get(clashDocRef);
+            const userDoc = await transaction.get(userDocRef);
+
             if (!clashDoc.exists()) {
                 throw "Document does not exist!";
             }
@@ -353,6 +356,22 @@ export default function ClashClient({ id }: { id: string }) {
             });
 
             transaction.update(clashDocRef, { participants: updatedParticipants });
+
+            const currentTotalScore = userDoc.exists() ? userDoc.data().totalScore : 0;
+            const newTotalScore = (currentTotalScore || 0) + pointsAwarded;
+
+            if (userDoc.exists()) {
+                transaction.update(userDocRef, { totalScore: newTotalScore });
+            } else {
+                // Fallback for safety: create the user document if it's missing.
+                transaction.set(userDocRef, {
+                    displayName: currentUser.displayName,
+                    email: currentUser.email,
+                    photoURL: currentUser.photoURL,
+                    totalScore: newTotalScore,
+                    createdAt: serverTimestamp(),
+                });
+            }
 
             toast({
                 title: `+${pointsAwarded} Points!`,
