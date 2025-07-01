@@ -10,12 +10,13 @@ const firebaseConfig = {
   storageBucket: process.env.NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET,
   messagingSenderId: process.env.NEXT_PUBLIC_FIREBASE_MESSAGING_SENDER_ID,
   appId: process.env.NEXT_PUBLIC_FIREBASE_APP_ID,
+  databaseURL: `https://${process.env.NEXT_PUBLIC_FIREBASE_PROJECT_ID}.firebaseio.com`,
 };
 
 // This critical check ensures Firebase is configured before any part of the app uses it.
 // It will throw a build-time error if the environment variables are missing,
 // preventing the app from running in a broken state.
-if (!firebaseConfig.apiKey || !firebaseConfig.authDomain || !firebaseConfig.projectId) {
+if (!firebaseConfig.apiKey || !firebaseConfig.projectId || !firebaseConfig.authDomain) {
   throw new Error(
     "Firebase configuration is missing or incomplete. " +
     "Please check your `.env.local` file and ensure all `NEXT_PUBLIC_FIREBASE_*` variables are set correctly. " +
