@@ -1,7 +1,7 @@
 
 'use client';
 
-import { useState, type ReactNode } from 'react';
+import { useState, type ReactNode, useEffect } from 'react';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
@@ -13,6 +13,7 @@ import {
   updateProfile, 
   GoogleAuthProvider, 
   signInWithRedirect,
+  getRedirectResult,
   type AuthError
 } from 'firebase/auth';
 import { useToast } from '@/hooks/use-toast';
@@ -57,6 +58,29 @@ function LoginForm() {
   const { toast } = useToast();
   const [isLoading, setIsLoading] = useState(false);
   const [isGoogleLoading, setIsGoogleLoading] = useState(false);
+  const [isProcessingRedirect, setIsProcessingRedirect] = useState(true);
+
+  useEffect(() => {
+    if (!auth) {
+      setIsProcessingRedirect(false);
+      return;
+    }
+    // Check for redirect result from Google Sign-In
+    getRedirectResult(auth)
+      .catch((error) => {
+        const authError = error as AuthError;
+        toast({
+          title: "Google Sign-In Failed",
+          description: authError.message || 'An unknown error occurred.',
+          variant: "destructive",
+        });
+      })
+      .finally(() => {
+        setIsProcessingRedirect(false);
+      });
+  }, [toast]);
+
+
   const form = useForm<LoginFormData>({
     resolver: zodResolver(loginSchema),
     defaultValues: { email: '', password: '' },
@@ -74,11 +98,7 @@ function LoginForm() {
     setIsGoogleLoading(true);
     try {
       const provider = new GoogleAuthProvider();
-      // Use redirect instead of popup for better compatibility with different environments.
       await signInWithRedirect(auth, provider);
-      // The user will be redirected to Google. After they sign in, they will be redirected back
-      // to this page, where onAuthStateChanged (in Header.tsx) will handle profile creation
-      // and routing to the lobby.
     } catch (error) {
        const authError = error as AuthError;
         toast({
@@ -108,7 +128,7 @@ function LoginForm() {
     }
   };
 
-  const anyLoading = isLoading || isGoogleLoading;
+  const anyLoading = isLoading || isGoogleLoading || isProcessingRedirect;
 
   return (
     <>
@@ -141,9 +161,9 @@ function LoginForm() {
             )}
           />
           <Button type="submit" className="w-full" disabled={anyLoading}>
-            {isLoading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+            {(isLoading || isProcessingRedirect) && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
             Log In
-            {!isLoading && <ArrowRight className="ml-2 h-4 w-4" />}
+            {!isLoading && !isProcessingRedirect && <ArrowRight className="ml-2 h-4 w-4" />}
           </Button>
         </form>
       </Form>
@@ -158,7 +178,7 @@ function LoginForm() {
           </div>
       </div>
       <Button variant="outline" className="w-full" onClick={handleGoogleSignIn} disabled={anyLoading}>
-          {isGoogleLoading ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <GoogleIcon className="mr-2 h-4 w-4" />}
+          {(isGoogleLoading || isProcessingRedirect) ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <GoogleIcon className="mr-2 h-4 w-4" />}
           Sign in with Google
       </Button>
     </>
@@ -170,6 +190,28 @@ function SignupForm() {
     const { toast } = useToast();
     const [isLoading, setIsLoading] = useState(false);
     const [isGoogleLoading, setIsGoogleLoading] = useState(false);
+    const [isProcessingRedirect, setIsProcessingRedirect] = useState(true);
+
+    useEffect(() => {
+        if (!auth) {
+        setIsProcessingRedirect(false);
+        return;
+        }
+        // Check for redirect result from Google Sign-In
+        getRedirectResult(auth)
+        .catch((error) => {
+            const authError = error as AuthError;
+            toast({
+            title: "Google Sign-In Failed",
+            description: authError.message || 'An unknown error occurred.',
+            variant: "destructive",
+            });
+        })
+        .finally(() => {
+            setIsProcessingRedirect(false);
+        });
+    }, [toast]);
+
     const form = useForm<SignupFormData>({
         resolver: zodResolver(signupSchema),
         defaultValues: { username: '', email: '', password: '' },
@@ -214,7 +256,7 @@ function SignupForm() {
         }
     };
 
-    const anyLoading = isLoading || isGoogleLoading;
+    const anyLoading = isLoading || isGoogleLoading || isProcessingRedirect;
 
     return (
         <>
@@ -260,9 +302,9 @@ function SignupForm() {
                   )}
                 />
                 <Button type="submit" className="w-full" disabled={anyLoading}>
-                    {isLoading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                    {(isLoading || isProcessingRedirect) && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
                     Sign Up
-                    {!isLoading && <ArrowRight className="ml-2 h-4 w-4" />}
+                    {!isLoading && !isProcessingRedirect && <ArrowRight className="ml-2 h-4 w-4" />}
                 </Button>
               </form>
             </Form>
@@ -277,7 +319,7 @@ function SignupForm() {
                 </div>
             </div>
             <Button variant="outline" className="w-full" onClick={handleGoogleSignIn} disabled={anyLoading}>
-                {isGoogleLoading ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <GoogleIcon className="mr-2 h-4 w-4" />}
+                {(isGoogleLoading || isProcessingRedirect) ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <GoogleIcon className="mr-2 h-4 w-4" />}
                 Sign up with Google
             </Button>
         </>
