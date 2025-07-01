@@ -31,7 +31,7 @@ export default function AuthGuard({ children }: { children: ReactNode }) {
     });
 
     return () => unsubscribe();
-  }, [router]);
+  }, []);
 
   if (status === 'loading') {
     return (

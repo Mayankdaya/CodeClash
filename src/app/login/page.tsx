@@ -54,7 +54,7 @@ export default function LoginPage() {
     });
     
     return () => unsubscribe();
-  }, [router, toast]);
+  }, []);
 
   if (isVerifying) {
     return (
