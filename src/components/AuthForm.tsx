@@ -6,7 +6,6 @@ import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
 import Link from 'next/link';
-import { useRouter } from 'next/navigation';
 import { 
   createUserWithEmailAndPassword, 
   signInWithEmailAndPassword, 
@@ -54,7 +53,6 @@ type AuthFormProps = {
 };
 
 export function AuthForm({ mode }: AuthFormProps) {
-  const router = useRouter();
   const { toast } = useToast();
   const [isLoading, setIsLoading] = useState(false);
   const [isGoogleLoading, setIsGoogleLoading] = useState(false);
@@ -74,17 +72,17 @@ export function AuthForm({ mode }: AuthFormProps) {
     setIsLoading(true);
     try {
       await signInWithEmailAndPassword(auth, data.email, data.password);
-      router.push('/lobby');
-      toast({ title: 'Login Successful', description: 'Welcome back!' });
+      // The `UnauthGuard` will detect the state change and handle the redirect.
     } catch (error) {
       const authError = error as AuthError;
       toast({
         title: "Login Failed",
         description: authError.code === 'auth/invalid-credential' 
-          ? "Invalid email or password." 
+          ? "Invalid email or password. Please try again." 
           : "An unexpected error occurred. Please try again.",
         variant: "destructive",
       });
+    } finally {
       setIsLoading(false);
     }
   };
@@ -96,8 +94,7 @@ export function AuthForm({ mode }: AuthFormProps) {
         const { user } = await createUserWithEmailAndPassword(auth, data.email, data.password);
         await updateProfile(user, { displayName: data.username });
         await ensureUserProfile(user, { username: data.username });
-        router.push('/lobby');
-        toast({ title: 'Sign Up Successful', description: `Welcome, ${data.username}!` });
+        // The `UnauthGuard` will detect the state change and handle the redirect.
     } catch (error) {
         const authError = error as AuthError;
         let description = "An unexpected error occurred. Please try again.";
@@ -109,6 +106,7 @@ export function AuthForm({ mode }: AuthFormProps) {
             description,
             variant: "destructive",
         });
+    } finally {
         setIsLoading(false);
     }
   };
