@@ -67,9 +67,8 @@ function AuthFormContent({ mode }: { mode: 'login' | 'signup' }) {
     getRedirectResult(auth)
       .then((result) => {
         if (result && isMounted) {
-          // User signed in successfully. Navigate them to the lobby.
-          // The onAuthStateChanged listener in the Header will handle profile creation.
-          router.push('/lobby');
+          // User signed in successfully. The onAuthStateChanged listener in the parent
+          // page will handle profile creation & redirection.
         } else if (isMounted) {
           // No redirect result, so we can stop showing the "processing" state.
           setIsProcessingRedirect(false);
@@ -90,7 +89,7 @@ function AuthFormContent({ mode }: { mode: 'login' | 'signup' }) {
     return () => {
       isMounted = false;
     }
-  }, [toast, router]);
+  }, [toast]);
 
   const loginForm = useForm<LoginFormData>({
     resolver: zodResolver(loginSchema),
@@ -118,15 +117,9 @@ function AuthFormContent({ mode }: { mode: 'login' | 'signup' }) {
       // Successful login will trigger onAuthStateChanged, which handles the redirect.
     } catch (error) {
       const authError = error as AuthError;
-      let description = "An unexpected error occurred. Please try again.";
-      if (authError.code === 'auth/invalid-credential') {
-        description = "Invalid email or password. If you originally signed up using Google, please log in with Google instead.";
-      } else {
-        description = authError.message;
-      }
       toast({
         title: "Login Failed",
-        description: description,
+        description: authError.message,
         variant: "destructive",
       });
     } finally {
@@ -156,7 +149,7 @@ function AuthFormContent({ mode }: { mode: 'login' | 'signup' }) {
   };
 
   const isLogin = mode === 'login';
-  const anyLoading = isLoading || isGoogleLoading;
+  const anyLoading = isLoading || isGoogleLoading || isProcessingRedirect;
   const form = isLogin ? loginForm : signupForm;
   const onSubmit = isLogin ? onLoginSubmit : onSignupSubmit;
 
