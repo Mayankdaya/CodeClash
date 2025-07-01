@@ -4,7 +4,7 @@
 import { AuthForm } from '@/components/AuthForm';
 import { Header } from '@/components/Header';
 import { useEffect, useState } from 'react';
-import { onAuthStateChanged, getRedirectResult, type AuthError, type User } from 'firebase/auth';
+import { onAuthStateChanged, getRedirectResult, type AuthError } from 'firebase/auth';
 import { auth } from '@/lib/firebase';
 import { useRouter } from 'next/navigation';
 import { Loader2 } from 'lucide-react';
@@ -13,24 +13,20 @@ import { useToast } from '@/hooks/use-toast';
 export default function SignupPage() {
   const router = useRouter();
   const { toast } = useToast();
-  const [user, setUser] = useState<User | null>(null);
-  const [isVerifying, setIsVerifying] = useState(true);
+  const [isLoading, setIsLoading] = useState(true);
 
-  // Effect 1: Handles subscribing to auth state and processing Google redirect.
   useEffect(() => {
     if (!auth) {
-      setIsVerifying(false);
+      setIsLoading(false);
       return;
     }
 
-    const unsubscribe = onAuthStateChanged(auth, (currentUser) => {
-      setUser(currentUser);
-      setIsVerifying(false);
-    });
-    
-    getRedirectResult(auth)
+    // First, check for a redirect result from Google.
+     getRedirectResult(auth)
       .then((result) => {
         if (result) {
+          // A sign-in was just completed via redirect.
+          // The onAuthStateChanged listener below will handle navigation.
           toast({
             title: 'Sign In Successful',
             description: `Welcome, ${result.user.displayName}!`,
@@ -44,20 +40,26 @@ export default function SignupPage() {
           description: 'Could not complete sign in with Google. Please try again.',
           variant: 'destructive',
         });
+      })
+      .finally(() => {
+         // Now, set up the auth state listener.
+        const unsubscribe = onAuthStateChanged(auth, (currentUser) => {
+          if (currentUser) {
+            // If user is logged in, redirect them away from the signup page.
+            router.replace('/lobby');
+          } else {
+            // If no user, we can safely show the signup form.
+            setIsLoading(false);
+          }
+        });
+
+        // This return is for the cleanup of onAuthStateChanged
+        return () => unsubscribe();
       });
+  }, [router, toast]);
 
-    return () => unsubscribe();
-  }, [toast]);
 
-  // Effect 2: Handles navigation based on the user state.
-  useEffect(() => {
-    if (!isVerifying && user) {
-      router.replace('/lobby');
-    }
-  }, [user, isVerifying, router]);
-
-  // Render logic: Show a loader while verifying or if a user is found.
-  if (isVerifying || user) {
+  if (isLoading) {
     return (
       <div className="flex flex-col min-h-dvh bg-transparent text-foreground font-body">
         <Header />
@@ -69,7 +71,7 @@ export default function SignupPage() {
     );
   }
 
-  // If not verifying and no user, show the form.
+  // If not loading and no user, show the form.
   return (
     <div className="flex flex-col min-h-dvh bg-transparent text-foreground font-body">
       <Header />
