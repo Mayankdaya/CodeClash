@@ -57,6 +57,7 @@ The problem should be self-contained and clearly explained. The difficulty shoul
 2.  **\`title\` is REQUIRED:** The \`title\` field cannot be omitted. It must be a clear, descriptive title for the problem.
 3.  **\`testCases\` format:** The \`input\` values inside \`testCases\` MUST be pure JSON arrays of arguments, NOT strings that look like JSON. For example, for a function that takes an array and a number, the value must be \`[[1, 2, 3], 42]\`, NOT \`'["[1, 2, 3]", "42"]'\`.
 4.  **No Comments:** The final JSON output must NOT contain any comments.
+5.  **Valid and Consistent Test Cases:** Every single test case in the \`testCases\` array MUST have a valid \`expected\` value. The \`expected\` field cannot be missing or undefined. All test cases with the same input must have the same expected output.
 
 **Topic:** {{{topic}}}
 **Unique Request Seed:** {{{seed}}}

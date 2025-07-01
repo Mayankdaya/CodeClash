@@ -62,7 +62,7 @@ export default function MatchingPage() {
             ...problem,
             testCases: problem.testCases.map(tc => ({
                 input: JSON.stringify(tc.input),
-                expected: JSON.stringify(tc.expected),
+                expected: JSON.stringify(tc.expected ?? null),
             })),
         };
         
