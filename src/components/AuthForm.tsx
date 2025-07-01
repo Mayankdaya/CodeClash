@@ -69,10 +69,15 @@ function AuthFormContent({ mode }: { mode: 'login' | 'signup' }) {
 
     getRedirectResult(auth)
       .then((result) => {
-        // If result is null, it means the user just landed on the page
-        // without a redirect. If it's not null, the onAuthStateChanged
-        // listener in Header.tsx will handle the user and profile creation,
-        // and the listener in login/signup page will redirect to /lobby.
+        // If result is not null, it means the user has successfully signed in
+        // via redirect. We can proactively redirect to the lobby here to ensure
+        // a smooth user experience.
+        if (result) {
+          router.push('/lobby');
+        } else {
+          // No redirect result, so we are done processing.
+          setIsProcessingRedirect(false);
+        }
       })
       .catch((error) => {
         const authError = error as AuthError;
@@ -81,11 +86,9 @@ function AuthFormContent({ mode }: { mode: 'login' | 'signup' }) {
           description: authError.message || 'An unknown error occurred.',
           variant: "destructive",
         });
-      })
-      .finally(() => {
         setIsProcessingRedirect(false);
       });
-  }, [toast]);
+  }, [router, toast]);
 
   const loginForm = useForm<LoginFormData>({
     resolver: zodResolver(loginSchema),
