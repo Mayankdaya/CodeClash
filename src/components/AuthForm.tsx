@@ -52,25 +52,36 @@ function LoginForm() {
   });
 
   const handleGoogleSignIn = async () => {
+    if (!auth) return;
     setIsLoading(true);
     try {
-        await signInWithPopup(auth!, new GoogleAuthProvider());
+        const provider = new GoogleAuthProvider();
+        provider.setCustomParameters({
+          'auth_domain': process.env.NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN
+        });
+        await signInWithPopup(auth, provider);
         router.push('/lobby');
     } catch (error: any) {
         let description: ReactNode = error.message;
         if (error.code === 'auth/unauthorized-domain') {
             description = (
               <span>
-                This domain is not authorized. Add 'localhost' to your{' '}
-                <a
-                  href={`https://console.firebase.google.com/project/${process.env.NEXT_PUBLIC_FIREBASE_PROJECT_ID}/authentication/settings`}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="font-bold underline hover:text-primary"
-                >
-                  Firebase authorized domains
-                </a>
-                .
+                This domain is not authorized.
+                {process.env.NEXT_PUBLIC_FIREBASE_PROJECT_ID ? (
+                  <>
+                  {' '}Add 'localhost' to your{' '}
+                  <a
+                    href={`https://console.firebase.google.com/project/${process.env.NEXT_PUBLIC_FIREBASE_PROJECT_ID}/authentication/settings`}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="font-bold underline hover:text-primary"
+                  >
+                    Firebase authorized domains
+                  </a>.
+                  </>
+                ) : (
+                  " Check your Firebase project settings and .env configuration."
+                )}
               </span>
             );
         } else if (error.code === 'auth/popup-closed-by-user') {
@@ -87,9 +98,10 @@ function LoginForm() {
   };
 
   const onSubmit = async (data: LoginFormData) => {
+    if (!auth) return;
     setIsLoading(true);
     try {
-      await signInWithEmailAndPassword(auth!, data.email, data.password);
+      await signInWithEmailAndPassword(auth, data.email, data.password);
       router.push('/lobby');
     } catch (error: any) {
       toast({
@@ -167,25 +179,36 @@ function SignupForm() {
     });
     
     const handleGoogleSignIn = async () => {
+        if (!auth) return;
         setIsLoading(true);
         try {
-            await signInWithPopup(auth!, new GoogleAuthProvider());
+            const provider = new GoogleAuthProvider();
+            provider.setCustomParameters({
+              'auth_domain': process.env.NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN
+            });
+            await signInWithPopup(auth, provider);
             router.push('/lobby');
         } catch (error: any) {
             let description: ReactNode = error.message;
             if (error.code === 'auth/unauthorized-domain') {
               description = (
                 <span>
-                  This domain is not authorized. Add 'localhost' to your{' '}
-                  <a
-                    href={`https://console.firebase.google.com/project/${process.env.NEXT_PUBLIC_FIREBASE_PROJECT_ID}/authentication/settings`}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="font-bold underline hover:text-primary"
-                  >
-                    Firebase authorized domains
-                  </a>
-                  .
+                   This domain is not authorized.
+                  {process.env.NEXT_PUBLIC_FIREBASE_PROJECT_ID ? (
+                    <>
+                    {' '}Add 'localhost' to your{' '}
+                    <a
+                      href={`https://console.firebase.google.com/project/${process.env.NEXT_PUBLIC_FIREBASE_PROJECT_ID}/authentication/settings`}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="font-bold underline hover:text-primary"
+                    >
+                      Firebase authorized domains
+                    </a>.
+                    </>
+                  ) : (
+                     " Check your Firebase project settings and .env configuration."
+                  )}
                 </span>
               );
             } else if (error.code === 'auth/popup-closed-by-user') {
@@ -202,9 +225,10 @@ function SignupForm() {
     };
 
     const onSubmit = async (data: SignupFormData) => {
+        if (!auth) return;
         setIsLoading(true);
         try {
-            const { user } = await createUserWithEmailAndPassword(auth!, data.email, data.password);
+            const { user } = await createUserWithEmailAndPassword(auth, data.email, data.password);
             await updateProfile(user, {
                 displayName: data.username,
             });
