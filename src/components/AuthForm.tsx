@@ -45,13 +45,24 @@ function LoginForm() {
   const router = useRouter();
   const { toast } = useToast();
   const [isLoading, setIsLoading] = useState(false);
+  const [isGoogleLoading, setIsGoogleLoading] = useState(false);
   const form = useForm<LoginFormData>({
     resolver: zodResolver(loginSchema),
     defaultValues: { email: '', password: '' },
   });
 
   const handleGoogleSignIn = async () => {
-    setIsLoading(true);
+    setIsGoogleLoading(true);
+    if (!auth) {
+        toast({
+            title: "Firebase Not Configured",
+            description: "Please make sure your Firebase environment variables are set in .env.local and restart the server.",
+            variant: "destructive"
+        });
+        setIsGoogleLoading(false);
+        return;
+    }
+    
     try {
       const provider = new GoogleAuthProvider();
       await signInWithPopup(auth, provider);
@@ -59,16 +70,25 @@ function LoginForm() {
     } catch (error: any) {
        toast({
             title: "Google Sign-In Failed",
-            description: error.message || "An unknown error occurred. Please check the console and your Firebase configuration.",
+            description: error.message,
             variant: "destructive",
        });
     } finally {
-        setIsLoading(false);
+        setIsGoogleLoading(false);
     }
   };
 
   const onSubmit = async (data: LoginFormData) => {
     setIsLoading(true);
+    if (!auth) {
+        toast({
+            title: "Firebase Not Configured",
+            description: "Please set up your .env.local file.",
+            variant: "destructive"
+        });
+        setIsLoading(false);
+        return;
+    }
     try {
       await signInWithEmailAndPassword(auth, data.email, data.password);
       router.push('/lobby');
@@ -83,6 +103,8 @@ function LoginForm() {
     }
   };
 
+  const anyLoading = isLoading || isGoogleLoading;
+
   return (
     <>
       <Form {...form}>
@@ -94,7 +116,7 @@ function LoginForm() {
               <FormItem>
                 <FormLabel>Email</FormLabel>
                 <FormControl>
-                  <Input type="email" placeholder="you@example.com" {...field} disabled={isLoading} />
+                  <Input type="email" placeholder="you@example.com" {...field} disabled={anyLoading} />
                 </FormControl>
                 <FormMessage />
               </FormItem>
@@ -107,13 +129,13 @@ function LoginForm() {
               <FormItem>
                 <FormLabel>Password</FormLabel>
                 <FormControl>
-                  <Input type="password" placeholder="••••••••" {...field} disabled={isLoading} />
+                  <Input type="password" placeholder="••••••••" {...field} disabled={anyLoading} />
                 </FormControl>
                 <FormMessage />
               </FormItem>
             )}
           />
-          <Button type="submit" className="w-full" disabled={isLoading}>
+          <Button type="submit" className="w-full" disabled={anyLoading}>
             {isLoading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
             Log In
             {!isLoading && <ArrowRight className="ml-2 h-4 w-4" />}
@@ -130,8 +152,8 @@ function LoginForm() {
               </span>
           </div>
       </div>
-      <Button variant="outline" className="w-full" onClick={handleGoogleSignIn} disabled={isLoading}>
-          {isLoading ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <GoogleIcon className="mr-2 h-4 w-4" />}
+      <Button variant="outline" className="w-full" onClick={handleGoogleSignIn} disabled={anyLoading}>
+          {isGoogleLoading ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <GoogleIcon className="mr-2 h-4 w-4" />}
           Sign in with Google
       </Button>
     </>
@@ -142,13 +164,24 @@ function SignupForm() {
     const router = useRouter();
     const { toast } = useToast();
     const [isLoading, setIsLoading] = useState(false);
+    const [isGoogleLoading, setIsGoogleLoading] = useState(false);
     const form = useForm<SignupFormData>({
         resolver: zodResolver(signupSchema),
         defaultValues: { username: '', email: '', password: '' },
     });
     
     const handleGoogleSignIn = async () => {
-      setIsLoading(true);
+      setIsGoogleLoading(true);
+      if (!auth) {
+        toast({
+            title: "Firebase Not Configured",
+            description: "Please make sure your Firebase environment variables are set in .env.local and restart the server.",
+            variant: "destructive"
+        });
+        setIsGoogleLoading(false);
+        return;
+      }
+
       try {
           const provider = new GoogleAuthProvider();
           await signInWithPopup(auth, provider);
@@ -156,16 +189,25 @@ function SignupForm() {
       } catch (error: any) {
          toast({
               title: "Google Sign-Up Failed",
-              description: error.message || "An unknown error occurred. Please check the console and your Firebase configuration.",
+              description: error.message,
               variant: "destructive",
          });
       } finally {
-          setIsLoading(false);
+          setIsGoogleLoading(false);
       }
     };
 
     const onSubmit = async (data: SignupFormData) => {
         setIsLoading(true);
+         if (!auth) {
+            toast({
+                title: "Firebase Not Configured",
+                description: "Please set up your .env.local file.",
+                variant: "destructive"
+            });
+            setIsLoading(false);
+            return;
+        }
         try {
             const { user } = await createUserWithEmailAndPassword(auth, data.email, data.password);
             await updateProfile(user, {
@@ -183,6 +225,8 @@ function SignupForm() {
         }
     };
 
+    const anyLoading = isLoading || isGoogleLoading;
+
     return (
         <>
             <Form {...form}>
@@ -194,7 +238,7 @@ function SignupForm() {
                     <FormItem>
                       <FormLabel>Username</FormLabel>
                       <FormControl>
-                        <Input placeholder="code_master" {...field} disabled={isLoading} />
+                        <Input placeholder="code_master" {...field} disabled={anyLoading} />
                       </FormControl>
                       <FormMessage />
                     </FormItem>
@@ -207,7 +251,7 @@ function SignupForm() {
                     <FormItem>
                       <FormLabel>Email</FormLabel>
                       <FormControl>
-                        <Input type="email" placeholder="you@example.com" {...field} disabled={isLoading}/>
+                        <Input type="email" placeholder="you@example.com" {...field} disabled={anyLoading}/>
                       </FormControl>
                       <FormMessage />
                     </FormItem>
@@ -220,13 +264,13 @@ function SignupForm() {
                     <FormItem>
                       <FormLabel>Password</FormLabel>
                       <FormControl>
-                        <Input type="password" placeholder="••••••••" {...field} disabled={isLoading}/>
+                        <Input type="password" placeholder="••••••••" {...field} disabled={anyLoading}/>
                       </FormControl>
                       <FormMessage />
                     </FormItem>
                   )}
                 />
-                <Button type="submit" className="w-full" disabled={isLoading}>
+                <Button type="submit" className="w-full" disabled={anyLoading}>
                     {isLoading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
                     Sign Up
                     {!isLoading && <ArrowRight className="ml-2 h-4 w-4" />}
@@ -243,8 +287,8 @@ function SignupForm() {
                     </span>
                 </div>
             </div>
-            <Button variant="outline" className="w-full" onClick={handleGoogleSignIn} disabled={isLoading}>
-                {isLoading ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <GoogleIcon className="mr-2 h-4 w-4" />}
+            <Button variant="outline" className="w-full" onClick={handleGoogleSignIn} disabled={anyLoading}>
+                {isGoogleLoading ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <GoogleIcon className="mr-2 h-4 w-4" />}
                 Sign up with Google
             </Button>
         </>
