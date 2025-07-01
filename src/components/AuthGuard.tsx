@@ -8,11 +8,12 @@ import { Loader2 } from 'lucide-react';
 import { ensureUserProfile } from '@/lib/user';
 
 export default function AuthGuard({ children }: { children: ReactNode }) {
-  const [status, setStatus] = useState<'loading' | 'success'>('loading');
+  const [isAuthorized, setIsAuthorized] = useState(false);
 
   useEffect(() => {
     if (!auth) {
-       if (typeof window !== 'undefined') {
+      // This should not happen if FirebaseConfigGuard is working, but as a fallback...
+      if (typeof window !== 'undefined') {
         window.location.assign('/');
       }
       return;
@@ -20,9 +21,11 @@ export default function AuthGuard({ children }: { children: ReactNode }) {
 
     const unsubscribe = onAuthStateChanged(auth, async (user) => {
       if (user) {
+        // User is logged in. Ensure their profile exists then allow access.
         await ensureUserProfile(user);
-        setStatus('success');
+        setIsAuthorized(true);
       } else {
+        // User is not logged in. Redirect to the login page.
         if (typeof window !== 'undefined') {
           window.location.assign('/login');
         }
@@ -32,7 +35,7 @@ export default function AuthGuard({ children }: { children: ReactNode }) {
     return () => unsubscribe();
   }, []);
 
-  if (status === 'loading') {
+  if (!isAuthorized) {
     return (
       <div className="flex flex-col items-center justify-center min-h-dvh bg-transparent text-foreground">
         <Loader2 className="h-12 w-12 animate-spin text-primary" />
