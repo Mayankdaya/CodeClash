@@ -12,7 +12,6 @@ export default function AuthGuard({ children }: { children: ReactNode }) {
 
   useEffect(() => {
     if (!auth) {
-      // This should not happen if FirebaseConfigGuard is working, but as a fallback...
       if (typeof window !== 'undefined') {
         window.location.assign('/');
       }
@@ -20,15 +19,23 @@ export default function AuthGuard({ children }: { children: ReactNode }) {
     }
 
     const unsubscribe = onAuthStateChanged(auth, async (user) => {
-      if (user) {
-        // User is logged in. Ensure their profile exists then allow access.
-        await ensureUserProfile(user);
-        setIsAuthorized(true);
-      } else {
-        // User is not logged in. Redirect to the login page.
-        if (typeof window !== 'undefined') {
-          window.location.assign('/login');
+      try {
+        if (user) {
+          // User is logged in. Ensure their profile exists then allow access.
+          await ensureUserProfile(user);
+          setIsAuthorized(true);
+        } else {
+          // User is not logged in. Redirect to the login page.
+          if (typeof window !== 'undefined') {
+            window.location.assign('/login');
+          }
         }
+      } catch (error) {
+          console.error("Error during authentication check:", error);
+          // If any error occurs (e.g., Firestore permission denied), redirect to login
+          if (typeof window !== 'undefined') {
+            window.location.assign('/login');
+          }
       }
     });
 
