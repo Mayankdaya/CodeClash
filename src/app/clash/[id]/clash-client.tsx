@@ -88,7 +88,6 @@ const executeInWorker = (code: string, entryPoint: string, testCases: TestCase[]
 
                 if (isArray1 !== isArray2) return false;
 
-                // For objects
                 const keys1 = Object.keys(obj1);
                 const keys2 = Object.keys(obj2);
                 if (keys1.length !== keys2.length) return false;
@@ -103,12 +102,19 @@ const executeInWorker = (code: string, entryPoint: string, testCases: TestCase[]
             const smartParse = (value) => {
                 if (typeof value !== 'string') return value;
                 try {
-                    // Try parsing, if it's a valid JSON string (like an array or object), it will be parsed.
+                    // This will parse stringified JSON (like "[1,2,3]") and stringified numbers ("42")
                     return JSON.parse(value);
                 } catch (e) {
-                    // If it fails, it's just a regular string that isn't valid JSON.
+                    // If parsing fails, it's a regular string, so return it as is.
                     return value;
                 }
+            };
+            
+            const recursivelySmartParse = (value) => {
+                if (Array.isArray(value)) {
+                    return value.map(item => recursivelySmartParse(item));
+                }
+                return smartParse(value);
             };
 
             self.onmessage = function(e) {
@@ -130,8 +136,8 @@ const executeInWorker = (code: string, entryPoint: string, testCases: TestCase[]
                         
                         let parsedInput = [];
                         try {
-                            // Smart parse each argument before passing to the function
-                            parsedInput = tc.input; // No longer need to smartParse, data is clean.
+                            // Recursively parse all inputs to handle malformed data from the AI
+                            parsedInput = recursivelySmartParse(tc.input);
                             output = userFunc(...parsedInput);
                         } catch (err) {
                             error = err;
@@ -139,8 +145,8 @@ const executeInWorker = (code: string, entryPoint: string, testCases: TestCase[]
 
                         const endTime = performance.now();
                         
-                        // Expected value is also clean
-                        const expectedValue = tc.expected;
+                        // Also parse the expected output to ensure correct type for comparison
+                        const expectedValue = recursivelySmartParse(tc.expected);
                         
                         const passed = !error && deepEqual(output, expectedValue);
                         if (passed) passedCount++;
@@ -189,8 +195,8 @@ const formatInputForDisplay = (input: any) => {
         if (Array.isArray(args)) {
             // We want to display it as a comma-separated list of values
             return args.map(arg => {
+                // For display, wrap strings in double quotes
                 if (typeof arg === 'string') {
-                    // For display, wrap strings in double quotes
                     return `"${arg}"`;
                 }
                 // For objects/arrays, use JSON.stringify. For numbers/booleans, this also works well.
