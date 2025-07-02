@@ -13,7 +13,7 @@ import { z } from 'genkit';
 import type { Problem } from '@/lib/problems';
 
 const TestCaseSchema = z.object({
-  input: z.any().describe("An array of arguments for the function. CRITICAL: Values MUST be valid JSON. Numbers must be numbers (e.g., 42), not strings (e.g., '42'). Arrays must be arrays (e.g., [1,2]), not strings (e.g., '[1,2]'). For a function twoSum(nums, target), a CORRECT example input is [[2, 7, 11, 15], 9]. An INCORRECT example is ['[2, 7, 11, 15]', '9']. YOU MUST PROVIDE PURE JSON VALUES."),
+  input: z.array(z.any()).describe("An array of arguments for the function. This MUST be an array of pure JSON values."),
   expected: z.any().refine(val => val !== null && val !== undefined, { message: "Expected value cannot be null or undefined." }).describe("The expected output for the test case. It MUST NOT be null or undefined."),
 });
 
@@ -63,7 +63,16 @@ The problem should be self-contained and clearly explained. The difficulty shoul
     *   If the correct output is an empty string, the \`expected\` value must be \`""\`.
     *   If the correct output is \`0\`, the \`expected\` value must be \`0\`.
     *   **There are no exceptions. The \`expected\` field must always be populated with a real value.**
-3.  **\`testCases\` \`input\` Format:** The \`input\` values inside \`testCases\` MUST be pure JSON arrays of arguments, NOT strings that look like JSON. For example, for a function that takes an array and a number, the value must be \`[[1, 2, 3], 42]\`, NOT \`'["[1, 2, 3]", "42"]'\`. Numbers must be sent as numbers, not strings.
+3.  **CRITICAL \`testCases.input\` FORMATTING:**
+    *   The \`input\` field for each test case MUST be an array of arguments.
+    *   The values within this array MUST be pure, valid JSON types.
+    *   **DO NOT** represent arrays or numbers as strings within the JSON.
+    *   **CORRECT:** \`"input": [[1, 2, 3], 4]\`
+    *   **INCORRECT:** \`"input": ["[1, 2, 3]", 4]\`
+    *   **INCORRECT:** \`"input": ["[1, 2, 3]", "4"]\`
+    *   **INCORRECT:** \`"input": "[[1,2,3], 4]"\` (The entire value should not be a string)
+    *   For a function \`twoSum(nums, target)\` a CORRECT \`input\` is \`[[2, 7, 11, 15], 9]\`.
+    *   For a function \`rotate(nums, k)\` a CORRECT \`input\` is \`[[1,2,3,4,5], 2]\`.
 4.  **No Comments:** The final JSON output must NOT contain any comments.
 
 **Topic:** {{{topic}}}

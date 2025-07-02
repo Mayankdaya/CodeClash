@@ -80,18 +80,8 @@ const executeInWorker = (code: string, entryPoint: string, testCases: TestCase[]
 
                 if (isArray1 && isArray2) {
                     if (obj1.length !== obj2.length) return false;
-                    
-                    // Create sorted copies for comparison to handle cases where order doesn't matter.
-                    // This is a simplification; for arrays of objects, a more complex sort would be needed.
-                    // But for competitive programming problems which usually return primitives, this is sufficient.
-                    const sorted1 = [...obj1].sort();
-                    const sorted2 = [...obj2].sort();
-
-                    // Recursively check each element in the sorted arrays.
-                    for (let i = 0; i < sorted1.length; i++) {
-                        if (!deepEqual(sorted1[i], sorted2[i])) {
-                            return false;
-                        }
+                    for (let i = 0; i < obj1.length; i++) {
+                        if (!deepEqual(obj1[i], obj2[i])) return false;
                     }
                     return true;
                 }
@@ -198,12 +188,18 @@ const formatInputForDisplay = (input: any) => {
         
         if (Array.isArray(args)) {
             // We want to display it as a comma-separated list of values
-            // without extra quotes on arrays/objects.
-            return args.map(arg => JSON.stringify(arg)).join(', ');
+            return args.map(arg => {
+                if (typeof arg === 'string') {
+                    // For display, wrap strings in double quotes
+                    return `"${arg}"`;
+                }
+                // For objects/arrays, use JSON.stringify. For numbers/booleans, this also works well.
+                return JSON.stringify(arg);
+            }).join(', ');
         }
         return input;
     } catch (e) {
-        // Fallback for malformed input
+        // Fallback for any parsing error
         return String(input);
     }
 };
