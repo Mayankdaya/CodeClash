@@ -1,7 +1,7 @@
 
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { useSearchParams, useRouter } from 'next/navigation';
 import { collection, addDoc, serverTimestamp as firestoreServerTimestamp } from 'firebase/firestore';
 import { useToast } from '@/hooks/use-toast';
@@ -24,8 +24,14 @@ function MatchingContent() {
   const { user: currentUser } = useAuth();
 
   const [statusText, setStatusText] = useState('Initializing...');
+  const matchmakingStarted = useRef(false);
 
   useEffect(() => {
+    // Prevent the effect from running more than once
+    if (matchmakingStarted.current) {
+      return;
+    }
+
     const topicId = searchParams.get('topic');
     if (!db || !currentUser) return;
 
@@ -34,6 +40,9 @@ function MatchingContent() {
       router.push('/lobby');
       return;
     }
+
+    // Set the flag to true immediately after the checks
+    matchmakingStarted.current = true;
     
     const createDummyMatch = async (retryCount = 0) => {
         setStatusText('Finding opponent...');
