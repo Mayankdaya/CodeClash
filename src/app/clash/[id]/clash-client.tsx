@@ -441,9 +441,9 @@ export default function ClashClient({ id }: { id: string }) {
             const data = snapshot.val();
 
             try {
-                if (data.offer) {
-                    // Callee receives an offer. It should be in a 'stable' state.
-                    if (pc.signalingState !== 'stable') return;
+                // Callee: Process the offer if we receive one and haven't already.
+                // `currentRemoteDescription` is the latch to prevent reprocessing.
+                if (data.offer && !isCaller && !pc.currentRemoteDescription) {
                     await pc.setRemoteDescription(new RTCSessionDescription(data.offer));
                     if (ignore) return;
                     const answer = await pc.createAnswer();
@@ -451,14 +451,15 @@ export default function ClashClient({ id }: { id: string }) {
                     await pc.setLocalDescription(answer);
                     if (ignore) return;
                     await update(myPeerRef, { answer });
-                } else if (data.answer) {
-                    // Caller receives an answer. It should be in 'have-local-offer' state.
-                    if (pc.signalingState !== 'have-local-offer') return;
+                }
+
+                // Caller: Process the answer if we receive one and are in the correct state.
+                if (data.answer && isCaller && pc.signalingState === 'have-local-offer') {
                     await pc.setRemoteDescription(new RTCSessionDescription(data.answer));
                 }
                 
+                // Both: Process any candidates. The browser queues them automatically.
                 if (data.candidate) {
-                   // It's safe to add candidates as they come. They are queued if needed.
                    await pc.addIceCandidate(new RTCIceCandidate(data.candidate));
                 }
             } catch (e) {
