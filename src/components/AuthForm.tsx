@@ -234,14 +234,21 @@ export function AuthForm({ mode }: AuthFormProps) {
     const provider = new GoogleAuthProvider();
     try {
         await signInWithPopup(auth, provider);
-        // The `onAuthStateChanged` listener in `useAuth` will call `ensureUserProfile`
-        // and the `AuthGuard` will then handle the redirect.
+        // The `onAuthStateChanged` listener in `useAuth` will handle the user profile creation
+        // and the `UnauthGuard` will then handle the redirect.
     } catch (error: any) {
-        toast({
-            title: "Google Sign-In Failed",
-            description: getFirebaseAuthErrorMessage(error),
-            variant: "destructive",
-        });
+        // This specific error occurs when the user closes the popup or when the
+        // redirect happens before the popup promise resolves. In our case, the redirect
+        // is expected on success, so we don't want to show an error for this.
+        if (error.code !== 'auth/popup-closed-by-user') {
+            toast({
+                title: "Google Sign-In Failed",
+                description: getFirebaseAuthErrorMessage(error),
+                variant: "destructive",
+            });
+        }
+    } finally {
+        // The redirect might happen before this is called, but it's good practice.
         setIsGoogleLoading(false);
     }
   };
