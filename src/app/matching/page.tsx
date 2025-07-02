@@ -76,9 +76,10 @@ function MatchingContent() {
       cleanupPerformed.current = true;
       if (queueUnsubscribe) queueUnsubscribe();
       if (matchUnsubscribe) matchUnsubscribe();
-      onDisconnect(myQueueRef).cancel();
-      remove(myQueueRef);
-      remove(myMatchRef);
+      
+      onDisconnect(myQueueRef).cancel().catch(e => console.error("Error cancelling onDisconnect:", e));
+      remove(myQueueRef).catch(e => console.error("Error removing my queue ref:", e));
+      remove(myMatchRef).catch(e => console.error("Error removing my match ref:", e));
     }
 
     matchUnsubscribe = onValue(myMatchRef, (snapshot) => {
@@ -90,7 +91,11 @@ function MatchingContent() {
       }
     }, (error) => {
       console.error("RTDB match listener error:", error);
-      toast({ title: "Matchmaking Error", description: "There was a problem listening for your match. Please try again.", variant: "destructive" });
+      let description = "There was a problem listening for your match. Please try again.";
+      if (error.message.includes("permission_denied")) {
+        description = "Database permission denied. Please ensure your Firebase security rules are correctly configured for public access and try again.";
+      }
+      toast({ title: "Matchmaking Error", description, variant: "destructive" });
       router.push('/lobby');
       performCleanup();
     });
@@ -98,9 +103,13 @@ function MatchingContent() {
     const setupMatchmaking = async () => {
         try {
             await set(myQueueRef, playerInfo);
-        } catch (error) {
+        } catch (error: any) {
             console.error("Failed to join queue:", error);
-            toast({ title: "Matchmaking Error", description: "Could not join the queue. This might be a database permission issue.", variant: "destructive" });
+            let description = "Could not join the queue. This might be a database permission issue.";
+            if (error.message && error.message.toLowerCase().includes("permission_denied")) {
+                description = "Database permission denied. Please check your Firebase security rules and try again.";
+            }
+            toast({ title: "Matchmaking Error", description, variant: "destructive" });
             router.push('/lobby');
             return;
         }
