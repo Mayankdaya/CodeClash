@@ -131,7 +131,9 @@ function MatchingContent() {
           const me = queue[currentUser.uid];
           if (!me) return; 
 
-          if (me.enteredAt < opponent.enteredAt) {
+          // The player who joined first is responsible for creating the match.
+          // Add a tie-breaker on UID to make it fully deterministic.
+          if (me.enteredAt < opponent.enteredAt || (me.enteredAt === opponent.enteredAt && me.uid < opponent.uid)) {
             try {
                 const { committed } = await runTransaction(topicQueueRef, (currentQueue) => {
                   if (currentQueue && currentQueue[me.uid] && currentQueue[opponent.uid]) {
@@ -139,11 +141,10 @@ function MatchingContent() {
                     delete currentQueue[opponent.uid];
                     return currentQueue;
                   }
-                  return; 
+                  return; // Abort transaction
                 });
 
                 if (committed) {
-                  performCleanup();
                   setStatusText('Opponent found! Generating challenge...');
                   
                   const topicName = topicId.replace(/-/g, ' ').replace(/\b\w/g, l => l.toUpperCase());
@@ -172,6 +173,8 @@ function MatchingContent() {
                       status: 'active'
                   });
 
+                  // Notify both players of the match. This will trigger the `onValue(myMatchRef, ...)`
+                  // listener for both clients, which handles cleanup and redirection.
                   await set(ref(rtdb, `userMatches/${opponent.uid}`), clashDocRef.id);
                   await set(myMatchRef, clashDocRef.id);
                 }
