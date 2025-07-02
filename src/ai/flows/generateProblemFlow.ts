@@ -12,26 +12,17 @@ import { ai } from '@/ai/genkit';
 import { z } from 'genkit';
 import type { Problem } from '@/lib/problems';
 
-// A schema for any valid JSON value. This has been carefully constructed to
-// work around limitations in the backend API's schema parser, which dislikes
-// fully recursive object definitions.
+// A schema for valid JSON values, restricted to primitives and arrays of
+// primitives/arrays. This is a workaround for limitations in the backend API's
+// schema parser, which dislikes fully generic object definitions.
 const literalSchema = z.union([z.string(), z.number(), z.boolean(), z.null()]);
-
-// Define a schema for primitives and arrays of primitives/arrays.
-const jsonPrimsAndArraysSchema: z.ZodType<any> = z.lazy(() =>
-  z.union([literalSchema, z.array(jsonPrimsAndArraysSchema)])
+const jsonSchema: z.ZodType<any> = z.lazy(() =>
+  z.union([literalSchema, z.array(jsonSchema)])
 );
-
-// Define a separate schema for a generic JSON object. Using z.any() for values
-// is a workaround for the API's schema validation.
-const jsonObjectSchema = z.record(z.string(), z.any()).describe("A JSON object with any properties.");
-
-// The final schema for a valid JSON value is a union of the two above.
-const jsonSchema = z.union([jsonPrimsAndArraysSchema, jsonObjectSchema]);
 
 
 const TestCaseSchema = z.object({
-  input: z.array(jsonSchema).describe("An array of arguments for the function. This MUST be an array of pure JSON values."),
+  input: z.array(jsonSchema).describe("An array of arguments for the function. This MUST be an array of pure JSON values (primitives or arrays). Objects are not supported."),
   expected: jsonSchema.refine(val => val !== null && val !== undefined, { message: "Expected value cannot be null or undefined." }).describe("The expected output for the test case. It MUST NOT be null or undefined."),
 });
 
@@ -83,7 +74,7 @@ The problem should be self-contained and clearly explained. The difficulty shoul
     *   **There are no exceptions. The \`expected\` field must always be populated with a real value.**
 3.  **CRITICAL \`testCases.input\` FORMATTING:**
     *   The \`input\` field for each test case MUST be an array of arguments.
-    *   The values within this array MUST be pure, valid JSON types.
+    *   The values within this array MUST be pure, valid JSON types (strings, numbers, booleans, nulls, and arrays). Objects are NOT supported.
     *   **DO NOT** represent arrays or numbers as strings within the JSON.
     *   **CORRECT:** \`"input": [[1, 2, 3], 4]\`
     *   **INCORRECT:** \`"input": ["[1, 2, 3]", 4]\`
