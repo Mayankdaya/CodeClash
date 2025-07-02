@@ -67,38 +67,81 @@ interface Message {
 type TestCaseResult = ExecuteCodeOutput['results'][0];
 type TestCase = Problem['testCases'][0];
 
+/**
+ * Recursively parses string values in a data structure. If a string can be parsed
+ * as JSON, it is replaced by the parsed value. This is used to clean up
+ * test case data that may have been stringified by the AI model.
+ * @param data The data to parse.
+ * @returns The parsed data.
+ */
+function robustParse(data: any): any {
+  if (typeof data !== 'string') {
+    if (Array.isArray(data)) {
+      return data.map(item => robustParse(item));
+    }
+    if (typeof data === 'object' && data !== null) {
+        const newObj: { [key: string]: any } = {};
+        for (const key in data) {
+            if (Object.prototype.hasOwnProperty.call(data, key)) {
+                newObj[key] = robustParse(data[key]);
+            }
+        }
+        return newObj;
+    }
+    return data;
+  }
+  try {
+    // This is the key change: we attempt to parse any string.
+    const parsed = JSON.parse(data);
+    // If parsing succeeds, we recursively parse the result.
+    return robustParse(parsed);
+  } catch (e) {
+    // If it fails, it's just a regular string, so return it.
+    return data;
+  }
+}
+
 const executeInWorker = (code: string, entryPoint: string, testCases: TestCase[]): Promise<ExecuteCodeOutput> => {
     return new Promise((resolve) => {
         const workerCode = `
-            const deepEqual = (obj1, obj2) => {
-                if (obj1 === obj2) return true;
-                
-                const isArray1 = Array.isArray(obj1);
-                const isArray2 = Array.isArray(obj2);
+            const deepEqual = (a, b) => {
+                if (a === b) return true;
+                if (a && b && typeof a === 'object' && typeof b === 'object') {
+                    if (a.constructor !== b.constructor) return false;
 
-                if (isArray1 && isArray2) {
-                    if (obj1.length !== obj2.length) return false;
-                    for (let i = 0; i < obj1.length; i++) {
-                        if (!deepEqual(obj1[i], obj2[i])) return false;
+                    let length;
+                    if (Array.isArray(a)) {
+                        length = a.length;
+                        if (length !== b.length) return false;
+                        for (let i = 0; i < length; i++) {
+                            if (!deepEqual(a[i], b[i])) return false;
+                        }
+                        return true;
+                    }
+
+                    if ((a.constructor === RegExp && b.constructor === RegExp)) {
+                        return a.source === b.source && a.flags === b.flags;
+                    }
+                    if (a.valueOf !== Object.prototype.valueOf) {
+                        return a.valueOf() === b.valueOf();
+                    }
+                    if (a.toString !== Object.prototype.toString) {
+                        return a.toString() === b.toString();
+                    }
+
+                    const keys = Object.keys(a);
+                    length = keys.length;
+                    if (length !== Object.keys(b).length) return false;
+
+                    for (let i = 0; i < length; i++) {
+                        const key = keys[i];
+                        if (!Object.prototype.hasOwnProperty.call(b, key) || !deepEqual(a[key], b[key])) {
+                            return false;
+                        }
                     }
                     return true;
                 }
-                
-                if (typeof obj1 !== 'object' || obj1 === null || typeof obj2 !== 'object' || obj2 === null) {
-                    return obj1 === obj2;
-                }
-
-                if (isArray1 !== isArray2) return false;
-
-                const keys1 = Object.keys(obj1);
-                const keys2 = Object.keys(obj2);
-                if (keys1.length !== keys2.length) return false;
-                for (let key of keys1) {
-                    if (!keys2.includes(key) || !deepEqual(obj1[key], obj2[key])) {
-                        return false;
-                    }
-                }
-                return true;
+                return a !== a && b !== b;
             };
             
             const robustParse = (data) => {
@@ -138,6 +181,7 @@ const executeInWorker = (code: string, entryPoint: string, testCases: TestCase[]
                         const startTime = performance.now();
                         let output, error = null;
                         
+                        // Data is already clean from the main thread, but we keep parse here as a safeguard.
                         const parsedInput = robustParse(tc.input);
                         const expectedValue = robustParse(tc.expected);
 
@@ -188,17 +232,27 @@ const executeInWorker = (code: string, entryPoint: string, testCases: TestCase[]
     });
 };
 
-const formatInputForDisplay = (input: any) => {
-    try {
-        const args = JSON.parse(input);
-        if (Array.isArray(args)) {
-            return args.map(arg => JSON.stringify(arg)).join(', ');
-        }
-        return input;
-    } catch (e) {
-        return String(input);
-    }
+const formatArgsForDisplay = (args: any[]): string => {
+    if (!Array.isArray(args)) return String(args); // Fallback
+    return args.map(arg => JSON.stringify(arg)).join(', ');
 };
+
+const formatValueForDisplay = (value: any): string => {
+    if (typeof value === 'string') {
+        try {
+            // Check if it's a stringified object/array and format it without extra quotes
+            const parsed = JSON.parse(value);
+            if(typeof parsed === 'object' && parsed !== null) {
+                return value;
+            }
+        } catch (e) {
+            // It's a regular string, return as is.
+            return `"${value}"`;
+        }
+    }
+    // For non-string types, stringify normally
+    return JSON.stringify(value);
+}
 
 export default function ClashClient({ id }: { id: string }) {
   const router = useRouter();
@@ -248,10 +302,18 @@ export default function ClashClient({ id }: { id: string }) {
       if (docSnap.exists()) {
         const rawData = docSnap.data();
 
-        const problemData = typeof rawData.problem === 'string'
+        let problemData: Problem = typeof rawData.problem === 'string'
           ? JSON.parse(rawData.problem)
           : rawData.problem;
         
+        // Clean the test cases as soon as they are loaded to fix data format issues from the AI.
+        if (problemData && problemData.testCases) {
+          problemData.testCases = problemData.testCases.map(tc => ({
+              input: robustParse(tc.input),
+              expected: robustParse(tc.expected),
+          }));
+        }
+
         const data = { ...rawData, problem: problemData } as ClashData;
         setClashData(data);
         
@@ -754,7 +816,7 @@ export default function ClashClient({ id }: { id: string }) {
                                                                 <span className={cn(res.passed ? "text-green-400" : "text-red-400")}>Case {res.case}: {res.passed ? 'Passed' : 'Failed'}</span>
                                                             </div>
                                                             <div className='space-y-1 pl-7 text-xs'>
-                                                            <p><span className="text-muted-foreground w-20 inline-block font-semibold">Input:</span> {formatInputForDisplay(res.input)}</p>
+                                                            <p><span className="text-muted-foreground w-20 inline-block font-semibold">Input:</span> {formatArgsForDisplay(JSON.parse(res.input))}</p>
                                                             <p><span className="text-muted-foreground w-20 inline-block font-semibold">Output:</span> {res.output}</p>
                                                             {!res.passed && <p><span className="text-muted-foreground w-20 inline-block font-semibold">Expected:</span> {res.expected}</p>}
                                                             </div>
@@ -769,8 +831,8 @@ export default function ClashClient({ id }: { id: string }) {
                                                 <div key={index} className="border-b border-border/50 pb-3 last:border-b-0">
                                                     <p className="font-bold mb-2 text-lg">Case {index + 1}</p>
                                                     <div className="bg-background/40 p-3 mt-1 rounded-md space-y-2">
-                                                        <p><strong className='text-muted-foreground'>Input:</strong> {formatInputForDisplay(JSON.stringify(tc.input))}</p>
-                                                        <p><strong className='text-muted-foreground'>Output:</strong> {tc.expected !== null ? JSON.stringify(tc.expected) : <span className="text-muted-foreground/60 italic">(no output)</span>}</p>
+                                                        <p><strong className='text-muted-foreground'>Input:</strong> {formatArgsForDisplay(tc.input)}</p>
+                                                        <p><strong className='text-muted-foreground'>Output:</strong> {formatValueForDisplay(tc.expected)}</p>
                                                     </div>
                                                 </div>
                                             ))}
