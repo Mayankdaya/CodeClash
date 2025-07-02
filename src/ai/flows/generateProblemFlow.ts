@@ -14,7 +14,7 @@ import type { Problem } from '@/lib/problems';
 
 const TestCaseSchema = z.object({
   input: z.any().describe("An array of arguments for the function. IMPORTANT: Values within this array must be valid JSON primitives, arrays, or objects. They MUST NOT be strings that represent JSON (e.g., use `[1, 2]` instead of `'[1, 2]'`). For a function twoSum(nums, target), an example input is [[2, 7, 11, 15], 9]."),
-  expected: z.any().describe("The expected output for the test case."),
+  expected: z.any().refine(val => val !== null, { message: "Expected value cannot be null." }).describe("The expected output for the test case. It cannot be null or undefined."),
 });
 
 const ProblemSchema: z.ZodType<Problem> = z.object({
@@ -57,7 +57,7 @@ The problem should be self-contained and clearly explained. The difficulty shoul
 2.  **\\\`title\\\` is REQUIRED:** The \\\`title\\\` field cannot be omitted. It must be a clear, descriptive title for the problem.
 3.  **\\\`testCases\\\` format:** The \\\`input\\\` values inside \\\`testCases\\\` MUST be pure JSON arrays of arguments, NOT strings that look like JSON. For example, for a function that takes an array and a number, the value must be \\\`[[1, 2, 3], 42]\\\`, NOT \\\`'["[1, 2, 3]", "42"]'\\\`.
 4.  **No Comments:** The final JSON output must NOT contain any comments.
-5.  **Valid and Consistent Test Cases:** Every single test case in the \\\`testCases\\\` array MUST have a valid \\\`expected\\\` value. The \\\`expected\\\` field cannot be missing or undefined. All test cases with the same input must have the same expected output.
+5.  **Valid and Consistent Test Cases:** Every single test case in the \\\`testCases\\\` array MUST have a valid \\\`expected\\\` value. The \\\`expected\\\` field cannot be missing, null, or undefined. All test cases with the same input must have the same expected output.
 
 **Topic:** {{{topic}}}
 **Unique Request Seed:** {{{seed}}}

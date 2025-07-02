@@ -53,58 +53,74 @@ function MatchingContent() {
       return;
     }
     
-    const createDummyMatch = async () => {
-        try {
-            setStatusText('Finding an opponent...');
-            
-            // For testing: create a dummy opponent and start the match immediately.
-            const dummyOpponent = {
-                uid: `dummy-${Math.random().toString(36).substring(2, 9)}`,
-                displayName: 'Dummy Bot',
-                photoURL: 'https://placehold.co/100x100.png',
-            };
-            
-            await new Promise(resolve => setTimeout(resolve, 1500)); // Simulate finding an opponent
-            setStatusText('Opponent found! Generating challenge...');
-            
-            const topicName = topicId.replace(/-/g, ' ').replace(/\b\w/g, l => l.toUpperCase());
-            const problem = await generateProblem({ topic: topicName, seed: Date.now().toString() });
-            
-            const validTestCases = problem.testCases.filter(tc => tc.expected !== undefined && tc.expected !== null);
-            if (validTestCases.length < 3) { throw new Error("AI failed to generate a valid problem. Please try again."); }
-            
-            const problemWithStrTestCases = {
-                ...problem,
-                testCases: validTestCases.map(tc => ({
-                    input: JSON.stringify(tc.input),
-                    expected: JSON.stringify(tc.expected),
-                })),
-            };
-            const sanitizedProblem = JSON.parse(JSON.stringify(problemWithStrTestCases));
-
-            const clashDocRef = await addDoc(collection(db, 'clashes'), {
-                topicId,
-                problem: sanitizedProblem,
-                participants: [
-                    { userId: currentUser.uid, userName: currentUser.displayName, userAvatar: currentUser.photoURL, score: 0, solvedTimestamp: null },
-                    { userId: dummyOpponent.uid, userName: dummyOpponent.displayName, userAvatar: dummyOpponent.photoURL, score: 0, solvedTimestamp: null }
-                ],
-                createdAt: firestoreServerTimestamp(),
-                status: 'active'
-            });
-
-            toast({ title: "Match Found!", description: "Let's go!" });
-            router.push(`/clash/${clashDocRef.id}`);
-
-        } catch (error: any) {
-            console.error("Error creating dummy match:", error);
-            if (error instanceof FirebaseError && error.code === 'permission-denied') {
-                router.push('/setup-error');
-                return;
-            }
-            toast({ title: "Matchmaking Error", description: error.message || "Could not create the match.", variant: "destructive" });
-            router.push('/lobby');
+    const createDummyMatch = async (retriesLeft = 2) => {
+      try {
+        if (retriesLeft === 2) {
+          setStatusText('Finding an opponent...');
+          await new Promise(resolve => setTimeout(resolve, 1500));
+          setStatusText('Opponent found! Generating challenge...');
+        } else {
+          setStatusText('Challenge generation failed, retrying...');
         }
+
+        const topicName = topicId.replace(/-/g, ' ').replace(/\b\w/g, l => l.toUpperCase());
+        const problem = await generateProblem({ topic: topicName, seed: Date.now().toString() });
+        
+        const validTestCases = problem.testCases?.filter(tc => tc.expected !== undefined && tc.expected !== null) || [];
+        if (validTestCases.length < 3) {
+            throw new Error("AI returned a problem with too few valid test cases.");
+        }
+        
+        const problemWithStrTestCases = {
+            ...problem,
+            testCases: validTestCases.map(tc => ({
+                input: JSON.stringify(tc.input),
+                expected: JSON.stringify(tc.expected),
+            })),
+        };
+        const sanitizedProblem = JSON.parse(JSON.stringify(problemWithStrTestCases));
+        
+        const dummyOpponent = {
+            uid: `dummy-${Math.random().toString(36).substring(2, 9)}`,
+            displayName: 'Dummy Bot',
+            photoURL: 'https://placehold.co/100x100.png',
+        };
+
+        const clashDocRef = await addDoc(collection(db, 'clashes'), {
+            topicId,
+            problem: sanitizedProblem,
+            participants: [
+                { userId: currentUser.uid, userName: currentUser.displayName, userAvatar: currentUser.photoURL, score: 0, solvedTimestamp: null },
+                { userId: dummyOpponent.uid, userName: dummyOpponent.displayName, userAvatar: dummyOpponent.photoURL, score: 0, solvedTimestamp: null }
+            ],
+            createdAt: firestoreServerTimestamp(),
+            status: 'active'
+        });
+
+        toast({ title: "Match Found!", description: "Let's go!" });
+        router.push(`/clash/${clashDocRef.id}`);
+
+      } catch (error: any) {
+        console.error("Error creating dummy match:", error);
+        
+        if (error instanceof FirebaseError && error.code === 'permission-denied') {
+            router.push('/setup-error');
+            return;
+        }
+
+        if (retriesLeft > 0) {
+          console.warn(`Problem generation failed. Retrying... (${retriesLeft} retries left)`);
+          await new Promise(resolve => setTimeout(resolve, 1500));
+          return createDummyMatch(retriesLeft - 1);
+        }
+
+        toast({ 
+          title: "Matchmaking Error", 
+          description: "Failed to generate a valid coding problem after multiple attempts. Please try again.",
+          variant: "destructive" 
+        });
+        router.push('/lobby');
+      }
     };
 
     createDummyMatch();
