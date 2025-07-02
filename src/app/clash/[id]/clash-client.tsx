@@ -400,7 +400,9 @@ export default function ClashClient({ id }: { id: string }) {
                 localStreamForRTC?.getTracks().forEach(track => track.stop());
                 return;
             }
-            localStreamForRTC.getTracks().forEach(track => pc.addTrack(track, localStreamForRTC!));
+            localStreamForRTC.getTracks().forEach(track => {
+                if (!ignore) pc.addTrack(track, localStreamForRTC!);
+            });
         } catch (e) {
             console.error("Could not get local stream for WebRTC", e);
             if (!ignore) setIsConnecting(false);
@@ -437,31 +439,32 @@ export default function ClashClient({ id }: { id: string }) {
             const data = snapshot.val();
             if (!data) return;
 
-            if (data.offer && !isCaller) {
-                await pc.setRemoteDescription(new RTCSessionDescription(data.offer));
-                if (ignore) return;
-                const answer = await pc.createAnswer();
-                if (ignore) return;
-                await pc.setLocalDescription(answer);
-                if (ignore) return;
-                await update(myPeerRef, { answer });
-            }
+            try {
+                // Callee receives an offer
+                if (data.offer && !isCaller && pc.signalingState === 'stable') {
+                    await pc.setRemoteDescription(new RTCSessionDescription(data.offer));
+                    if (ignore) return;
+                    const answer = await pc.createAnswer();
+                    if (ignore) return;
+                    await pc.setLocalDescription(answer);
+                    if (ignore) return;
+                    await update(myPeerRef, { answer });
+                }
 
-            if (data.answer && isCaller) {
-                if (pc.signalingState !== 'stable') {
+                // Caller receives an answer
+                if (data.answer && isCaller && pc.signalingState === 'have-local-offer') {
                     await pc.setRemoteDescription(new RTCSessionDescription(data.answer));
                 }
-            }
-            
-            if (data.candidate) {
-                try {
-                    if (pc.signalingState !== 'closed') {
+                
+                // Both receive candidates
+                if (data.candidate) {
+                    if (pc.remoteDescription) {
                        await pc.addIceCandidate(new RTCIceCandidate(data.candidate));
                     }
-                } catch (e) {
-                    if (!ignore) {
-                       console.error('Error adding received ice candidate', e);
-                    }
+                }
+            } catch (e) {
+                if (!ignore) {
+                   console.error('Signaling error:', e);
                 }
             }
         });
