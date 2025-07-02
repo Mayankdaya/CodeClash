@@ -46,23 +46,52 @@ export async function executeCode(input: ExecuteCodeInput): Promise<ExecuteCodeO
   return executeCodeFlow(input);
 }
 
+/**
+ * Recursively parses string values in a data structure. If a string can be parsed
+ * as JSON, it is replaced by the parsed value. This is used to clean up
+ * test case data that may have been stringified.
+ * @param data The data to parse.
+ * @returns The parsed data.
+ */
+function robustParse(data: any): any {
+  if (typeof data !== 'string') {
+    if (Array.isArray(data)) {
+      return data.map(item => robustParse(item));
+    }
+    if (typeof data === 'object' && data !== null) {
+        const newObj: { [key: string]: any } = {};
+        for (const key in data) {
+            if (Object.prototype.hasOwnProperty.call(data, key)) {
+                newObj[key] = robustParse(data[key]);
+            }
+        }
+        return newObj;
+    }
+    return data;
+  }
+  try {
+    const parsed = JSON.parse(data);
+    return robustParse(parsed);
+  } catch (e) {
+    return data;
+  }
+}
+
 const executeCodePrompt = ai.definePrompt({
   name: 'executeCodePrompt',
   input: { schema: ExecuteCodeInputSchema },
   output: { schema: ExecuteCodeOutputSchema },
   prompt: `You are a highly accurate and strict Code Execution Engine and Judge for a competitive programming platform called CodeClash.
 
-Your task is to take a user's code snippet in a specific language, execute it against a series of test cases, and return a structured result.
+Your task is to take a user's code snippet in a specific language, execute it against a series of test cases, and return a structured result. The test cases provided have already been cleaned and parsed, so you can trust their data types.
 
 **Execution Rules:**
 
-1.  **Analyze and Execute:** Carefully analyze the provided code. Before executing, you MUST parse the \`input\` values in the test cases. If an input value is a string that represents a valid JSON structure (like \`"[1,2,3]"\`) or a numeric/boolean primitive (like \`"123"\`), you must parse it to its correct data type before passing it to the function. Do not treat numbers as strings. Simulate the code's execution for each test case.
+1.  **Analyze and Execute:** The test case data provided is already in the correct format. Directly simulate the code's execution for each test case with the given inputs.
 2.  **Error Handling:**
     *   If there's a syntax error, compilation error, or a runtime error that prevents execution for all test cases (e.g., an infinite loop), set the 'status' to 'error' and provide a concise, helpful 'message' explaining the issue. The 'results' array should be empty.
     *   If an error occurs for a specific test case, mark that test case as failed. The 'output' for that result should be the error message.
-3.  **Judge Correctness:** For each test case, compare the actual output of the code with the 'expected' output.
-    *   For arrays, the order of elements does not matter unless the problem implies order. For example, if the expected output for a 'two sum' problem is [0, 1], an actual output of [1, 0] should be considered correct.
-    *   Perform a deep equality check for objects and nested structures.
+3.  **Judge Correctness:** For each test case, perform a deep equality check of the actual output against the 'expected' output. The order of elements in an array matters.
 4.  **Structured Output:** You MUST return a JSON object that strictly conforms to the provided output schema.
     *   'status': 'success' if the code could be executed against all test cases (even if some failed), 'error' if a fatal error occurred.
     *   'passedCount': The total number of test cases where the actual output matched the expected output.
@@ -94,7 +123,15 @@ const executeCodeFlow = ai.defineFlow(
     outputSchema: ExecuteCodeOutputSchema,
   },
   async (input) => {
-    const { output } = await executeCodePrompt(input);
+    // Pre-process the test cases to handle any stringified values.
+    const processedTestCases = input.testCases.map(tc => ({
+        input: robustParse(tc.input),
+        expected: robustParse(tc.expected),
+    }));
+
+    const processedInput = { ...input, testCases: processedTestCases };
+
+    const { output } = await executeCodePrompt(processedInput);
     if (!output) {
       throw new Error('Failed to get a valid execution result from the AI model.');
     }
