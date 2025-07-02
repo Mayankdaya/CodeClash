@@ -308,14 +308,11 @@ export default function ClashClient({ id }: { id: string }) {
       if (docSnap.exists()) {
         const rawData = docSnap.data();
 
-        let problemData: Problem = typeof rawData.problem === 'string'
+        let problemData: Problem = robustParse(
+          typeof rawData.problem === 'string'
           ? JSON.parse(rawData.problem)
-          : rawData.problem;
-        
-        // Clean the test cases as soon as they are loaded to fix data format issues from the AI.
-        if (problemData && problemData.testCases) {
-          problemData = robustParse(problemData);
-        }
+          : rawData.problem
+        );
 
         const data = { ...rawData, problem: problemData } as ClashData;
         setClashData(data);
@@ -390,9 +387,9 @@ export default function ClashClient({ id }: { id: string }) {
     
     const myId = currentUser.uid;
     const opponentId = opponent.userId;
-    const signalingRef = ref(rtdb, `clash-video-signaling/${id}`);
-    const myPeerRef = ref(signalingRef, myId);
-    const opponentPeerRef = ref(signalingRef, opponentId);
+    const baseSignalingPath = `clash-video-signaling/${id}`;
+    const myPeerRef = ref(rtdb, `${baseSignalingPath}/${myId}`);
+    const opponentPeerRef = ref(rtdb, `${baseSignalingPath}/${opponentId}`);
     let unsubscribeOpponent: () => void;
 
     const startConnection = async () => {
@@ -460,7 +457,7 @@ export default function ClashClient({ id }: { id: string }) {
         }, 15000); // 15 second timeout
         
         return () => {
-            unsubscribeOpponent();
+            if (unsubscribeOpponent) unsubscribeOpponent();
             clearTimeout(connectionTimeout);
         }
     };
@@ -1082,3 +1079,5 @@ export default function ClashClient({ id }: { id: string }) {
       </div>
   );
 }
+
+    
