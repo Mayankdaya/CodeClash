@@ -1,4 +1,5 @@
 import { initializeApp, getApps, getApp, type FirebaseApp } from "firebase/app";
+import { getAuth, type Auth } from "firebase/auth";
 import { getFirestore, type Firestore } from "firebase/firestore";
 import { getDatabase, type Database } from "firebase/database";
 
@@ -21,27 +22,27 @@ export const isConfigured =
   !!firebaseConfig.appId &&
   !!firebaseConfig.databaseURL;
 
-let app: FirebaseApp | null = null;
-let db: Firestore | null = null;
-let rtdb: Database | null = null;
+let app: FirebaseApp;
+let auth: Auth;
+let db: Firestore;
+let rtdb: Database;
 
 if (isConfigured) {
-  try {
     app = getApps().length > 0 ? getApp() : initializeApp(firebaseConfig);
+    auth = getAuth(app);
     db = getFirestore(app);
     rtdb = getDatabase(app);
-  } catch (e) {
-    console.error("Failed to initialize Firebase.", e)
-    app = null;
-    db = null;
-    rtdb = null;
-  }
 } else {
     console.warn(
         "Firebase configuration is missing or incomplete. " +
-        "Please check your `.env.local` file and ensure all `NEXT_PUBLIC_FIREBASE_*` variables are set. " +
+        "Please check your `.env` file and ensure all `NEXT_PUBLIC_FIREBASE_*` variables are set. " +
         "The application will be rendered in a 'configuration needed' state."
     );
+    // Provide dummy objects to prevent crashes server-side
+    app = {} as FirebaseApp;
+    auth = {} as Auth;
+    db = {} as Firestore;
+    rtdb = {} as Database;
 }
 
-export { app, db, rtdb };
+export { app, auth, db, rtdb };

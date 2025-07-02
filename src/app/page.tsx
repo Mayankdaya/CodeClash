@@ -102,7 +102,7 @@ export default function Home() {
                   <CardTitle className="text-2xl">Instant Matchmaking</CardTitle>
                 </CardHeader>
                 <CardContent className="text-center text-muted-foreground">
-                  Choose your topic and instantly get matched with other developers ready to battle. No sign-up required to jump in.
+                  Choose your topic and instantly get matched with other developers ready to battle.
                 </CardContent>
               </Card>
               <Card className="bg-card/50 backdrop-blur-lg border border-white/10 rounded-2xl shadow-lg transition-all duration-300 hover:shadow-accent/20 hover:-translate-y-2">

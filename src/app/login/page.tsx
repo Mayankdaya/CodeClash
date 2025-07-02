@@ -1,4 +1,17 @@
-// This page is no longer used as the authentication system has been removed.
+
+import { AuthForm } from '@/components/AuthForm';
+import { Header } from '@/components/Header';
+import UnauthGuard from '@/components/UnauthGuard';
+
 export default function LoginPage() {
-  return null;
+  return (
+    <UnauthGuard>
+      <div className="flex flex-col min-h-dvh bg-transparent text-foreground font-body">
+        <Header />
+        <main className="flex-1 flex items-center justify-center p-4">
+          <AuthForm mode="login" />
+        </main>
+      </div>
+    </UnauthGuard>
+  );
 }

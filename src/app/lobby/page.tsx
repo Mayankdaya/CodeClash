@@ -7,13 +7,13 @@ import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle }
 import { Header } from "@/components/Header";
 import { 
   ArrowRight, Coins, List, Search, GitMerge, Link as LinkIcon, ToyBrick, MoveHorizontal, 
-  Type, Repeat, Binary, Container, Pocket, GitBranchPlus, Workflow, SpellCheck, Users, AlertTriangle
+  Type, Repeat, Binary, Container, Pocket, GitBranchPlus, Workflow, SpellCheck, Users
 } from "lucide-react";
 import Link from "next/link";
 import { rtdb } from "@/lib/firebase";
 import { ref, onValue } from "firebase/database";
 import { useToast } from "@/hooks/use-toast";
-import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
+import AuthGuard from "@/components/AuthGuard";
 
 const topics = [
   { id: "arrays", icon: List, title: "Arrays", description: "Master problems involving data structures and algorithms for arrays." },
@@ -35,7 +35,6 @@ const topics = [
 
 function LobbyContent() {
   const [waitingCounts, setWaitingCounts] = useState<Record<string, number>>({});
-  const [dbError, setDbError] = useState<"permission_denied" | "unknown_error" | null>(null);
   const { toast } = useToast();
 
   useEffect(() => {
@@ -50,7 +49,6 @@ function LobbyContent() {
 
     const matchmakingRef = ref(rtdb, 'matchmaking');
     const matchmakingUnsubscribe = onValue(matchmakingRef, (snapshot) => {
-      setDbError(null);
       const counts: Record<string, number> = {};
       if (snapshot.exists()) {
         const allQueues = snapshot.val();
@@ -59,31 +57,19 @@ function LobbyContent() {
         }
       }
       setWaitingCounts(counts);
-    }, (error: Error) => {
+    }, (error) => {
       console.error("RTDB listener error on lobby:", error);
-      if (error.message && error.message.toLowerCase().includes("permission_denied")) {
-        setDbError("permission_denied");
-      } else {
-        setDbError("unknown_error");
-      }
+      toast({
+        title: "Connection Error",
+        description: "Could not fetch waiting player counts. Please check your connection and Firebase security rules.",
+        variant: "destructive",
+      });
     });
 
     return () => {
       matchmakingUnsubscribe();
     };
   }, [toast]);
-  
-  const rtdbRules = `
-{
-  "rules": {
-    ".read": true,
-    ".write": true
-  }
-}
-  `.trim();
-  const firebaseProjectId = process.env.NEXT_PUBLIC_FIREBASE_PROJECT_ID || 'YOUR_PROJECT_ID';
-  const rtdbRulesUrl = `https://console.firebase.google.com/project/${firebaseProjectId}/database/${firebaseProjectId}-default-rtdb/rules`;
-
 
   return (
     <div className="flex flex-col min-h-dvh bg-transparent text-foreground font-body">
@@ -94,35 +80,6 @@ function LobbyContent() {
             <h1 className="text-4xl font-extrabold tracking-tight sm:text-5xl">Choose Your Challenge</h1>
             <p className="mt-4 text-lg text-muted-foreground">Select a topic to find an opponent.</p>
           </div>
-          
-          {dbError === "permission_denied" && (
-            <div className="max-w-4xl mx-auto mb-8">
-                <Alert variant="destructive">
-                    <AlertTriangle className="h-4 w-4" />
-                    <AlertTitle>Database Permission Error</AlertTitle>
-                    <AlertDescription>
-                        <p className="mb-4">The app can't fetch live data (like waiting player counts) because your Realtime Database security rules are too restrictive. Since the login system was removed, the rules need to be public.</p>
-                        <h3 className="font-bold mb-2">Required Realtime Database Rules:</h3>
-                        <pre className="w-full rounded-lg bg-black/70 p-4 text-white mb-2"><code className="text-sm font-mono whitespace-pre-wrap">{rtdbRules}</code></pre>
-                        <p className="mb-4">Please copy the rules above and paste them into your project's Realtime Database rules editor.</p>
-                        <Button asChild>
-                            <a href={rtdbRulesUrl} target="_blank" rel="noopener noreferrer">Open RTDB Rules &rarr;</a>
-                        </Button>
-                    </AlertDescription>
-                </Alert>
-            </div>
-          )}
-          {dbError === "unknown_error" && (
-              <div className="max-w-4xl mx-auto mb-8">
-                  <Alert variant="destructive">
-                      <AlertTriangle className="h-4 w-4" />
-                      <AlertTitle>Database Connection Error</AlertTitle>
-                      <AlertDescription>
-                          Could not fetch live data from the database. Please check your internet connection and Firebase project setup.
-                      </AlertDescription>
-                  </Alert>
-              </div>
-          )}
 
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
             {topics.map((topic) => {
@@ -164,6 +121,8 @@ function LobbyContent() {
 
 export default function LobbyPage() {
   return (
-    <LobbyContent />
+    <AuthGuard>
+      <LobbyContent />
+    </AuthGuard>
   );
 }

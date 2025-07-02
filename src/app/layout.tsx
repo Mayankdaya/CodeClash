@@ -1,6 +1,9 @@
 import type {Metadata} from 'next';
 import './globals.css';
 import FirebaseConfigGuard from '@/components/FirebaseConfigGuard';
+import { AuthProvider } from '@/hooks/useAuth';
+import { Toaster } from "@/components/ui/toaster";
+
 
 export const metadata: Metadata = {
   title: 'CodeClash – Real-Time Coding Arena',
@@ -21,7 +24,10 @@ export default function RootLayout({
       </head>
       <body className="font-body antialiased">
         <FirebaseConfigGuard>
-          {children}
+          <AuthProvider>
+            {children}
+            <Toaster />
+          </AuthProvider>
         </FirebaseConfigGuard>
       </body>
     </html>

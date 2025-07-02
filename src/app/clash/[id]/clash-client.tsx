@@ -4,10 +4,12 @@
 import { useState, useEffect, useRef } from 'react';
 import Image from 'next/image';
 import { useRouter } from 'next/navigation';
-import { addDoc, collection, doc, onSnapshot, orderBy, query, runTransaction, serverTimestamp } from 'firebase/firestore';
+import { addDoc, collection, doc, onSnapshot, orderBy, query, runTransaction, serverTimestamp, getDoc, updateDoc } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
 import { useToast } from '@/hooks/use-toast';
 import { Panel, PanelGroup, PanelResizeHandle } from "react-resizable-panels";
+import { useAuth } from '@/hooks/useAuth';
+import { updateUserScore } from '@/lib/user';
 
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Button } from '@/components/ui/button';
@@ -194,8 +196,8 @@ const formatInputForDisplay = (input: any) => {
 export default function ClashClient({ id }: { id: string }) {
   const router = useRouter();
   const { toast } = useToast();
+  const { user: currentUser } = useAuth();
   
-  const [currentUser, setCurrentUser] = useState<{uid: string; displayName: string; photoURL: string;} | null>(null);
   const [clashData, setClashData] = useState<ClashData | null>(null);
   const [problem, setProblem] = useState<Problem | null>(null);
   const [opponent, setOpponent] = useState<Participant | null>(null);
@@ -219,22 +221,6 @@ export default function ClashClient({ id }: { id: string }) {
   const endOfMessagesRef = useRef<HTMLDivElement>(null);
   const languages = ["javascript", "python", "java", "cpp"];
   
-  useEffect(() => {
-    let guestId = sessionStorage.getItem('guestId');
-    let guestName = sessionStorage.getItem('guestName');
-    if (!guestId) {
-        guestId = `guest-${Math.random().toString(36).substring(2, 9)}`;
-        guestName = `Guest ${Math.floor(Math.random() * 900) + 100}`;
-        sessionStorage.setItem('guestId', guestId);
-        sessionStorage.setItem('guestName', guestName);
-    }
-    setCurrentUser({
-        uid: guestId,
-        displayName: guestName,
-        photoURL: 'https://placehold.co/100x100.png',
-    });
-  }, []);
-
   useEffect(() => {
     if (!db || !id) return;
 
@@ -280,7 +266,7 @@ export default function ClashClient({ id }: { id: string }) {
       }
     }, (error) => {
         console.error("Clash listener error:", error);
-        toast({ title: "Connection Error", description: "Could not sync with the clash. This may be a permission issue.", variant: 'destructive' });
+        toast({ title: "Connection Error", description: "Could not sync with the clash. Please check your Firestore security rules.", variant: 'destructive' });
         router.push('/lobby');
     });
     
@@ -319,6 +305,7 @@ export default function ClashClient({ id }: { id: string }) {
     const clashDocRef = doc(db, 'clashes', id);
 
     try {
+        let pointsAwarded = 0;
         await runTransaction(db, async (transaction) => {
             const clashDoc = await transaction.get(clashDocRef);
             if (!clashDoc.exists()) throw "Clash document does not exist!";
@@ -329,13 +316,14 @@ export default function ClashClient({ id }: { id: string }) {
             if (!me || me.solvedTimestamp) return;
 
             const isFirstSolver = !data.participants.some(p => p.solvedTimestamp);
-            let pointsAwarded = 100;
+            let currentPoints = 100;
             let toastDescription = "You solved the problem!";
 
             if (isFirstSolver) {
-                pointsAwarded += 50;
+                currentPoints += 50;
                 toastDescription = "First blood! You solved the problem first and earned bonus points!";
             }
+            pointsAwarded = currentPoints;
 
             const updatedParticipants = data.participants.map(p => 
                 p.userId === currentUser.uid 
@@ -347,6 +335,12 @@ export default function ClashClient({ id }: { id: string }) {
 
             toast({ title: `+${pointsAwarded} Points!`, description: toastDescription });
         });
+        
+        // After transaction, update user's total score
+        if (pointsAwarded > 0) {
+            await updateUserScore(currentUser.uid, pointsAwarded);
+        }
+
     } catch (e) {
         console.error("Transaction failed: ", e);
         toast({ title: "Error", description: "Could not update your score.", variant: "destructive" });

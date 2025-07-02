@@ -1,8 +1,11 @@
 
 import ClashClient from './clash-client';
+import AuthGuard from '@/components/AuthGuard';
 
 export default function ClashPage({ params }: { params: { id:string } }) {
   return (
-    <ClashClient id={params.id} />
+    <AuthGuard>
+      <ClashClient id={params.id} />
+    </AuthGuard>
   );
 }

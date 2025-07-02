@@ -15,7 +15,8 @@ interface UserScore {
 
 async function getLeaderboardData(): Promise<UserScore[]> {
   if (!db) {
-    throw new Error("Database not configured. Please check your Firebase setup.");
+    console.error("Database not configured. Leaderboard cannot be fetched.");
+    return [];
   }
   const usersRef = collection(db, "users");
   const q = query(usersRef, orderBy("totalScore", "desc"), limit(100));
@@ -49,7 +50,7 @@ const RankIcon = ({ rank }: { rank: number }) => {
   return <span className="font-mono text-lg text-muted-foreground w-6 text-center">{rank}</span>;
 };
 
-async function LeaderboardContent() {
+export default async function LeaderboardPage() {
   let leaderboard: UserScore[] = [];
   let fetchError: string | null = null;
   
@@ -85,7 +86,7 @@ async function LeaderboardContent() {
                           <div className="flex flex-col items-center gap-4">
                             <AlertTriangle className="h-8 w-8" />
                             <p className="font-semibold">Error Loading Leaderboard</p>
-                            <p className="text-sm max-w-md">{fetchError} Please ensure your database is created and its security rules are correctly configured for public access.</p>
+                            <p className="text-sm max-w-md">{fetchError}</p>
                           </div>
                       </TableCell>
                   </TableRow>
@@ -121,10 +122,4 @@ async function LeaderboardContent() {
       </main>
     </div>
   );
-}
-
-export default function LeaderboardPage() {
-    return (
-      <LeaderboardContent />
-    )
 }
