@@ -3,18 +3,14 @@
 
 import { useEffect, useState, type ReactNode } from 'react';
 import { onAuthStateChanged, type User, signOut } from 'firebase/auth';
-import { auth, db } from '@/lib/firebase';
+import { auth } from '@/lib/firebase';
 import { Loader2 } from 'lucide-react';
 import { ensureUserProfile } from '@/lib/user';
 import { Header } from '@/components/Header';
-import { useToast } from '@/hooks/use-toast';
-import { doc, getDoc } from 'firebase/firestore';
-
 
 export default function AuthGuard({ children }: { children: ReactNode }) {
   const [loading, setLoading] = useState(true);
   const [isAuthorized, setIsAuthorized] = useState(false);
-  const { toast } = useToast();
 
   useEffect(() => {
     if (!auth) {
@@ -27,15 +23,9 @@ export default function AuthGuard({ children }: { children: ReactNode }) {
     const unsubscribe = onAuthStateChanged(auth, async (user: User | null) => {
       try {
         if (user) {
-          // User is logged in. Ensure their profile exists then allow access.
+          // User is logged in. This function will throw an error if it can't
+          // read or write the user's profile in Firestore.
           await ensureUserProfile(user);
-
-          // As a final verification, try to read the document we just ensured exists.
-          // This will fail if Firestore security rules are too restrictive.
-          if (db) {
-            await getDoc(doc(db, 'users', user.uid));
-          }
-          
           setIsAuthorized(true);
         } else {
           // User is not logged in. Redirect to the login page.
@@ -44,20 +34,15 @@ export default function AuthGuard({ children }: { children: ReactNode }) {
           }
         }
       } catch (error) {
-          console.error("Error during authentication check:", error);
-          toast({
-            title: 'Database Connection Error',
-            description: "You've been signed out. While you authenticated successfully, the app could not access your user profile. Please check your Firebase project's Firestore security rules and try again.",
-            variant: 'destructive',
-            duration: 10000,
-          });
-          // If any error occurs (e.g., Firestore permission denied), log the user out
-          // to prevent a redirect loop, then send them to the login page.
+          console.error("AuthGuard Error: Could not ensure user profile. This is likely a Firestore security rule issue.", error);
+          
+          // If any error occurs (e.g., Firestore permission denied), sign the user out
+          // to prevent a login state mismatch, then redirect to a helpful setup page.
           if (auth) {
             await signOut(auth);
           }
           if (typeof window !== 'undefined') {
-            window.location.assign('/login');
+            window.location.assign('/setup-error');
           }
       } finally {
         setLoading(false);
@@ -65,7 +50,7 @@ export default function AuthGuard({ children }: { children: ReactNode }) {
     });
 
     return () => unsubscribe();
-  }, [toast]);
+  }, []);
 
   if (loading) {
     return (
