@@ -437,31 +437,28 @@ export default function ClashClient({ id }: { id: string }) {
         };
         
         unsubscribeOpponent = onValue(opponentPeerRef, async (snapshot) => {
-            if (ignore) return;
+            if (ignore || !snapshot.exists()) return;
             const data = snapshot.val();
-            if (!data) return;
 
             try {
-                // If we receive an offer and we are not the caller (i.e., we are the callee),
-                // and we don't have a remote description yet, we process it.
-                if (data.offer && !isCaller && !pc.remoteDescription) {
+                if (data.offer) {
+                    // Callee receives an offer. It should be in a 'stable' state.
+                    if (pc.signalingState !== 'stable') return;
                     await pc.setRemoteDescription(new RTCSessionDescription(data.offer));
+                    if (ignore) return;
                     const answer = await pc.createAnswer();
                     if (ignore) return;
                     await pc.setLocalDescription(answer);
                     if (ignore) return;
                     await update(myPeerRef, { answer });
-                }
-
-                // If we receive an answer and we are the caller,
-                // and we don't have a remote description yet, we process it.
-                if (data.answer && isCaller && !pc.remoteDescription) {
+                } else if (data.answer) {
+                    // Caller receives an answer. It should be in 'have-local-offer' state.
+                    if (pc.signalingState !== 'have-local-offer') return;
                     await pc.setRemoteDescription(new RTCSessionDescription(data.answer));
                 }
                 
-                // Process candidates as they come in. WebRTC handles queueing them internally
-                // if the remote description isn't set yet.
                 if (data.candidate) {
+                   // It's safe to add candidates as they come. They are queued if needed.
                    await pc.addIceCandidate(new RTCIceCandidate(data.candidate));
                 }
             } catch (e) {
