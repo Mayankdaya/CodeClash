@@ -137,7 +137,7 @@ function SignupForm() {
             const userCredential = await createUserWithEmailAndPassword(auth, data.email, data.password);
             await updateProfile(userCredential.user, {
                 displayName: data.displayName,
-                photoURL: `https://api.dicebear.com/8.x/bottts-neutral/svg?seed=${data.displayName}`
+                photoURL: `https://api.dicebear.com/8.x/initials/svg?seed=${encodeURIComponent(data.displayName)}&backgroundColor=e74c86&textColor=ffffff&radius=50`
             });
             await ensureUserProfile(userCredential.user);
             // The AuthGuard will handle the redirect on successful signup

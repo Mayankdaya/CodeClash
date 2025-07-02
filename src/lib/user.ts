@@ -22,7 +22,7 @@ export const ensureUserProfile = async (user: User) => {
         uid: user.uid,
         email: user.email,
         displayName: user.displayName || 'Anonymous',
-        photoURL: user.photoURL || `https://api.dicebear.com/8.x/bottts-neutral/svg?seed=${user.uid}`,
+        photoURL: user.photoURL || `https://api.dicebear.com/8.x/initials/svg?seed=${encodeURIComponent(user.displayName || user.uid)}&backgroundColor=e74c86&textColor=ffffff&radius=50`,
         totalScore: 0,
         createdAt: new Date(),
       });
