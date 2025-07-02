@@ -75,22 +75,13 @@ const executeInWorker = (code: string, entryPoint: string, testCases: TestCase[]
                 if (typeof obj1 !== 'object' || obj1 === null || typeof obj2 !== 'object' || obj2 === null) {
                     return false;
                 }
-
                 const isArray1 = Array.isArray(obj1);
                 const isArray2 = Array.isArray(obj2);
-
                 if (isArray1 && isArray2) {
                     if (obj1.length !== obj2.length) return false;
-                    try {
-                      const sortFunc = (a, b) => JSON.stringify(a).localeCompare(JSON.stringify(b));
-                      const sorted1 = [...obj1].sort(sortFunc);
-                      const sorted2 = [...obj2].sort(sortFunc);
-                      return JSON.stringify(sorted1) === JSON.stringify(sorted2);
-                    } catch (e) {
-                      return JSON.stringify(obj1) === JSON.stringify(obj2);
-                    }
+                    // For arrays, a simple JSON stringify comparison works to check for deep equality with order.
+                    return JSON.stringify(obj1) === JSON.stringify(obj2);
                 }
-                
                 if (isArray1 !== isArray2) return false;
 
                 const keys1 = Object.keys(obj1);
@@ -102,6 +93,17 @@ const executeInWorker = (code: string, entryPoint: string, testCases: TestCase[]
                     }
                 }
                 return true;
+            };
+
+            const smartParse = (value) => {
+                if (typeof value !== 'string') return value;
+                try {
+                    // Try parsing, if it's a valid JSON string (like an array or object), it will be parsed.
+                    return JSON.parse(value);
+                } catch (e) {
+                    // If it fails, it's just a regular string.
+                    return value;
+                }
             };
 
             self.onmessage = function(e) {
@@ -121,25 +123,28 @@ const executeInWorker = (code: string, entryPoint: string, testCases: TestCase[]
                         const startTime = performance.now();
                         let output, error = null;
                         
+                        let parsedInput = [];
                         try {
-                            const inputClone = JSON.parse(JSON.stringify(tc.input));
-                            output = userFunc(...inputClone);
+                            // Smart parse each argument before passing to the function
+                            parsedInput = tc.input.map(smartParse);
+                            output = userFunc(...parsedInput);
                         } catch (err) {
                             error = err;
                         }
 
                         const endTime = performance.now();
                         
-                        const expectedValue = tc.expected;
+                        // Also smart parse the expected value for accurate comparison
+                        const expectedValue = smartParse(tc.expected);
                         
                         const passed = !error && deepEqual(output, expectedValue);
                         if (passed) passedCount++;
 
                         results.push({
                             case: i + 1,
-                            input: JSON.stringify(tc.input),
+                            input: JSON.stringify(parsedInput), // Store the cleaned input for display
                             output: error ? error.toString() : JSON.stringify(output),
-                            expected: JSON.stringify(tc.expected),
+                            expected: JSON.stringify(expectedValue), // Store the cleaned expected value
                             passed: passed,
                             runtime: (endTime - startTime).toFixed(2) + 'ms',
                         });
@@ -173,9 +178,16 @@ const executeInWorker = (code: string, entryPoint: string, testCases: TestCase[]
 
 const formatInputForDisplay = (input: any) => {
     try {
-        const args = Array.isArray(input) ? input : [input];
-        return args.map(arg => JSON.stringify(arg)).join(', ');
+        // The input from execution results should be a stringified array.
+        const args = JSON.parse(input);
+        
+        // We want to display it as a comma-separated list of stringified values.
+        if (Array.isArray(args)) {
+            return args.map(arg => JSON.stringify(arg)).join(', ');
+        }
+        return input;
     } catch (e) {
+        // If it's not a JSON string, just return it as is.
         return String(input);
     }
 };
@@ -728,7 +740,7 @@ export default function ClashClient({ id }: { id: string }) {
                                                                 <span className={cn(res.passed ? "text-green-400" : "text-red-400")}>Case {res.case}: {res.passed ? 'Passed' : 'Failed'}</span>
                                                             </div>
                                                             <div className='space-y-1 pl-7 text-xs'>
-                                                            <p><span className="text-muted-foreground w-20 inline-block font-semibold">Input:</span> {res.input}</p>
+                                                            <p><span className="text-muted-foreground w-20 inline-block font-semibold">Input:</span> {formatInputForDisplay(res.input)}</p>
                                                             <p><span className="text-muted-foreground w-20 inline-block font-semibold">Output:</span> {res.output}</p>
                                                             {!res.passed && <p><span className="text-muted-foreground w-20 inline-block font-semibold">Expected:</span> {res.expected}</p>}
                                                             </div>
@@ -743,7 +755,7 @@ export default function ClashClient({ id }: { id: string }) {
                                                 <div key={index} className="border-b border-border/50 pb-3 last:border-b-0">
                                                     <p className="font-bold mb-2 text-lg">Case {index + 1}</p>
                                                     <div className="bg-background/40 p-3 mt-1 rounded-md space-y-2">
-                                                        <p><strong className='text-muted-foreground'>Input:</strong> {formatInputForDisplay(tc.input)}</p>
+                                                        <p><strong className='text-muted-foreground'>Input:</strong> {formatInputForDisplay(JSON.stringify(tc.input))}</p>
                                                         <p><strong className='text-muted-foreground'>Output:</strong> {tc.expected !== null ? JSON.stringify(tc.expected) : <span className="text-muted-foreground/60 italic">(no output)</span>}</p>
                                                     </div>
                                                 </div>
