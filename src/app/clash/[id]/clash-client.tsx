@@ -5,7 +5,8 @@ import { useState, useEffect, useRef } from 'react';
 import Image from 'next/image';
 import { useRouter } from 'next/navigation';
 import { addDoc, collection, doc, onSnapshot, orderBy, query, runTransaction, serverTimestamp, getDoc, updateDoc } from 'firebase/firestore';
-import { db } from '@/lib/firebase';
+import { db, rtdb } from '@/lib/firebase';
+import { ref, onValue, set, update, remove } from 'firebase/database';
 import { useToast } from '@/hooks/use-toast';
 import { Panel, PanelGroup, PanelResizeHandle } from "react-resizable-panels";
 import { useAuth } from '@/hooks/useAuth';
@@ -20,7 +21,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Header } from '@/components/Header';
 import { CodeEditor } from '@/components/CodeEditor';
 import { UserVideo } from '@/components/UserVideo';
-import { BookOpen, Send, Timer, Loader2, Lightbulb, CheckCircle2, XCircle, MessageSquare, TestTube2, Terminal, RefreshCw, CameraOff } from 'lucide-react';
+import { BookOpen, Send, Timer, Loader2, Lightbulb, CheckCircle2, XCircle, MessageSquare, TestTube2, Terminal, RefreshCw, CameraOff, Video } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import type { Problem } from '@/lib/problems';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
@@ -284,6 +285,11 @@ export default function ClashClient({ id }: { id: string }) {
   const [solutionCodes, setSolutionCodes] = useState<Record<string, string>>({});
   const [isTranslatingSolution, setIsTranslatingSolution] = useState(false);
 
+  const [remoteStream, setRemoteStream] = useState<MediaStream | null>(null);
+  const [isConnecting, setIsConnecting] = useState(true);
+  const remoteVideoRef = useRef<HTMLVideoElement>(null);
+  const peerConnectionRef = useRef<RTCPeerConnection | null>(null);
+
 
   const endOfMessagesRef = useRef<HTMLDivElement>(null);
   const languages = ["javascript", "python", "java", "cpp"];
@@ -365,17 +371,122 @@ export default function ClashClient({ id }: { id: string }) {
   useEffect(() => {
     if (allReady && clashData?.status === 'pending' && db && id) {
         if (clashData.participants[0].userId === currentUser?.uid) {
-            const clashDocRef = doc(db, 'clashes', id);
-            updateDoc(clashDocRef, { status: 'active' }).catch(err => {
+            updateDoc(doc(db, 'clashes', id), { status: 'active' }).catch(err => {
                 console.error("Failed to update clash status to active:", err);
             });
         }
     }
   }, [allReady, clashData, currentUser?.uid, db, id]);
 
+    // WebRTC Signaling Logic
+  useEffect(() => {
+    if (!rtdb || !id || !clashData || !currentUser || !opponent) return;
+
+    let localStreamForRTC: MediaStream | null = null;
+    const pc = new RTCPeerConnection({
+        iceServers: [{ urls: ['stun:stun1.l.google.com:19302', 'stun:stun2.l.google.com:19302'] }]
+    });
+    peerConnectionRef.current = pc;
+    
+    const myId = currentUser.uid;
+    const opponentId = opponent.userId;
+    const signalingRef = ref(rtdb, `clash-video-signaling/${id}`);
+    const myPeerRef = ref(signalingRef, myId);
+    const opponentPeerRef = ref(signalingRef, opponentId);
+    let unsubscribeOpponent: () => void;
+
+    const startConnection = async () => {
+        try {
+            localStreamForRTC = await navigator.mediaDevices.getUserMedia({ video: true, audio: false });
+            localStreamForRTC.getTracks().forEach(track => pc.addTrack(track, localStreamForRTC!));
+        } catch (e) {
+            console.error("Could not get local stream for WebRTC", e);
+            setIsConnecting(false);
+            return;
+        }
+
+        pc.onicecandidate = (event) => {
+            if (event.candidate) {
+                update(myPeerRef, { candidate: event.candidate.toJSON() });
+            }
+        };
+
+        pc.ontrack = (event) => {
+            if (event.streams && event.streams[0]) {
+                setRemoteStream(event.streams[0]);
+                setIsConnecting(false);
+            }
+        };
+
+        const isCaller = clashData.participants[0].userId === myId;
+
+        if (isCaller) {
+            const offer = await pc.createOffer();
+            await pc.setLocalDescription(offer);
+            await update(myPeerRef, { offer });
+        }
+        
+        unsubscribeOpponent = onValue(opponentPeerRef, async (snapshot) => {
+            const data = snapshot.val();
+            if (!data) return;
+
+            if (data.offer && !isCaller) {
+                await pc.setRemoteDescription(new RTCSessionDescription(data.offer));
+                const answer = await pc.createAnswer();
+                await pc.setLocalDescription(answer);
+                await update(myPeerRef, { answer });
+            }
+
+            if (data.answer && isCaller) {
+                if (pc.signalingState !== 'stable') {
+                    await pc.setRemoteDescription(new RTCSessionDescription(data.answer));
+                }
+            }
+            
+            if (data.candidate) {
+                try {
+                    await pc.addIceCandidate(new RTCIceCandidate(data.candidate));
+                } catch (e) {
+                    console.error('Error adding received ice candidate', e);
+                }
+            }
+        });
+
+        // Set a timeout for connection
+        const connectionTimeout = setTimeout(() => {
+            if(pc.connectionState !== 'connected' && pc.connectionState !== 'completed') {
+                setIsConnecting(false);
+            }
+        }, 15000); // 15 second timeout
+        
+        return () => {
+            unsubscribeOpponent();
+            clearTimeout(connectionTimeout);
+        }
+    };
+
+    startConnection();
+
+    return () => {
+      pc.close();
+      if(localStreamForRTC) {
+        localStreamForRTC.getTracks().forEach(track => track.stop());
+      }
+      if(unsubscribeOpponent) unsubscribeOpponent();
+      remove(myPeerRef);
+    };
+  }, [id, clashData, currentUser, opponent, rtdb]);
+
   useEffect(() => {
     endOfMessagesRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [messages]);
+
+  useEffect(() => {
+    if (remoteStream && remoteVideoRef.current) {
+        remoteVideoRef.current.srcObject = remoteStream;
+    }
+  }, [remoteStream]);
+
 
   useEffect(() => {
     if (!isClashActive || timeLeft <= 0) return;
@@ -645,6 +756,37 @@ export default function ClashClient({ id }: { id: string }) {
 
   const currentUserScore = me?.score ?? 0;
 
+  const OpponentVideo = () => {
+    if (!opponent) return null;
+    return (
+      <div className="relative aspect-video w-full bg-muted/30 rounded-lg flex items-center justify-center overflow-hidden">
+        <video
+          ref={remoteVideoRef}
+          className={cn("w-full h-full object-cover", { 'hidden': !remoteStream })}
+          autoPlay
+          playsInline
+          muted={false} 
+        />
+        {!remoteStream && (
+          <div className="absolute inset-0 flex flex-col items-center justify-center text-center text-muted-foreground p-2">
+            {isConnecting ? (
+              <>
+                <Loader2 className="h-8 w-8 animate-spin mx-auto mb-2" />
+                <p className="text-xs">Connecting...</p>
+              </>
+            ) : (
+              <>
+                <CameraOff className="h-8 w-8 mx-auto mb-2" />
+                <p className="text-xs">Opponent camera off</p>
+              </>
+            )}
+          </div>
+        )}
+        <div className="absolute bottom-1 left-2 text-xs bg-black/50 text-white px-1.5 py-0.5 rounded">{opponent.userName}</div>
+      </div>
+    );
+  };
+
   return (
       <div className="flex flex-col min-h-dvh bg-transparent text-foreground font-body">
         <Header />
@@ -873,15 +1015,7 @@ export default function ClashClient({ id }: { id: string }) {
                         <div className="p-4">
                             <div className="grid grid-cols-2 gap-2">
                                 <UserVideo />
-                                {opponent && (
-                                    <div className="relative aspect-video w-full bg-muted/30 rounded-lg flex items-center justify-center overflow-hidden">
-                                        <div className="absolute inset-0 flex flex-col items-center justify-center text-center text-muted-foreground p-2">
-                                            <CameraOff className="h-8 w-8 mx-auto mb-2" />
-                                            <p className="text-xs">Opponent camera off</p>
-                                        </div>
-                                        <div className="absolute bottom-1 left-2 text-xs bg-black/50 text-white px-1.5 py-0.5 rounded">{opponent.userName}</div>
-                                    </div>
-                                )}
+                                <OpponentVideo />
                             </div>
                         </div>
 
@@ -948,5 +1082,3 @@ export default function ClashClient({ id }: { id: string }) {
       </div>
   );
 }
-
-    

@@ -141,6 +141,10 @@ function MatchingContent() {
 
             // Update the opponent's node with the clashId so their listener picks it up.
             await update(ref(rtdb, `matchmaking/${topicId}/${opponentId}`), { clashId: clashDocRef.id });
+            
+            // Clean up my own queue entry if I was waiting before finding someone
+            remove(ref(rtdb, `matchmaking/${topicId}/${currentUser.uid}`));
+
 
             toast({ title: "Match Found!", description: "Let's go!" });
             router.push(`/clash/${clashDocRef.id}`);
