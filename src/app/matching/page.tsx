@@ -3,19 +3,20 @@
 
 import { useState, useEffect, useRef } from 'react';
 import { useSearchParams, useRouter } from 'next/navigation';
-import { collection, addDoc, serverTimestamp as firestoreServerTimestamp, updateDoc } from 'firebase/firestore';
+import { collection, addDoc, serverTimestamp as firestoreServerTimestamp } from 'firebase/firestore';
 import { useToast } from '@/hooks/use-toast';
 import { Header } from '@/components/Header';
-import { db } from '@/lib/firebase';
+import { db, rtdb } from '@/lib/firebase';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Loader2 } from 'lucide-react';
-import Link from 'next/link';
 import { generateProblem } from '@/ai/flows/generateProblemFlow';
 import { UserVideo } from '@/components/UserVideo';
 import AuthGuard from '@/components/AuthGuard';
 import { useAuth } from '@/hooks/useAuth';
 import { FirebaseError } from 'firebase/app';
+import { ref, onValue, set, get, remove, update, onDisconnect, off, type DatabaseReference } from 'firebase/database';
+
 
 function MatchingContent() {
   const { toast } = useToast();
@@ -24,14 +25,27 @@ function MatchingContent() {
   const { user: currentUser } = useAuth();
 
   const [statusText, setStatusText] = useState('Initializing...');
-  const matchmakingStarted = useRef(false);
+  const matchmakingActive = useRef(false);
+  const myQueueRef = useRef<DatabaseReference | null>(null);
+
+  const cleanup = () => {
+    if (myQueueRef.current) {
+        onDisconnect(myQueueRef.current).cancel(); // Important: cancel the onDisconnect listener
+        off(myQueueRef.current); // Detach listener
+        remove(myQueueRef.current);
+        myQueueRef.current = null;
+    }
+  };
+  
+  const handleCancel = () => {
+    cleanup();
+    router.push('/lobby');
+  };
 
   useEffect(() => {
-    // Prevent the effect from running more than once
-    if (matchmakingStarted.current || !db || !currentUser) {
+    if (matchmakingActive.current || !db || !rtdb || !currentUser) {
       return;
     }
-    matchmakingStarted.current = true;
 
     const topicId = searchParams.get('topic');
 
@@ -60,16 +74,15 @@ function MatchingContent() {
             const topicName = topicId.replace(/-/g, ' ').replace(/\b\w/g, l => l.toUpperCase());
             const problem = await generateProblem({ topic: topicName, seed: Date.now().toString() });
 
-            // Robust validation: check for problem, testCases array, and validity of each test case.
             if (!problem || !problem.testCases || problem.testCases.some(tc => tc.expected === undefined || tc.expected === null) || problem.testCases.length < 5) {
                 console.error("AI returned an invalid problem object or invalid test cases, retrying...");
                 setTimeout(() => createDummyMatch(retryCount + 1), 2000);
-                return; // Exit this attempt and retry.
+                return;
             }
             
             const clashDocRef = await addDoc(collection(db, 'clashes'), {
                 topicId,
-                problem: JSON.stringify(problem), // Stringify the problem to avoid nested array issues in Firestore
+                problem: JSON.stringify(problem),
                 participants: [
                     { userId: currentUser.uid, userName: currentUser.displayName, userAvatar: currentUser.photoURL, score: 0, solvedTimestamp: null, ready: false },
                     { userId: 'test-user-id', userName: 'Test User', userAvatar: 'https://api.dicebear.com/8.x/bottts-neutral/svg?seed=Test', score: 0, solvedTimestamp: null, ready: true }
@@ -86,15 +99,103 @@ function MatchingContent() {
             if (error instanceof FirebaseError && error.code === 'permission-denied') {
                 router.push('/setup-error');
             } else {
-                // Any other error during the process is likely transient (API error, etc.), so retry.
                 setTimeout(() => createDummyMatch(retryCount + 1), 2000);
             }
         }
     };
     
-    createDummyMatch();
+    const startRealtimeMatchmaking = async () => {
+      const queueRef = ref(rtdb, `matchmaking/${topicId}`);
+      try {
+        const snapshot = await get(queueRef);
+        if (matchmakingActive.current) return;
 
-  }, [currentUser, router, searchParams, toast, db]);
+        const opponents = snapshot.exists()
+          ? Object.entries(snapshot.val()).filter(([uid]) => uid !== currentUser.uid)
+          : [];
+
+        if (opponents.length > 0) {
+          // --- I AM THE MATCHER ---
+          matchmakingActive.current = true;
+          const [opponentId, opponentData] = opponents[0];
+          setStatusText('Opponent found! Generating challenge...');
+
+          try {
+            const topicName = topicId.replace(/-/g, ' ').replace(/\b\w/g, l => l.toUpperCase());
+            const problem = await generateProblem({ topic: topicName, seed: Date.now().toString() });
+
+            if (!problem || !problem.testCases || problem.testCases.some(tc => tc.expected === undefined || tc.expected === null) || problem.testCases.length < 5) {
+              throw new Error("AI returned invalid problem object.");
+            }
+
+            const clashDocRef = await addDoc(collection(db, 'clashes'), {
+              topicId,
+              problem: JSON.stringify(problem),
+              participants: [
+                { userId: currentUser.uid, userName: currentUser.displayName, userAvatar: currentUser.photoURL, score: 0, solvedTimestamp: null, ready: false },
+                { userId: opponentId, userName: (opponentData as any).userName, userAvatar: (opponentData as any).userAvatar, score: 0, solvedTimestamp: null, ready: false }
+              ],
+              createdAt: firestoreServerTimestamp(),
+              status: 'pending'
+            });
+
+            // Update the opponent's node with the clashId so their listener picks it up.
+            await update(ref(rtdb, `matchmaking/${topicId}/${opponentId}`), { clashId: clashDocRef.id });
+
+            toast({ title: "Match Found!", description: "Let's go!" });
+            router.push(`/clash/${clashDocRef.id}`);
+
+          } catch(e) {
+            console.error("Failed to create match:", e);
+            toast({title: "Failed to Create Match", description: "Could not create a match. Please try again.", variant: 'destructive'});
+            router.push('/lobby');
+          }
+
+        } else {
+          // --- I AM THE WAITER ---
+          setStatusText('Waiting for an opponent...');
+          const myRef = ref(rtdb, `matchmaking/${topicId}/${currentUser.uid}`);
+          myQueueRef.current = myRef;
+          
+          const myData = {
+            userName: currentUser.displayName,
+            userAvatar: currentUser.photoURL,
+          };
+
+          onDisconnect(myRef).remove();
+          await set(myRef, myData);
+          
+          onValue(myRef, (snap) => {
+            if (matchmakingActive.current) return;
+            const data = snap.val();
+            if (data && data.clashId) {
+              matchmakingActive.current = true;
+              toast({ title: "Match Found!", description: "Let's go!" });
+              router.push(`/clash/${data.clashId}`);
+              // Cleanup will happen in unmount
+            }
+          });
+        }
+      } catch (error) {
+        console.error("Matchmaking failed", error);
+        toast({ title: "Matchmaking Error", description: "An unexpected error occurred. Please try again.", variant: 'destructive' });
+        router.push('/lobby');
+      }
+    };
+    
+    // Per user request, 'arrays' topic uses a bot. Others use real-time matching.
+    if (topicId === 'arrays') {
+      matchmakingActive.current = true;
+      createDummyMatch();
+    } else {
+      startRealtimeMatchmaking();
+    }
+
+    return () => {
+      cleanup();
+    };
+
+  }, [currentUser, router, searchParams, toast, db, rtdb]);
 
   if (!currentUser) {
     return (
@@ -126,9 +227,7 @@ function MatchingContent() {
               <p>{statusText}</p>
             </div>
 
-            <Button variant="outline" asChild>
-              <Link href="/lobby">Cancel Search</Link>
-            </Button>
+            <Button variant="outline" onClick={handleCancel}>Cancel Search</Button>
           </CardContent>
         </Card>
       </main>
