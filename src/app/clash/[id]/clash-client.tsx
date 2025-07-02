@@ -20,7 +20,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Header } from '@/components/Header';
 import { CodeEditor } from '@/components/CodeEditor';
 import { UserVideo } from '@/components/UserVideo';
-import { BookOpen, Send, Timer, Loader2, Lightbulb, CheckCircle2, XCircle, MessageSquare, TestTube2, Terminal } from 'lucide-react';
+import { BookOpen, Send, Timer, Loader2, Lightbulb, CheckCircle2, XCircle, MessageSquare, TestTube2, Terminal, RefreshCw } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import type { Problem } from '@/lib/problems';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
@@ -510,6 +510,15 @@ export default function ClashClient({ id }: { id: string }) {
     }
   };
 
+  const handleSkipOpponent = () => {
+    if (clashData?.topicId) {
+        router.push(`/matching?topic=${clashData.topicId}`);
+    } else {
+        toast({ title: "Error", description: "Could not find a new opponent, returning to lobby.", variant: "destructive" });
+        router.push('/lobby');
+    }
+  };
+
   const formatTime = (seconds: number) => {
     const minutes = Math.floor(seconds / 60);
     const remainingSeconds = seconds % 60;
@@ -574,10 +583,16 @@ export default function ClashClient({ id }: { id: string }) {
                     </div>
 
                     {me && !me.ready && (
-                        <Button size="lg" onClick={handleReadyClick} disabled={isSettingReady} className="px-10 py-6 text-lg">
-                            {isSettingReady ? <Loader2 className="mr-2 h-5 w-5 animate-spin" /> : <CheckCircle2 className="mr-2 h-5 w-5"/>}
-                            I'm Ready!
-                        </Button>
+                       <div className="flex items-center gap-4 mt-6">
+                            <Button size="lg" onClick={handleReadyClick} disabled={isSettingReady} className="px-10 py-6 text-lg">
+                               {isSettingReady ? <Loader2 className="mr-2 h-5 w-5 animate-spin" /> : <CheckCircle2 className="mr-2 h-5 w-5"/>}
+                               I'm Ready!
+                           </Button>
+                            <Button size="lg" variant="outline" onClick={handleSkipOpponent} className="px-10 py-6 text-lg">
+                               <RefreshCw className="mr-2 h-5 w-5" />
+                               New Opponent
+                           </Button>
+                       </div>
                     )}
                 </CardContent>
             </Card>

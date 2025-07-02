@@ -80,7 +80,7 @@ function MatchingContent() {
                 problem: JSON.parse(JSON.stringify(problemWithStrTestCases)),
                 participants: [
                     { userId: currentUser.uid, userName: currentUser.displayName, userAvatar: currentUser.photoURL, score: 0, solvedTimestamp: null, ready: false },
-                    { userId: 'test-user-id', userName: 'Test User', userAvatar: 'https://api.dicebear.com/8.x/bottts-neutral/svg?seed=Test', score: 0, solvedTimestamp: null, ready: false }
+                    { userId: 'test-user-id', userName: 'Test User', userAvatar: 'https://api.dicebear.com/8.x/bottts-neutral/svg?seed=Test', score: 0, solvedTimestamp: null, ready: true }
                 ],
                 createdAt: firestoreServerTimestamp(),
                 status: 'pending'
