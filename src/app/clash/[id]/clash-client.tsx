@@ -289,8 +289,6 @@ export default function ClashClient({ id }: { id: string }) {
   const [isConnecting, setIsConnecting] = useState(true);
   const remoteVideoRef = useRef<HTMLVideoElement>(null);
   const peerConnectionRef = useRef<RTCPeerConnection | null>(null);
-  const processingSignal = useRef(false);
-
 
   const endOfMessagesRef = useRef<HTMLDivElement>(null);
   const languages = ["javascript", "python", "java", "cpp"];
@@ -389,7 +387,7 @@ export default function ClashClient({ id }: { id: string }) {
     }
   }, [allReady, clashData, currentUser?.uid, db, id]);
 
-    // WebRTC Signaling Logic - REWRITTEN FOR STABILITY
+    // WebRTC Signaling Logic - REWRITTEN FOR STABILITY & ROBUSTNESS
   useEffect(() => {
     if (!rtdb || !id || !currentUser || !opponentId || isCaller === null) {
       return;
@@ -403,13 +401,48 @@ export default function ClashClient({ id }: { id: string }) {
         iceServers: [{ urls: ['stun:stun1.l.google.com:19302', 'stun:stun2.l.google.com:19302'] }]
     });
     peerConnectionRef.current = pc;
-    processingSignal.current = false; // Reset lock
 
     const myId = currentUser.uid;
     const baseSignalingPath = `clash-video-signaling/${id}`;
     const myPeerRef = ref(rtdb, `${baseSignalingPath}/${myId}`);
     const opponentPeerRef = ref(rtdb, `${baseSignalingPath}/${opponentId}`);
-    let unsubscribeOpponent: (() => void) | undefined;
+    
+    // This will be cleaned up by the main effect's return function
+    const unsubscribeOpponent = onValue(opponentPeerRef, async (snapshot) => {
+        if (ignore || !snapshot.exists() || !pc || pc.signalingState === 'closed') return;
+        
+        const data = snapshot.val();
+
+        try {
+            if (data.offer && pc.signalingState === 'stable') {
+                console.log("Received offer, setting remote description");
+                await pc.setRemoteDescription(new RTCSessionDescription(data.offer));
+                
+                console.log("Creating answer");
+                const answer = await pc.createAnswer();
+                await pc.setLocalDescription(answer);
+
+                console.log("Sending answer");
+                await set(myPeerRef, { answer: pc.localDescription });
+
+            } else if (data.answer && pc.signalingState === 'have-local-offer') {
+                console.log("Received answer, setting remote description");
+                await pc.setRemoteDescription(new RTCSessionDescription(data.answer));
+            }
+            
+            if (data.candidates) {
+                for (const candidate of data.candidates) {
+                    if (candidate && pc.remoteDescription) {
+                        await pc.addIceCandidate(new RTCIceCandidate(candidate));
+                    }
+                }
+            }
+        } catch (e) {
+            if (!ignore) {
+               console.error('Signaling error:', e);
+            }
+        }
+    });
 
     const startConnection = async () => {
         try {
@@ -427,9 +460,10 @@ export default function ClashClient({ id }: { id: string }) {
             return;
         }
 
+        const iceCandidates: RTCIceCandidateInit[] = [];
         pc.onicecandidate = (event) => {
-            if (event.candidate && !ignore) {
-                update(myPeerRef, { candidate: event.candidate.toJSON() });
+            if (event.candidate) {
+                iceCandidates.push(event.candidate.toJSON());
             }
         };
 
@@ -439,41 +473,26 @@ export default function ClashClient({ id }: { id: string }) {
                 setIsConnecting(false);
             }
         };
-        
-        unsubscribeOpponent = onValue(opponentPeerRef, async (snapshot) => {
-            if (ignore || !snapshot.exists() || processingSignal.current) return;
-            
-            processingSignal.current = true;
-            const data = snapshot.val();
 
-            try {
-                if (data.offer && pc.signalingState === 'stable') {
-                    await pc.setRemoteDescription(new RTCSessionDescription(data.offer));
-                    const answer = await pc.createAnswer();
-                    await pc.setLocalDescription(answer);
-                    await update(myPeerRef, { answer: pc.localDescription });
-                } else if (data.answer && pc.signalingState === 'have-local-offer') {
-                    await pc.setRemoteDescription(new RTCSessionDescription(data.answer));
-                }
-                
-                if (data.candidate && pc.remoteDescription) {
-                   await pc.addIceCandidate(new RTCIceCandidate(data.candidate));
-                }
-            } catch (e) {
-                if (!ignore) {
-                   console.error('Signaling error:', e);
-                }
-            } finally {
-                processingSignal.current = false;
+        pc.onicegatheringstatechange = async () => {
+            if (pc.iceGatheringState === 'complete' && !ignore) {
+                 if (isCaller) {
+                    await update(myPeerRef, { candidates: iceCandidates });
+                 } else {
+                    // For callee, the answer is already sent. Now send candidates.
+                    await update(myPeerRef, { candidates: iceCandidates });
+                 }
             }
-        });
-
+        };
+        
         if (isCaller) {
           try {
+            console.log("I am the caller, creating offer");
             const offer = await pc.createOffer();
             if (ignore) return;
             await pc.setLocalDescription(offer);
             if (ignore) return;
+            // Set offer, candidates will be added later via onicegatheringstatechange
             await set(myPeerRef, { offer: pc.localDescription });
           } catch(e) {
             console.error("Error creating offer:", e);
@@ -483,33 +502,34 @@ export default function ClashClient({ id }: { id: string }) {
         const connectionTimeout = setTimeout(() => {
             if(!ignore && pc.connectionState !== 'connected' && pc.connectionState !== 'completed') {
                 setIsConnecting(false);
+                console.warn("WebRTC connection timed out.");
             }
         }, 15000);
         
-        return () => {
-            if (unsubscribeOpponent) unsubscribeOpponent();
-            clearTimeout(connectionTimeout);
-        }
+        return () => clearTimeout(connectionTimeout);
     };
 
     startConnection();
 
     return () => {
+      console.log("Cleaning up WebRTC connection for", currentUser.uid);
       ignore = true;
+      if (unsubscribeOpponent) unsubscribeOpponent();
+
       if (pc) {
           pc.ontrack = null;
           pc.onicecandidate = null;
+          pc.onicegatheringstatechange = null;
           pc.close();
           peerConnectionRef.current = null;
       }
       if(localStreamForRTC) {
         localStreamForRTC.getTracks().forEach(track => track.stop());
       }
-      if(unsubscribeOpponent) unsubscribeOpponent();
       
-      const userSignalingRef = ref(rtdb, `clash-video-signaling/${id}/${currentUser.uid}`);
+      const userSignalingRef = ref(rtdb, `${baseSignalingPath}/${currentUser.uid}`);
       onDisconnect(userSignalingRef).cancel();
-      remove(userSignalingRef);
+      remove(userSignalingRef).catch(e => console.error("Error removing signaling ref on cleanup:", e));
     };
   }, [id, currentUser, opponentId, isCaller, rtdb]);
 
