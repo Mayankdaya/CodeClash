@@ -44,7 +44,7 @@ function MatchingContent() {
             await set(userQueueRef, {
                 displayName: currentUser.displayName,
                 photoURL: currentUser.photoURL || 'https://placehold.co/100x100.png',
-                joinedAt: rtdbServerTimestamp,
+                joinedAt: rtdbServerTimestamp(),
             });
             setStatusText('Waiting for an opponent...');
         } catch (e) {
@@ -67,7 +67,7 @@ function MatchingContent() {
 
         if (players.length >= 2) {
             // Only the first player in the queue (by join time) creates the match
-            const sortedPlayers = Object.entries(queue).sort((a, b) => a[1].joinedAt - b[1].joinedAt);
+            const sortedPlayers = Object.entries(queue).sort((a, b) => (a[1] as any).joinedAt - (b[1] as any).joinedAt);
             const player1Id = sortedPlayers[0][0];
             
             if (currentUser.uid !== player1Id) {
@@ -76,8 +76,8 @@ function MatchingContent() {
             }
 
             const player2Id = sortedPlayers[1][0];
-            const player1 = { uid: player1Id, ...sortedPlayers[0][1] };
-            const player2 = { uid: player2Id, ...sortedPlayers[1][1] };
+            const player1 = { uid: player1Id, ...sortedPlayers[0][1] as any };
+            const player2 = { uid: player2Id, ...sortedPlayers[1][1] as any };
             
             // Critical section: remove players and create clash
             await remove(ref(rtdb, `matchmaking/${topicId}/${player1.uid}`));
