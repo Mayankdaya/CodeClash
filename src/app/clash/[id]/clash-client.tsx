@@ -141,7 +141,17 @@ const executeInWorker = (code: string, entryPoint: string, testCases: TestCase[]
                         }
 
                         const endTime = performance.now();
-                        const passed = !error && deepEqual(output, tc.expected);
+                        
+                        let expectedValue = tc.expected;
+                        if(typeof expectedValue === 'string'){
+                            try {
+                                expectedValue = JSON.parse(expectedValue);
+                            } catch (e) {
+                                // Not a valid JSON string, proceed with original value
+                            }
+                        }
+                        
+                        const passed = !error && deepEqual(output, expectedValue);
                         if (passed) passedCount++;
 
                         results.push({
@@ -260,10 +270,12 @@ export default function ClashClient({ id }: { id: string }) {
         if (!problem && data.problem) {
           const parsedTestCases = (data.problem.testCases as any[]).map(tc => {
               try {
-                  return { ...tc, input: JSON.parse(tc.input), expected: JSON.parse(tc.expected) };
+                  const input = typeof tc.input === 'string' ? JSON.parse(tc.input) : tc.input;
+                  const expected = typeof tc.expected === 'string' ? JSON.parse(tc.expected) : tc.expected;
+                  return { ...tc, input, expected };
               } catch (e) {
-                  console.error("Failed to parse test case, returning as is:", tc, e);
-                  return { ...tc, expected: tc.expected !== undefined ? tc.expected : null };
+                  console.error("Error parsing a test case, returning as-is to avoid a crash", tc, e);
+                  return tc;
               }
           });
 
