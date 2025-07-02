@@ -12,14 +12,23 @@ import { ai } from '@/ai/genkit';
 import { z } from 'genkit';
 import type { Problem } from '@/lib/problems';
 
-// A schema for any valid JSON value. This is more specific than `z.any()` and helps
-// the AI model understand the expected structure, preventing API errors.
+// A schema for any valid JSON value. This has been carefully constructed to
+// work around limitations in the backend API's schema parser, which dislikes
+// fully recursive object definitions.
 const literalSchema = z.union([z.string(), z.number(), z.boolean(), z.null()]);
-type Literal = z.infer<typeof literalSchema>;
-type Json = Literal | { [key: string]: Json } | Json[];
-const jsonSchema: z.ZodType<Json> = z.lazy(() =>
-  z.union([literalSchema, z.array(jsonSchema), z.record(jsonSchema)])
+
+// Define a schema for primitives and arrays of primitives/arrays.
+const jsonPrimsAndArraysSchema: z.ZodType<any> = z.lazy(() =>
+  z.union([literalSchema, z.array(jsonPrimsAndArraysSchema)])
 );
+
+// Define a separate schema for a generic JSON object. Using z.any() for values
+// is a workaround for the API's schema validation.
+const jsonObjectSchema = z.record(z.string(), z.any()).describe("A JSON object with any properties.");
+
+// The final schema for a valid JSON value is a union of the two above.
+const jsonSchema = z.union([jsonPrimsAndArraysSchema, jsonObjectSchema]);
+
 
 const TestCaseSchema = z.object({
   input: z.array(jsonSchema).describe("An array of arguments for the function. This MUST be an array of pure JSON values."),
