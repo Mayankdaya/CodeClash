@@ -278,6 +278,10 @@ export default function ClashClient({ id }: { id: string }) {
         toast({ title: "Clash not found", description: "This clash does not exist or has been deleted.", variant: 'destructive' });
         router.push('/lobby');
       }
+    }, (error) => {
+        console.error("Clash listener error:", error);
+        toast({ title: "Connection Error", description: "Could not sync with the clash. This may be a permission issue.", variant: 'destructive' });
+        router.push('/lobby');
     });
     
     const chatRef = collection(db, 'clashes', id, 'chat');
@@ -289,6 +293,9 @@ export default function ClashClient({ id }: { id: string }) {
         chatMessages.push({ id: doc.id, ...doc.data() } as Message);
       });
       setMessages(chatMessages);
+    }, (error) => {
+        console.error("Chat listener error:", error);
+        toast({ title: "Chat Error", description: "Could not load chat messages.", variant: 'destructive' });
     });
 
     return () => {
@@ -351,14 +358,19 @@ export default function ClashClient({ id }: { id: string }) {
     if (newMessage.trim() === '' || !db || !currentUser || !id) return;
     
     const chatRef = collection(db, 'clashes', id, 'chat');
-    await addDoc(chatRef, {
-      text: newMessage.trim(),
-      senderId: currentUser.uid,
-      senderName: currentUser.displayName || 'Anonymous',
-      senderAvatar: currentUser.photoURL || 'https://placehold.co/32x32.png',
-      timestamp: serverTimestamp(),
-    });
-    setNewMessage('');
+    try {
+        await addDoc(chatRef, {
+          text: newMessage.trim(),
+          senderId: currentUser.uid,
+          senderName: currentUser.displayName || 'Anonymous',
+          senderAvatar: currentUser.photoURL || 'https://placehold.co/32x32.png',
+          timestamp: serverTimestamp(),
+        });
+        setNewMessage('');
+    } catch (error) {
+        console.error("Error sending message:", error);
+        toast({ title: "Message Error", description: "Could not send message. Please check your connection and permissions.", variant: 'destructive' });
+    }
   };
 
   const handleLanguageChange = async (newLang: string) => {

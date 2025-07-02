@@ -12,6 +12,7 @@ import {
 import Link from "next/link";
 import { rtdb } from "@/lib/firebase";
 import { ref, onValue } from "firebase/database";
+import { useToast } from "@/hooks/use-toast";
 
 const topics = [
   { id: "arrays", icon: List, title: "Arrays", description: "Master problems involving data structures and algorithms for arrays." },
@@ -33,9 +34,17 @@ const topics = [
 
 function LobbyContent() {
   const [waitingCounts, setWaitingCounts] = useState<Record<string, number>>({});
+  const { toast } = useToast();
 
   useEffect(() => {
-    if (!rtdb) return;
+    if (!rtdb) {
+      toast({
+        title: "Database not configured",
+        description: "Waiting player counts are unavailable.",
+        variant: "destructive",
+      });
+      return;
+    }
 
     const matchmakingRef = ref(rtdb, 'matchmaking');
     const matchmakingUnsubscribe = onValue(matchmakingRef, (snapshot) => {
@@ -47,12 +56,19 @@ function LobbyContent() {
         }
       }
       setWaitingCounts(counts);
+    }, (error) => {
+      console.error("RTDB listener error on lobby:", error);
+      toast({
+        title: "Connection Error",
+        description: "Could not fetch waiting player counts due to a database permission error.",
+        variant: "destructive",
+      });
     });
 
     return () => {
       matchmakingUnsubscribe();
     };
-  }, []);
+  }, [toast]);
   
   return (
     <div className="flex flex-col min-h-dvh bg-transparent text-foreground font-body">

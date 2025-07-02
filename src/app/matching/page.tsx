@@ -44,6 +44,10 @@ function MatchingContent() {
   useEffect(() => {
     const topicId = searchParams.get('topic');
     if (!rtdb || !db || !currentUser || !topicId) {
+      if(!currentUser && topicId) {
+        // Wait for user to be set
+        return;
+      }
       if(topicId) {
         toast({ title: "Initialization Error", description: "Could not connect. Please try again.", variant: "destructive" });
         router.push('/lobby');
@@ -65,28 +69,42 @@ function MatchingContent() {
     const myQueueRef = ref(rtdb, `matchmaking/${topicId}/${currentUser.uid}`);
     const myMatchRef = ref(rtdb, `userMatches/${currentUser.uid}`);
     let queueUnsubscribe: (() => void) | null = null;
+    let matchUnsubscribe: (() => void) | null = null;
 
     const performCleanup = () => {
       if(cleanupPerformed.current) return;
       cleanupPerformed.current = true;
       if (queueUnsubscribe) queueUnsubscribe();
-      matchUnsubscribe();
+      if (matchUnsubscribe) matchUnsubscribe();
       onDisconnect(myQueueRef).cancel();
       remove(myQueueRef);
       remove(myMatchRef);
     }
 
-    const matchUnsubscribe = onValue(myMatchRef, (snapshot) => {
+    matchUnsubscribe = onValue(myMatchRef, (snapshot) => {
       if (snapshot.exists()) {
         const clashId = snapshot.val();
         performCleanup();
         toast({ title: "Match Found!", description: "Let's go!" });
         router.push(`/clash/${clashId}`);
       }
+    }, (error) => {
+      console.error("RTDB match listener error:", error);
+      toast({ title: "Matchmaking Error", description: "There was a problem listening for your match. Please try again.", variant: "destructive" });
+      router.push('/lobby');
+      performCleanup();
     });
 
     const setupMatchmaking = async () => {
-        await set(myQueueRef, playerInfo);
+        try {
+            await set(myQueueRef, playerInfo);
+        } catch (error) {
+            console.error("Failed to join queue:", error);
+            toast({ title: "Matchmaking Error", description: "Could not join the queue. This might be a database permission issue.", variant: "destructive" });
+            router.push('/lobby');
+            return;
+        }
+
         onDisconnect(myQueueRef).remove();
         setStatusText('Waiting for an opponent...');
 
@@ -105,56 +123,60 @@ function MatchingContent() {
           if (!me) return; 
 
           if (me.enteredAt < opponent.enteredAt) {
-            const { committed } = await runTransaction(topicQueueRef, (currentQueue) => {
-              if (currentQueue && currentQueue[me.uid] && currentQueue[opponent.uid]) {
-                delete currentQueue[me.uid];
-                delete currentQueue[opponent.uid];
-                return currentQueue;
-              }
-              return; 
-            });
-
-            if (committed) {
-              performCleanup();
-              setStatusText('Opponent found! Generating challenge...');
-              
-              try {
-                const topicName = topicId.replace(/-/g, ' ').replace(/\b\w/g, l => l.toUpperCase());
-                const problem = await generateProblem({ topic: topicName, seed: Date.now().toString() });
-                
-                const validTestCases = problem.testCases.filter(tc => tc.expected !== undefined && tc.expected !== null);
-                if (validTestCases.length < 3) { throw new Error("AI failed to generate a valid problem. Please try again."); }
-                
-                const problemWithStrTestCases = {
-                    ...problem,
-                    testCases: validTestCases.map(tc => ({
-                        input: JSON.stringify(tc.input),
-                        expected: JSON.stringify(tc.expected),
-                    })),
-                };
-                const sanitizedProblem = JSON.parse(JSON.stringify(problemWithStrTestCases));
-
-                const clashDocRef = await addDoc(collection(db, 'clashes'), {
-                    topicId,
-                    problem: sanitizedProblem,
-                    participants: [
-                        { userId: me.uid, userName: me.displayName, userAvatar: me.photoURL, score: 0, solvedTimestamp: null },
-                        { userId: opponent.uid, userName: opponent.displayName, userAvatar: opponent.photoURL, score: 0, solvedTimestamp: null }
-                    ],
-                    createdAt: firestoreServerTimestamp(),
-                    status: 'active'
+            try {
+                const { committed } = await runTransaction(topicQueueRef, (currentQueue) => {
+                  if (currentQueue && currentQueue[me.uid] && currentQueue[opponent.uid]) {
+                    delete currentQueue[me.uid];
+                    delete currentQueue[opponent.uid];
+                    return currentQueue;
+                  }
+                  return; 
                 });
 
-                await set(ref(rtdb, `userMatches/${opponent.uid}`), clashDocRef.id);
-                await set(myMatchRef, clashDocRef.id);
+                if (committed) {
+                  performCleanup();
+                  setStatusText('Opponent found! Generating challenge...');
+                  
+                  const topicName = topicId.replace(/-/g, ' ').replace(/\b\w/g, l => l.toUpperCase());
+                  const problem = await generateProblem({ topic: topicName, seed: Date.now().toString() });
+                  
+                  const validTestCases = problem.testCases.filter(tc => tc.expected !== undefined && tc.expected !== null);
+                  if (validTestCases.length < 3) { throw new Error("AI failed to generate a valid problem. Please try again."); }
+                  
+                  const problemWithStrTestCases = {
+                      ...problem,
+                      testCases: validTestCases.map(tc => ({
+                          input: JSON.stringify(tc.input),
+                          expected: JSON.stringify(tc.expected),
+                      })),
+                  };
+                  const sanitizedProblem = JSON.parse(JSON.stringify(problemWithStrTestCases));
 
-              } catch (error: any) {
+                  const clashDocRef = await addDoc(collection(db, 'clashes'), {
+                      topicId,
+                      problem: sanitizedProblem,
+                      participants: [
+                          { userId: me.uid, userName: me.displayName, userAvatar: me.photoURL, score: 0, solvedTimestamp: null },
+                          { userId: opponent.uid, userName: opponent.displayName, userAvatar: opponent.photoURL, score: 0, solvedTimestamp: null }
+                      ],
+                      createdAt: firestoreServerTimestamp(),
+                      status: 'active'
+                  });
+
+                  await set(ref(rtdb, `userMatches/${opponent.uid}`), clashDocRef.id);
+                  await set(myMatchRef, clashDocRef.id);
+                }
+            } catch (error: any) {
                 console.error("Error creating match:", error);
-                toast({ title: "Matchmaking Error", description: error.message, variant: "destructive" });
+                toast({ title: "Matchmaking Error", description: error.message || "Could not create the match.", variant: "destructive" });
                 router.push('/lobby');
-              }
             }
           }
+        }, (error) => {
+            console.error("RTDB queue listener error:", error);
+            toast({ title: "Matchmaking Error", description: "Could not connect to the matchmaking queue. Please try again.", variant: "destructive" });
+            router.push('/lobby');
+            performCleanup();
         });
     }
 

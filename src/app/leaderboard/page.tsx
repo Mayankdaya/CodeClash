@@ -4,7 +4,7 @@ import { db } from "@/lib/firebase";
 import { collection, query, orderBy, limit, getDocs } from "firebase/firestore";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
-import { Crown, Medal, Award } from "lucide-react";
+import { Crown, Medal, Award, AlertTriangle } from "lucide-react";
 
 interface UserScore {
   id: string;
@@ -14,7 +14,9 @@ interface UserScore {
 }
 
 async function getLeaderboardData(): Promise<UserScore[]> {
-  if (!db) return [];
+  if (!db) {
+    throw new Error("Database not configured. Please check your Firebase setup.");
+  }
   const usersRef = collection(db, "users");
   const q = query(usersRef, orderBy("totalScore", "desc"), limit(100));
 
@@ -31,9 +33,12 @@ async function getLeaderboardData(): Promise<UserScore[]> {
       });
     });
     return leaderboard;
-  } catch (error) {
+  } catch (error: any) {
     console.error("Error fetching leaderboard:", error);
-    return [];
+    if (error.code === 'permission-denied') {
+        throw new Error("PERMISSION_DENIED: Could not fetch leaderboard. Please check your Firebase security rules.");
+    }
+    throw new Error("An unknown error occurred while fetching the leaderboard.");
   }
 }
 
@@ -45,7 +50,14 @@ const RankIcon = ({ rank }: { rank: number }) => {
 };
 
 async function LeaderboardContent() {
-  const leaderboard = await getLeaderboardData();
+  let leaderboard: UserScore[] = [];
+  let fetchError: string | null = null;
+  
+  try {
+      leaderboard = await getLeaderboardData();
+  } catch (error: any) {
+      fetchError = error.message;
+  }
 
   return (
     <div className="flex flex-col min-h-dvh bg-transparent text-foreground font-body">
@@ -67,7 +79,17 @@ async function LeaderboardContent() {
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {leaderboard.length > 0 ? leaderboard.map((user, index) => (
+                {fetchError ? (
+                   <TableRow>
+                      <TableCell colSpan={3} className="text-center text-destructive py-10">
+                          <div className="flex flex-col items-center gap-4">
+                            <AlertTriangle className="h-8 w-8" />
+                            <p className="font-semibold">Error Loading Leaderboard</p>
+                            <p className="text-sm max-w-md">{fetchError} Please ensure your database is created and its security rules are correctly configured for public access.</p>
+                          </div>
+                      </TableCell>
+                  </TableRow>
+                ) : leaderboard.length > 0 ? leaderboard.map((user, index) => (
                   <TableRow key={user.id} className="hover:bg-primary/5 border-b-white/5 last:border-b-0">
                     <TableCell className="font-medium text-center">
                       <div className="flex justify-center items-center">

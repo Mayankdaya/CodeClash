@@ -10,10 +10,10 @@ export default function SetupErrorPage() {
 rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
-    // Allow any authenticated user to read and write to the database.
-    // This is insecure and should be replaced with stricter rules for production.
+    // WARNING: These rules are insecure and allow public access.
+    // They are for development purposes only after removing the authentication system.
     match /{document=**} {
-      allow read, write: if request.auth != null;
+      allow read, write: if true;
     }
   }
 }
@@ -22,10 +22,10 @@ service cloud.firestore {
   const rtdbRules = `
 {
   "rules": {
-    // Allow any authenticated user to read and write to the database.
-    // This is insecure and should be replaced with stricter rules for production.
-    ".read": "auth != null",
-    ".write": "auth != null"
+    // WARNING: These rules are insecure and allow public access.
+    // They are for development purposes only after removing the authentication system.
+    ".read": true,
+    ".write": true
   }
 }
   `.trim();
@@ -45,7 +45,7 @@ service cloud.firestore {
           <div>
             <h1 className="text-3xl font-bold text-destructive">Action Required: Configure Your Firebase Project</h1>
             <p className="mt-1 text-lg text-muted-foreground">
-              Your app authenticated you, but it could not access the database. This usually means the databases haven't been created or their security rules are too restrictive.
+              Your app cannot access the database. This usually means the databases haven't been created or their security rules are too restrictive.
             </p>
           </div>
         </div>
@@ -69,7 +69,7 @@ service cloud.firestore {
                 <div>
                   <h2 className="text-xl font-semibold">Step 1: Update Firestore Rules</h2>
                   <p className="text-muted-foreground mt-2 mb-3">
-                    Copy the rules below and paste them into your project's Firestore rules editor.
+                    Since the app no longer has a login system, you must use public rules. Copy the rules below into your project's Firestore rules editor.
                   </p>
                   <pre className="w-full rounded-lg bg-muted p-4">
                     <code className="text-sm font-mono whitespace-pre-wrap">{firestoreRules}</code>
@@ -82,7 +82,7 @@ service cloud.firestore {
                 <div>
                   <h2 className="text-xl font-semibold">Step 2: Update Realtime Database Rules</h2>
                   <p className="text-muted-foreground mt-2 mb-3">
-                    Next, do the same for your Realtime Database rules.
+                    Next, do the same for your Realtime Database rules to allow public access.
                   </p>
                   <pre className="w-full rounded-lg bg-muted p-4">
                     <code className="text-sm font-mono whitespace-pre-wrap">{rtdbRules}</code>
@@ -97,10 +97,10 @@ service cloud.firestore {
         <div className="mt-8 text-center border-t border-border pt-6">
             <h2 className="text-xl font-semibold">Step 3: Try Again</h2>
             <p className="text-muted-foreground mt-2 mb-4">
-              After creating the databases and publishing both sets of rules, return to the app and log in again.
+              After creating the databases and publishing both sets of public rules, return to the app and refresh the page.
             </p>
             <Button asChild>
-                <Link href="/login">Go to Login Page</Link>
+                <Link href="/">Go to Homepage</Link>
             </Button>
         </div>
       </div>
