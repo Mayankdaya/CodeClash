@@ -69,7 +69,7 @@ function MatchingContent() {
             
             const clashDocRef = await addDoc(collection(db, 'clashes'), {
                 topicId,
-                problem: JSON.parse(JSON.stringify(problem)), // Store the problem object directly. Firestore handles nested objects/arrays.
+                problem: JSON.stringify(problem), // Stringify the problem to avoid nested array issues in Firestore
                 participants: [
                     { userId: currentUser.uid, userName: currentUser.displayName, userAvatar: currentUser.photoURL, score: 0, solvedTimestamp: null, ready: false },
                     { userId: 'test-user-id', userName: 'Test User', userAvatar: 'https://api.dicebear.com/8.x/bottts-neutral/svg?seed=Test', score: 0, solvedTimestamp: null, ready: true }

@@ -131,7 +131,7 @@ const executeInWorker = (code: string, entryPoint: string, testCases: TestCase[]
                         let parsedInput = [];
                         try {
                             // Smart parse each argument before passing to the function
-                            parsedInput = tc.input.map(smartParse);
+                            parsedInput = tc.input; // No longer need to smartParse, data is clean.
                             output = userFunc(...parsedInput);
                         } catch (err) {
                             error = err;
@@ -139,8 +139,8 @@ const executeInWorker = (code: string, entryPoint: string, testCases: TestCase[]
 
                         const endTime = performance.now();
                         
-                        // Also smart parse the expected value for accurate comparison
-                        const expectedValue = smartParse(tc.expected);
+                        // Expected value is also clean
+                        const expectedValue = tc.expected;
                         
                         const passed = !error && deepEqual(output, expectedValue);
                         if (passed) passedCount++;
@@ -250,7 +250,14 @@ export default function ClashClient({ id }: { id: string }) {
     const clashDocRef = doc(db, 'clashes', id);
     const unsubscribeClash = onSnapshot(clashDocRef, (docSnap) => {
       if (docSnap.exists()) {
-        const data = docSnap.data() as ClashData;
+        const rawData = docSnap.data();
+
+        // Handle both stringified and object problems for safety during transition
+        const problemData = typeof rawData.problem === 'string'
+          ? JSON.parse(rawData.problem)
+          : rawData.problem;
+        
+        const data = { ...rawData, problem: problemData } as ClashData;
         setClashData(data);
         
         if (!problem && data.problem) {
