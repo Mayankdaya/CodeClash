@@ -5,7 +5,7 @@ import { useState, useEffect, useRef } from 'react';
 import Image from 'next/image';
 import { useRouter } from 'next/navigation';
 import { addDoc, collection, doc, onSnapshot, orderBy, query, runTransaction, serverTimestamp } from 'firebase/firestore';
-import { auth, db } from '@/lib/firebase';
+import { db } from '@/lib/firebase';
 import { useToast } from '@/hooks/use-toast';
 import { Panel, PanelGroup, PanelResizeHandle } from "react-resizable-panels";
 
@@ -195,6 +195,7 @@ export default function ClashClient({ id }: { id: string }) {
   const router = useRouter();
   const { toast } = useToast();
   
+  const [currentUser, setCurrentUser] = useState<{uid: string; displayName: string; photoURL: string;} | null>(null);
   const [clashData, setClashData] = useState<ClashData | null>(null);
   const [problem, setProblem] = useState<Problem | null>(null);
   const [opponent, setOpponent] = useState<Participant | null>(null);
@@ -217,6 +218,22 @@ export default function ClashClient({ id }: { id: string }) {
 
   const endOfMessagesRef = useRef<HTMLDivElement>(null);
   const languages = ["javascript", "python", "java", "cpp"];
+  
+  useEffect(() => {
+    let guestId = sessionStorage.getItem('guestId');
+    let guestName = sessionStorage.getItem('guestName');
+    if (!guestId) {
+        guestId = `guest-${Math.random().toString(36).substring(2, 9)}`;
+        guestName = `Guest ${Math.floor(Math.random() * 900) + 100}`;
+        sessionStorage.setItem('guestId', guestId);
+        sessionStorage.setItem('guestName', guestName);
+    }
+    setCurrentUser({
+        uid: guestId,
+        displayName: guestName,
+        photoURL: 'https://placehold.co/100x100.png',
+    });
+  }, []);
 
   useEffect(() => {
     if (!db || !id) return;
@@ -251,7 +268,6 @@ export default function ClashClient({ id }: { id: string }) {
           return;
         }
 
-        const currentUser = auth.currentUser;
         if(currentUser) {
             const opponentParticipant = data.participants.find(p => p.userId !== currentUser.uid);
             if (opponentParticipant) {
@@ -279,7 +295,7 @@ export default function ClashClient({ id }: { id: string }) {
       unsubscribeClash();
       unsubscribeChat();
     };
-  }, [id, router, toast, problem]);
+  }, [id, router, toast, problem, currentUser]);
 
   useEffect(() => {
     endOfMessagesRef.current?.scrollIntoView({ behavior: 'smooth' });
@@ -292,20 +308,15 @@ export default function ClashClient({ id }: { id: string }) {
   }, [timeLeft]);
   
   const awardPoints = async () => {
-    if (!db || !auth.currentUser) return;
+    if (!db || !currentUser) return;
     const clashDocRef = doc(db, 'clashes', id);
-    const userDocRef = doc(db, 'users', auth.currentUser.uid);
 
     try {
         await runTransaction(db, async (transaction) => {
             const clashDoc = await transaction.get(clashDocRef);
-            const userDoc = await transaction.get(userDocRef);
-
             if (!clashDoc.exists()) throw "Clash document does not exist!";
-            if (!userDoc.exists()) throw "User document does not exist!";
-
+            
             const data = clashDoc.data() as ClashData;
-            const currentUser = auth.currentUser!;
             
             const me = data.participants.find(p => p.userId === currentUser.uid);
             if (!me || me.solvedTimestamp) return;
@@ -326,9 +337,6 @@ export default function ClashClient({ id }: { id: string }) {
             );
 
             transaction.update(clashDocRef, { participants: updatedParticipants });
-            
-            const newTotalScore = (userDoc.data().totalScore || 0) + pointsAwarded;
-            transaction.update(userDocRef, { totalScore: newTotalScore });
 
             toast({ title: `+${pointsAwarded} Points!`, description: toastDescription });
         });
@@ -340,14 +348,14 @@ export default function ClashClient({ id }: { id: string }) {
 
 
   const handleSendMessage = async () => {
-    if (newMessage.trim() === '' || !db || !auth.currentUser || !id) return;
+    if (newMessage.trim() === '' || !db || !currentUser || !id) return;
     
     const chatRef = collection(db, 'clashes', id, 'chat');
     await addDoc(chatRef, {
       text: newMessage.trim(),
-      senderId: auth.currentUser.uid,
-      senderName: auth.currentUser.displayName || 'Anonymous',
-      senderAvatar: auth.currentUser.photoURL || 'https://placehold.co/32x32.png',
+      senderId: currentUser.uid,
+      senderName: currentUser.displayName || 'Anonymous',
+      senderAvatar: currentUser.photoURL || 'https://placehold.co/32x32.png',
       timestamp: serverTimestamp(),
     });
     setNewMessage('');
@@ -451,7 +459,7 @@ export default function ClashClient({ id }: { id: string }) {
 
   const progressValue = (timeLeft / (30 * 60)) * 100;
 
-  if (!clashData || !problem || !auth.currentUser) {
+  if (!clashData || !problem || !currentUser) {
     return (
       <div className="flex h-dvh items-center justify-center bg-background">
         <Loader2 className="h-8 w-8 animate-spin" />
@@ -478,7 +486,7 @@ export default function ClashClient({ id }: { id: string }) {
     return button;
   }
 
-  const currentUserScore = clashData?.participants.find(p => p.userId === auth.currentUser?.uid)?.score ?? 0;
+  const currentUserScore = clashData?.participants.find(p => p.userId === currentUser?.uid)?.score ?? 0;
 
   return (
       <div className="flex flex-col min-h-dvh bg-transparent text-foreground font-body">
@@ -489,11 +497,11 @@ export default function ClashClient({ id }: { id: string }) {
                   <div className='flex items-center gap-4'>
                   <div className='flex items-center gap-3'>
                       <Avatar className="h-10 w-10 border-2 border-primary">
-                      <AvatarImage src={auth.currentUser?.photoURL || ''} data-ai-hint="man portrait" />
+                      <AvatarImage src={currentUser?.photoURL || ''} data-ai-hint="man portrait" />
                       <AvatarFallback>ME</AvatarFallback>
                       </Avatar>
                       <div>
-                      <p className="font-semibold">{auth.currentUser?.displayName || 'You'}</p>
+                      <p className="font-semibold">{currentUser?.displayName || 'You'}</p>
                       <p className="text-xs text-muted-foreground">Score: {currentUserScore}</p>
                       </div>
                   </div>
@@ -650,7 +658,7 @@ export default function ClashClient({ id }: { id: string }) {
                             <div className="flex-1 pr-2 -mr-2 overflow-y-auto">
                                 <div className="space-y-4 text-sm pr-2">
                                 {messages.map((message) => {
-                                    const isMe = message.senderId === auth.currentUser?.uid;
+                                    const isMe = message.senderId === currentUser?.uid;
                                     return (
                                     <div key={message.id} className={cn('flex items-end gap-3', isMe && 'flex-row-reverse')}>
                                         <Avatar className="h-8 w-8 shrink-0">

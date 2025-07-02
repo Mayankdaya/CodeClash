@@ -5,7 +5,6 @@ import { collection, query, orderBy, limit, getDocs } from "firebase/firestore";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Crown, Medal, Award } from "lucide-react";
-import AuthGuard from "@/components/AuthGuard";
 
 interface UserScore {
   id: string;
@@ -104,8 +103,6 @@ async function LeaderboardContent() {
 
 export default function LeaderboardPage() {
     return (
-        <AuthGuard>
-            <LeaderboardContent />
-        </AuthGuard>
+      <LeaderboardContent />
     )
 }

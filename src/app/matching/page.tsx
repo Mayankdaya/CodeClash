@@ -6,8 +6,7 @@ import { useSearchParams, useRouter } from 'next/navigation';
 import { collection, addDoc, serverTimestamp as firestoreServerTimestamp } from 'firebase/firestore';
 import { useToast } from '@/hooks/use-toast';
 import { Header } from '@/components/Header';
-import AuthGuard from '@/components/AuthGuard';
-import { auth, db, rtdb } from '@/lib/firebase';
+import { db, rtdb } from '@/lib/firebase';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Loader2 } from 'lucide-react';
@@ -24,14 +23,31 @@ function MatchingContent() {
   const [statusText, setStatusText] = useState('Initializing...');
   const listenersAttached = useRef(false);
   const cleanupPerformed = useRef(false);
+  const [currentUser, setCurrentUser] = useState<{uid: string; displayName: string; photoURL: string;} | null>(null);
+
+  useEffect(() => {
+    let guestId = sessionStorage.getItem('guestId');
+    let guestName = sessionStorage.getItem('guestName');
+    if (!guestId) {
+      guestId = `guest-${Math.random().toString(36).substring(2, 9)}`;
+      guestName = `Guest ${Math.floor(Math.random() * 900) + 100}`;
+      sessionStorage.setItem('guestId', guestId);
+      sessionStorage.setItem('guestName', guestName);
+    }
+    setCurrentUser({
+      uid: guestId,
+      displayName: guestName,
+      photoURL: `https://placehold.co/100x100.png`,
+    });
+  }, []);
 
   useEffect(() => {
     const topicId = searchParams.get('topic');
-    const currentUser = auth?.currentUser;
-
     if (!rtdb || !db || !currentUser || !topicId) {
-      toast({ title: "Initialization Error", description: "Could not connect. Please try again.", variant: "destructive" });
-      router.push('/lobby');
+      if(topicId) {
+        toast({ title: "Initialization Error", description: "Could not connect. Please try again.", variant: "destructive" });
+        router.push('/lobby');
+      }
       return;
     }
     
@@ -40,8 +56,8 @@ function MatchingContent() {
     
     const playerInfo = {
       uid: currentUser.uid,
-      displayName: currentUser.displayName || 'Anonymous',
-      photoURL: currentUser.photoURL || `https://placehold.co/100x100.png`,
+      displayName: currentUser.displayName,
+      photoURL: currentUser.photoURL,
       enteredAt: rtdbServerTimestamp(),
     };
     
@@ -147,7 +163,18 @@ function MatchingContent() {
     return () => {
       performCleanup();
     };
-  }, [router, searchParams, toast]);
+  }, [currentUser, router, searchParams, toast]);
+
+  if (!currentUser) {
+    return (
+       <div className="flex flex-col min-h-dvh bg-transparent text-foreground font-body">
+        <Header />
+        <main className="flex-1 container mx-auto py-8 px-4 flex flex-col items-center justify-center">
+            <Loader2 className="h-8 w-8 animate-spin" />
+        </main>
+      </div>
+    )
+  }
 
   return (
     <div className="flex flex-col min-h-dvh bg-transparent text-foreground font-body">
@@ -180,9 +207,6 @@ function MatchingContent() {
 
 export default function MatchingPage() {
   return (
-    <AuthGuard>
-      <MatchingContent />
-    </AuthGuard>
+    <MatchingContent />
   );
 }
-

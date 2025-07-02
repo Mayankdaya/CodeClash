@@ -10,7 +10,6 @@ import {
   Type, Repeat, Binary, Container, Pocket, GitBranchPlus, Workflow, SpellCheck, Users
 } from "lucide-react";
 import Link from "next/link";
-import AuthGuard from "@/components/AuthGuard";
 import { rtdb } from "@/lib/firebase";
 import { ref, onValue } from "firebase/database";
 
@@ -104,8 +103,6 @@ function LobbyContent() {
 
 export default function LobbyPage() {
   return (
-    <AuthGuard>
-      <LobbyContent />
-    </AuthGuard>
+    <LobbyContent />
   );
 }
