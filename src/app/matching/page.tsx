@@ -3,7 +3,7 @@
 
 import { useState, useEffect, useRef } from 'react';
 import { useSearchParams, useRouter } from 'next/navigation';
-import { collection, addDoc, serverTimestamp as firestoreServerTimestamp } from 'firebase/firestore';
+import { collection, addDoc, serverTimestamp as firestoreServerTimestamp, updateDoc } from 'firebase/firestore';
 import { useToast } from '@/hooks/use-toast';
 import { Header } from '@/components/Header';
 import { db } from '@/lib/firebase';
@@ -28,21 +28,18 @@ function MatchingContent() {
 
   useEffect(() => {
     // Prevent the effect from running more than once
-    if (matchmakingStarted.current) {
+    if (matchmakingStarted.current || !db || !currentUser) {
       return;
     }
+    matchmakingStarted.current = true;
 
     const topicId = searchParams.get('topic');
-    if (!db || !currentUser) return;
 
     if(!topicId) {
       toast({ title: "No Topic Selected", description: "Please select a topic from the lobby.", variant: "destructive" });
       router.push('/lobby');
       return;
     }
-
-    // Set the flag to true immediately after the checks
-    matchmakingStarted.current = true;
     
     const createDummyMatch = async (retryCount = 0) => {
         setStatusText('Finding opponent...');
@@ -82,11 +79,11 @@ function MatchingContent() {
                 topicId,
                 problem: JSON.parse(JSON.stringify(problemWithStrTestCases)),
                 participants: [
-                    { userId: currentUser.uid, userName: currentUser.displayName, userAvatar: currentUser.photoURL, score: 0, solvedTimestamp: null },
-                    { userId: 'test-user-id', userName: 'Test User', userAvatar: 'https://api.dicebear.com/8.x/bottts-neutral/svg?seed=Test', score: 0, solvedTimestamp: null }
+                    { userId: currentUser.uid, userName: currentUser.displayName, userAvatar: currentUser.photoURL, score: 0, solvedTimestamp: null, ready: false },
+                    { userId: 'test-user-id', userName: 'Test User', userAvatar: 'https://api.dicebear.com/8.x/bottts-neutral/svg?seed=Test', score: 0, solvedTimestamp: null, ready: false }
                 ],
                 createdAt: firestoreServerTimestamp(),
-                status: 'active'
+                status: 'pending'
             });
 
             toast({ title: "Match Found!", description: "Let's go!" });
@@ -105,7 +102,7 @@ function MatchingContent() {
     
     createDummyMatch();
 
-  }, [currentUser, router, searchParams, toast]);
+  }, [currentUser, router, searchParams, toast, db]);
 
   if (!currentUser) {
     return (

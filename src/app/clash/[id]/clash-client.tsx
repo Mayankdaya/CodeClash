@@ -45,12 +45,14 @@ interface Participant {
   userAvatar: string;
   score: number;
   solvedTimestamp: number | null;
+  ready: boolean;
 }
 
 interface ClashData {
   topicId: string;
   problem: Problem;
   participants: Participant[];
+  status: 'pending' | 'active' | 'finished';
 }
 
 interface Message {
@@ -179,35 +181,30 @@ const executeInWorker = (code: string, entryPoint: string, testCases: TestCase[]
 };
 
 const formatInputForDisplay = (input: any) => {
-    const smartParse = (value: any) => {
-        if (typeof value !== 'string') return value;
-        try {
-            if ((value.startsWith('[') && value.endsWith(']')) || (value.startsWith('{') && value.endsWith('}'))) {
-                return JSON.parse(value);
-            }
-        } catch (e) {
-            // Not valid JSON, return original string
+    try {
+        let args = Array.isArray(input) ? input : JSON.parse(input);
+        
+        const smartParse = (value: any) => {
+            if (typeof value !== 'string') return value;
+            try {
+                if ((value.startsWith('[') && value.endsWith(']')) || (value.startsWith('{') && value.endsWith('}'))) {
+                    return JSON.parse(value);
+                }
+            } catch (e) { /* Not valid JSON, return original string */ }
+            return value;
+        };
+        
+        if (!Array.isArray(args)) {
+             return JSON.stringify(args, null, 2);
         }
-        return value;
-    };
 
-    let args = input;
-    if (typeof args === 'string') {
-        try {
-            args = JSON.parse(args);
-        } catch (e) {
-            return args;
-        }
+        return args
+            .map(smartParse)
+            .map(arg => JSON.stringify(arg))
+            .join(', ');
+    } catch (e) {
+        return String(input);
     }
-
-    if (!Array.isArray(args)) {
-        return JSON.stringify(args);
-    }
-
-    return args
-        .map(smartParse)
-        .map(arg => JSON.stringify(arg))
-        .join(', ');
 };
 
 export default function ClashClient({ id }: { id: string }) {
@@ -217,7 +214,6 @@ export default function ClashClient({ id }: { id: string }) {
   
   const [clashData, setClashData] = useState<ClashData | null>(null);
   const [problem, setProblem] = useState<Problem | null>(null);
-  const [opponent, setOpponent] = useState<Participant | null>(null);
   const [messages, setMessages] = useState<Message[]>([]);
   const [newMessage, setNewMessage] = useState('');
   const [code, setCode] = useState('');
@@ -229,6 +225,7 @@ export default function ClashClient({ id }: { id: string }) {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [consoleTab, setConsoleTab] = useState('test-result');
   const [submissionResult, setSubmissionResult] = useState<{ status: 'Accepted' | 'Wrong Answer' | 'Error'; message: string; } | null>(null);
+  const [isSettingReady, setIsSettingReady] = useState(false);
   
   const [timeLeft, setTimeLeft] = useState(30 * 60);
 
@@ -238,6 +235,12 @@ export default function ClashClient({ id }: { id: string }) {
   const endOfMessagesRef = useRef<HTMLDivElement>(null);
   const languages = ["javascript", "python", "java", "cpp"];
   
+  const me = clashData?.participants.find(p => p.userId === currentUser?.uid);
+  const opponent = clashData?.participants.find(p => p.userId !== currentUser?.uid);
+  const allReady = clashData?.participants.every(p => p.ready) ?? false;
+  const isClashActive = (clashData?.status === 'active' || allReady);
+
+
   useEffect(() => {
     if (!db || !id) return;
 
@@ -245,7 +248,6 @@ export default function ClashClient({ id }: { id: string }) {
     const unsubscribeClash = onSnapshot(clashDocRef, (docSnap) => {
       if (docSnap.exists()) {
         const data = docSnap.data() as ClashData;
-        
         setClashData(data);
         
         if (!problem && data.problem) {
@@ -271,12 +273,6 @@ export default function ClashClient({ id }: { id: string }) {
           return;
         }
 
-        if(currentUser) {
-            const opponentParticipant = data.participants.find(p => p.userId !== currentUser.uid);
-            if (opponentParticipant) {
-              setOpponent(opponentParticipant);
-            }
-        }
       } else {
         toast({ title: "Clash not found", description: "This clash does not exist or has been deleted.", variant: 'destructive' });
         router.push('/lobby');
@@ -308,14 +304,25 @@ export default function ClashClient({ id }: { id: string }) {
   }, [id, router, toast, problem, currentUser]);
 
   useEffect(() => {
+    if (allReady && clashData?.status === 'pending' && db && id) {
+        if (clashData.participants[0].userId === currentUser?.uid) {
+            const clashDocRef = doc(db, 'clashes', id);
+            updateDoc(clashDocRef, { status: 'active' }).catch(err => {
+                console.error("Failed to update clash status to active:", err);
+            });
+        }
+    }
+  }, [allReady, clashData, currentUser?.uid, db, id]);
+
+  useEffect(() => {
     endOfMessagesRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [messages]);
 
   useEffect(() => {
-    if (timeLeft <= 0) return;
+    if (!isClashActive || timeLeft <= 0) return;
     const timer = setInterval(() => setTimeLeft((prev) => prev - 1), 1000);
     return () => clearInterval(timer);
-  }, [timeLeft]);
+  }, [isClashActive, timeLeft]);
   
   const awardPoints = async () => {
     if (!db || !currentUser) return;
@@ -353,7 +360,6 @@ export default function ClashClient({ id }: { id: string }) {
             toast({ title: `+${pointsAwarded} Points!`, description: toastDescription });
         });
         
-        // After transaction, update user's total score
         if (pointsAwarded > 0) {
             await updateUserScore(currentUser.uid, pointsAwarded);
         }
@@ -474,6 +480,36 @@ export default function ClashClient({ id }: { id: string }) {
     }
   };
 
+  const handleReadyClick = async () => {
+    if (!db || !currentUser || !id || isSettingReady) return;
+    setIsSettingReady(true);
+
+    const clashDocRef = doc(db, 'clashes', id);
+    try {
+        await runTransaction(db, async (transaction) => {
+            const clashDoc = await transaction.get(clashDocRef);
+            if (!clashDoc.exists()) {
+                throw new Error("Clash document does not exist!");
+            }
+            
+            const data = clashDoc.data() as ClashData;
+            
+            const updatedParticipants = data.participants.map(p => 
+                p.userId === currentUser.uid 
+                    ? { ...p, ready: true } 
+                    : p
+            );
+
+            transaction.update(clashDocRef, { participants: updatedParticipants });
+        });
+    } catch (e) {
+        console.error("Failed to set ready status:", e);
+        toast({ title: "Error", description: "Could not set your ready status.", variant: "destructive" });
+    } finally {
+        setIsSettingReady(false);
+    }
+  };
+
   const formatTime = (seconds: number) => {
     const minutes = Math.floor(seconds / 60);
     const remainingSeconds = seconds % 60;
@@ -492,7 +528,7 @@ export default function ClashClient({ id }: { id: string }) {
   }
   
   const RunButton = () => {
-    const isDisabled = isRunning || isSubmitting || isTranslatingCode;
+    const isDisabled = isRunning || isSubmitting || isTranslatingCode || !isClashActive;
     const button = <Button variant="secondary" onClick={handleRunCode} disabled={isDisabled}> {isRunning && <Loader2 className="mr-2 h-4 w-4 animate-spin" />} Run </Button>;
     if (language !== 'javascript') {
         return <TooltipProvider><Tooltip><TooltipTrigger asChild><div tabIndex={0}>{button}</div></TooltipTrigger><TooltipContent><p>Execution for {language} is powered by AI.</p></TooltipContent></Tooltip></TooltipProvider>;
@@ -501,7 +537,7 @@ export default function ClashClient({ id }: { id: string }) {
   };
   
   const SubmitButton = () => {
-    const isDisabled = isRunning || isSubmitting || isTranslatingCode;
+    const isDisabled = isRunning || isSubmitting || isTranslatingCode || !isClashActive;
     const button = <Button className="bg-green-600 hover:bg-green-700 text-white" onClick={handleSubmitCode} disabled={isDisabled}> {isSubmitting && <Loader2 className="mr-2 h-4 w-4 animate-spin" />} Submit </Button>;
      if (language !== 'javascript') {
         return <TooltipProvider><Tooltip><TooltipTrigger asChild><div tabIndex={0}>{button}</div></TooltipTrigger><TooltipContent><p>Submission for {language} is powered by AI.</p></TooltipContent></Tooltip></TooltipProvider>;
@@ -509,47 +545,79 @@ export default function ClashClient({ id }: { id: string }) {
     return button;
   }
 
-  const currentUserScore = clashData?.participants.find(p => p.userId === currentUser?.uid)?.score ?? 0;
+  const currentUserScore = me?.score ?? 0;
 
   return (
       <div className="flex flex-col min-h-dvh bg-transparent text-foreground font-body">
         <Header />
         <main className="flex-1 flex flex-col p-4 gap-4">
-          <Card className="bg-card/50 border border-white/10 rounded-xl shrink-0">
-              <CardContent className="flex justify-between items-center p-2">
-                  <div className='flex items-center gap-4'>
-                  <div className='flex items-center gap-3'>
-                      <Avatar className="h-10 w-10 border-2 border-primary">
-                      <AvatarImage src={currentUser?.photoURL || ''} data-ai-hint="man portrait" />
-                      <AvatarFallback>ME</AvatarFallback>
-                      </Avatar>
-                      <div>
-                      <p className="font-semibold">{currentUser?.displayName || 'You'}</p>
-                      <p className="text-xs text-muted-foreground">Score: {currentUserScore}</p>
-                      </div>
-                  </div>
-                  <div className='text-muted-foreground font-bold text-lg'>VS</div>
-                  {opponent && <div className='flex items-center gap-3'>
-                      <Avatar className="h-10 w-10">
-                      <AvatarImage src={opponent.userAvatar} data-ai-hint="person coding" />
-                      <AvatarFallback>{opponent.userName.substring(0, 2).toUpperCase()}</AvatarFallback>
-                      </Avatar>
-                      <div>
-                      <p className="font-semibold">{opponent.userName}</p>
-                      <p className="text-xs text-muted-foreground">Score: {opponent.score}</p>
-                      </div>
-                  </div>}
-                  </div>
-                  <div className="flex items-center gap-4">
-                  <Timer className='h-6 w-6 text-primary' />
-                  <div>
-                      <p className="text-sm text-muted-foreground">Time Remaining</p>
-                      <p className="font-mono text-xl font-bold tracking-widest">{formatTime(timeLeft)}</p>
-                  </div>
-                  </div>
-              </CardContent>
-              <Progress value={progressValue} className="w-full h-1 rounded-none" />
-          </Card>
+        {!isClashActive ? (
+            <Card className="bg-card/50 border border-white/10 rounded-xl shrink-0">
+                <CardContent className="flex flex-col items-center justify-center p-6 gap-4 text-center">
+                    <h2 className="text-2xl font-bold">Ready to Clash?</h2>
+                    <p className="text-muted-foreground max-w-md">The timer will begin once both players are ready. Get your setup prepared and click the ready button when you're good to go.</p>
+                    <div className="flex gap-8 md:gap-16 items-start my-4">
+                        {clashData.participants.map(p => (
+                            <div key={p.userId} className="flex flex-col items-center gap-2 w-32">
+                                <Avatar className="h-20 w-20 border-4 data-[ready=true]:border-green-500 data-[ready=false]:border-primary" data-ready={p.ready}>
+                                    <AvatarImage src={p.userAvatar} />
+                                    <AvatarFallback>{p.userName.substring(0,2).toUpperCase()}</AvatarFallback>
+                                </Avatar>
+                                <span className="font-semibold truncate w-full">{p.userName} {p.userId === currentUser.uid && '(You)'}</span>
+                                {p.ready ? (
+                                    <div className="flex items-center justify-center gap-2 text-green-400 font-medium"><CheckCircle2 className="h-5 w-5"/> Ready</div>
+                                ) : (
+                                    <div className="flex items-center justify-center gap-2 text-yellow-400"><Loader2 className="animate-spin h-5 w-5"/> Waiting...</div>
+                                )}
+                            </div>
+                        ))}
+                    </div>
+
+                    {me && !me.ready && (
+                        <Button size="lg" onClick={handleReadyClick} disabled={isSettingReady} className="px-10 py-6 text-lg">
+                            {isSettingReady ? <Loader2 className="mr-2 h-5 w-5 animate-spin" /> : <CheckCircle2 className="mr-2 h-5 w-5"/>}
+                            I'm Ready!
+                        </Button>
+                    )}
+                </CardContent>
+            </Card>
+          ) : (
+             <Card className="bg-card/50 border border-white/10 rounded-xl shrink-0">
+                <CardContent className="flex justify-between items-center p-2">
+                    <div className='flex items-center gap-4'>
+                    <div className='flex items-center gap-3'>
+                        <Avatar className="h-10 w-10 border-2 border-primary">
+                        <AvatarImage src={currentUser?.photoURL || ''} data-ai-hint="man portrait" />
+                        <AvatarFallback>ME</AvatarFallback>
+                        </Avatar>
+                        <div>
+                        <p className="font-semibold">{currentUser?.displayName || 'You'}</p>
+                        <p className="text-xs text-muted-foreground">Score: {currentUserScore}</p>
+                        </div>
+                    </div>
+                    <div className='text-muted-foreground font-bold text-lg'>VS</div>
+                    {opponent && <div className='flex items-center gap-3'>
+                        <Avatar className="h-10 w-10">
+                        <AvatarImage src={opponent.userAvatar} data-ai-hint="person coding" />
+                        <AvatarFallback>{opponent.userName.substring(0, 2).toUpperCase()}</AvatarFallback>
+                        </Avatar>
+                        <div>
+                        <p className="font-semibold">{opponent.userName}</p>
+                        <p className="text-xs text-muted-foreground">Score: {opponent.score}</p>
+                        </div>
+                    </div>}
+                    </div>
+                    <div className="flex items-center gap-4">
+                    <Timer className='h-6 w-6 text-primary' />
+                    <div>
+                        <p className="text-sm text-muted-foreground">Time Remaining</p>
+                        <p className="font-mono text-xl font-bold tracking-widest">{formatTime(timeLeft)}</p>
+                    </div>
+                    </div>
+                </CardContent>
+                <Progress value={progressValue} className="w-full h-1 rounded-none" />
+            </Card>
+          )}
 
           <div className="flex-1 min-h-0">
             <PanelGroup direction="horizontal">
