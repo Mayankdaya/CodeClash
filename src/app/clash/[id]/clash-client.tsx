@@ -440,8 +440,8 @@ export default function ClashClient({ id }: { id: string }) {
             if (!data) return;
 
             try {
-                // Callee receives an offer. Only process if we don't have a remote description yet.
-                if (data.offer && !isCaller && !pc.remoteDescription) {
+                // Callee receives an offer. Only process if we are not the caller and the connection is stable.
+                if (data.offer && !isCaller && pc.signalingState === 'stable') {
                     await pc.setRemoteDescription(new RTCSessionDescription(data.offer));
                     if (ignore) return;
                     const answer = await pc.createAnswer();
@@ -451,8 +451,8 @@ export default function ClashClient({ id }: { id: string }) {
                     await update(myPeerRef, { answer });
                 }
 
-                // Caller receives an answer. Only process if we don't have a remote description yet.
-                if (data.answer && isCaller && !pc.remoteDescription) {
+                // Caller receives an answer. Only process if we are the caller and we have a local offer pending.
+                if (data.answer && isCaller && pc.signalingState === 'have-local-offer') {
                     await pc.setRemoteDescription(new RTCSessionDescription(data.answer));
                 }
                 
@@ -1100,3 +1100,5 @@ export default function ClashClient({ id }: { id: string }) {
       </div>
   );
 }
+
+    
