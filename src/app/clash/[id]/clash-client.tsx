@@ -72,9 +72,7 @@ const executeInWorker = (code: string, entryPoint: string, testCases: TestCase[]
         const workerCode = `
             const deepEqual = (obj1, obj2) => {
                 if (obj1 === obj2) return true;
-                if (typeof obj1 !== 'object' || obj1 === null || typeof obj2 !== 'object' || obj2 === null) {
-                    return false;
-                }
+                
                 const isArray1 = Array.isArray(obj1);
                 const isArray2 = Array.isArray(obj2);
 
@@ -84,6 +82,10 @@ const executeInWorker = (code: string, entryPoint: string, testCases: TestCase[]
                         if (!deepEqual(obj1[i], obj2[i])) return false;
                     }
                     return true;
+                }
+                
+                if (typeof obj1 !== 'object' || obj1 === null || typeof obj2 !== 'object' || obj2 === null) {
+                    return obj1 === obj2;
                 }
 
                 if (isArray1 !== isArray2) return false;
@@ -98,23 +100,25 @@ const executeInWorker = (code: string, entryPoint: string, testCases: TestCase[]
                 }
                 return true;
             };
-
-            const smartParse = (value) => {
-                if (typeof value !== 'string') return value;
-                try {
-                    // This will parse stringified JSON (like "[1,2,3]") and stringified numbers ("42")
-                    return JSON.parse(value);
-                } catch (e) {
-                    // If parsing fails, it's a regular string, so return it as is.
-                    return value;
-                }
-            };
             
-            const recursivelySmartParse = (value) => {
-                if (Array.isArray(value)) {
-                    return value.map(item => recursivelySmartParse(item));
+            const robustParse = (data) => {
+                if (typeof data !== 'string') {
+                    if (Array.isArray(data)) {
+                        return data.map(item => robustParse(item));
+                    }
+                    if (typeof data === 'object' && data !== null) {
+                        return Object.fromEntries(
+                            Object.entries(data).map(([key, value]) => [key, robustParse(value)])
+                        );
+                    }
+                    return data;
                 }
-                return smartParse(value);
+                try {
+                    const parsed = JSON.parse(data);
+                    return robustParse(parsed);
+                } catch (e) {
+                    return data;
+                }
             };
 
             self.onmessage = function(e) {
@@ -134,10 +138,10 @@ const executeInWorker = (code: string, entryPoint: string, testCases: TestCase[]
                         const startTime = performance.now();
                         let output, error = null;
                         
-                        let parsedInput = [];
+                        const parsedInput = robustParse(tc.input);
+                        const expectedValue = robustParse(tc.expected);
+
                         try {
-                            // Recursively parse all inputs to handle malformed data from the AI
-                            parsedInput = recursivelySmartParse(tc.input);
                             output = userFunc(...parsedInput);
                         } catch (err) {
                             error = err;
@@ -145,17 +149,14 @@ const executeInWorker = (code: string, entryPoint: string, testCases: TestCase[]
 
                         const endTime = performance.now();
                         
-                        // Also parse the expected output to ensure correct type for comparison
-                        const expectedValue = recursivelySmartParse(tc.expected);
-                        
                         const passed = !error && deepEqual(output, expectedValue);
                         if (passed) passedCount++;
 
                         results.push({
                             case: i + 1,
-                            input: JSON.stringify(parsedInput), // Store the cleaned input for display
+                            input: JSON.stringify(parsedInput),
                             output: error ? error.toString() : JSON.stringify(output),
-                            expected: JSON.stringify(expectedValue), // Store the cleaned expected value
+                            expected: JSON.stringify(expectedValue),
                             passed: passed,
                             runtime: (endTime - startTime).toFixed(2) + 'ms',
                         });
@@ -189,23 +190,12 @@ const executeInWorker = (code: string, entryPoint: string, testCases: TestCase[]
 
 const formatInputForDisplay = (input: any) => {
     try {
-        // 'input' is a stringified array of arguments, e.g., "[[1,2,3], 4]"
         const args = JSON.parse(input);
-        
         if (Array.isArray(args)) {
-            // We want to display it as a comma-separated list of values
-            return args.map(arg => {
-                // For display, wrap strings in double quotes
-                if (typeof arg === 'string') {
-                    return `"${arg}"`;
-                }
-                // For objects/arrays, use JSON.stringify. For numbers/booleans, this also works well.
-                return JSON.stringify(arg);
-            }).join(', ');
+            return args.map(arg => JSON.stringify(arg)).join(', ');
         }
         return input;
     } catch (e) {
-        // Fallback for any parsing error
         return String(input);
     }
 };
@@ -258,7 +248,6 @@ export default function ClashClient({ id }: { id: string }) {
       if (docSnap.exists()) {
         const rawData = docSnap.data();
 
-        // Handle both stringified and object problems for safety during transition
         const problemData = typeof rawData.problem === 'string'
           ? JSON.parse(rawData.problem)
           : rawData.problem;
