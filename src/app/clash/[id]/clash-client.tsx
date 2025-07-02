@@ -20,7 +20,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Header } from '@/components/Header';
 import { CodeEditor } from '@/components/CodeEditor';
 import { UserVideo } from '@/components/UserVideo';
-import { BookOpen, Send, Timer, Loader2, Lightbulb, CheckCircle2, XCircle, MessageSquare, TestTube2, Terminal, RefreshCw } from 'lucide-react';
+import { BookOpen, Send, Timer, Loader2, Lightbulb, CheckCircle2, XCircle, MessageSquare, TestTube2, Terminal, RefreshCw, CameraOff } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import type { Problem } from '@/lib/problems';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
@@ -181,7 +181,7 @@ const executeInWorker = (code: string, entryPoint: string, testCases: TestCase[]
                         const startTime = performance.now();
                         let output, error = null;
                         
-                        // Data is already clean from the main thread, but we keep parse here as a safeguard.
+                        // Data is now recursively parsed to handle nested stringified JSON.
                         const parsedInput = robustParse(tc.input);
                         const expectedValue = robustParse(tc.expected);
 
@@ -308,10 +308,7 @@ export default function ClashClient({ id }: { id: string }) {
         
         // Clean the test cases as soon as they are loaded to fix data format issues from the AI.
         if (problemData && problemData.testCases) {
-          problemData.testCases = problemData.testCases.map(tc => ({
-              input: robustParse(tc.input),
-              expected: robustParse(tc.expected),
-          }));
+          problemData = robustParse(problemData);
         }
 
         const data = { ...rawData, problem: problemData } as ClashData;
@@ -876,10 +873,15 @@ export default function ClashClient({ id }: { id: string }) {
                         <div className="p-4">
                             <div className="grid grid-cols-2 gap-2">
                                 <UserVideo />
-                                {opponent && <div className="relative aspect-video w-full bg-muted/30 rounded-lg flex items-center justify-center overflow-hidden">
-                                    <Image src={opponent.userAvatar || 'https://placehold.co/600x400.png'} data-ai-hint="person coding" alt={opponent.userName} width={320} height={180} className="w-full h-full object-cover" />
-                                    <div className="absolute bottom-1 left-2 text-xs bg-black/50 text-white px-1.5 py-0.5 rounded">{opponent.userName}</div>
-                                </div>}
+                                {opponent && (
+                                    <div className="relative aspect-video w-full bg-muted/30 rounded-lg flex items-center justify-center overflow-hidden">
+                                        <div className="absolute inset-0 flex flex-col items-center justify-center text-center text-muted-foreground p-2">
+                                            <CameraOff className="h-8 w-8 mx-auto mb-2" />
+                                            <p className="text-xs">Opponent camera off</p>
+                                        </div>
+                                        <div className="absolute bottom-1 left-2 text-xs bg-black/50 text-white px-1.5 py-0.5 rounded">{opponent.userName}</div>
+                                    </div>
+                                )}
                             </div>
                         </div>
 
@@ -889,17 +891,19 @@ export default function ClashClient({ id }: { id: string }) {
                                 {messages.map((message) => {
                                     const isMe = message.senderId === currentUser?.uid;
                                     return (
-                                    <div key={message.id} className={cn('flex items-end gap-3', isMe && 'flex-row-reverse')}>
+                                    <div key={message.id} className={cn('flex items-start gap-2.5', isMe && 'flex-row-reverse')}>
                                         <Avatar className="h-8 w-8 shrink-0">
                                             <AvatarImage src={message.senderAvatar} data-ai-hint={isMe ? "man portrait" : "woman portrait"}/>
                                             <AvatarFallback>{message.senderName.substring(0, 2).toUpperCase()}</AvatarFallback>
                                         </Avatar>
                                         <div className={cn(
-                                            'max-w-[75%] rounded-xl p-3', 
-                                            isMe ? 'bg-primary text-primary-foreground rounded-br-none' : 'bg-muted/50 rounded-bl-none'
+                                            'flex flex-col w-full max-w-[320px] leading-1.5 p-3',
+                                            isMe
+                                                ? 'rounded-l-xl rounded-t-xl bg-primary text-primary-foreground'
+                                                : 'rounded-r-xl rounded-t-xl bg-muted'
                                         )}>
-                                            {!isMe && <p className="font-bold text-xs mb-1 text-primary">{message.senderName}</p>}
-                                            <p className="text-sm break-words">{message.text}</p>
+                                            {!isMe && <p className="text-sm font-semibold text-card-foreground pb-1">{message.senderName}</p>}
+                                            <p className="text-sm font-normal break-words">{message.text}</p>
                                         </div>
                                     </div>
                                     );
@@ -944,3 +948,5 @@ export default function ClashClient({ id }: { id: string }) {
       </div>
   );
 }
+
+    
