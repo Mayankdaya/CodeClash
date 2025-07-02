@@ -10,7 +10,7 @@ import { db, rtdb } from '@/lib/firebase';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Loader2 } from 'lucide-react';
-import { generateProblem } from '@/ai/flows/generateProblemFlow';
+import { generateProblem, type Problem } from '@/ai/flows/generateProblemFlow';
 import { UserVideo } from '@/components/UserVideo';
 import AuthGuard from '@/components/AuthGuard';
 import { useAuth } from '@/hooks/useAuth';
@@ -56,14 +56,14 @@ function MatchingContent() {
     }
     
     const createDummyMatch = async (retryCount = 0) => {
-        setStatusText('Finding opponent...');
-        
         if (retryCount > 0) {
             setStatusText(`Problem generation is taking a while. Retrying... (${retryCount}/3)`);
+        } else {
+            setStatusText('Finding opponent...');
         }
         
         if (retryCount > 3) {
-            toast({ title: "Failed to Create Match", description: "Could not generate a problem after multiple retries. Please try again.", variant: "destructive" });
+            toast({ title: "Failed to Create Match", description: "The AI model seems to be unavailable right now. Please try again later.", variant: "destructive" });
             router.push('/lobby');
             return;
         }
@@ -95,7 +95,7 @@ function MatchingContent() {
             router.push(`/clash/${clashDocRef.id}`);
             
         } catch (error: any) {
-            console.error("An error occurred during problem generation:", error);
+            console.error(`An error occurred during problem generation (attempt ${retryCount + 1}):`, error);
             if (error instanceof FirebaseError && error.code === 'permission-denied') {
                 router.push('/setup-error');
             } else {
@@ -118,42 +118,60 @@ function MatchingContent() {
           // --- I AM THE MATCHER ---
           matchmakingActive.current = true;
           const [opponentId, opponentData] = opponents[0];
-          setStatusText('Opponent found! Generating challenge...');
 
-          try {
-            const topicName = topicId.replace(/-/g, ' ').replace(/\b\w/g, l => l.toUpperCase());
-            const problem = await generateProblem({ topic: topicName, seed: Date.now().toString() });
-
-            if (!problem || !problem.testCases || problem.testCases.some(tc => tc.expected === undefined || tc.expected === null) || problem.testCases.length < 5) {
-              throw new Error("AI returned invalid problem object.");
+          const createMatchWithRetry = async (retryCount = 0) => {
+            if (retryCount > 0) {
+              setStatusText(`Problem generation is taking a while. Retrying... (${retryCount}/3)`);
+            } else {
+              setStatusText('Opponent found! Generating challenge...');
             }
 
-            const clashDocRef = await addDoc(collection(db, 'clashes'), {
-              topicId,
-              problem: JSON.stringify(problem),
-              participants: [
-                { userId: currentUser.uid, userName: currentUser.displayName, userAvatar: currentUser.photoURL, score: 0, solvedTimestamp: null, ready: false },
-                { userId: opponentId, userName: (opponentData as any).userName, userAvatar: (opponentData as any).userAvatar, score: 0, solvedTimestamp: null, ready: false }
-              ],
-              createdAt: firestoreServerTimestamp(),
-              status: 'pending'
-            });
+            if (retryCount > 3) {
+              toast({ title: "Failed to Create Match", description: "The AI model seems to be unavailable right now. Please try again later.", variant: "destructive" });
+              // Clean up opponent's queue entry so they don't get stuck waiting
+              remove(ref(rtdb, `matchmaking/${topicId}/${opponentId}`));
+              router.push('/lobby');
+              return;
+            }
 
-            // Update the opponent's node with the clashId so their listener picks it up.
-            await update(ref(rtdb, `matchmaking/${topicId}/${opponentId}`), { clashId: clashDocRef.id });
-            
-            // Clean up my own queue entry if I was waiting before finding someone
-            remove(ref(rtdb, `matchmaking/${topicId}/${currentUser.uid}`));
+            try {
+              const topicName = topicId.replace(/-/g, ' ').replace(/\b\w/g, l => l.toUpperCase());
+              const problem = await generateProblem({ topic: topicName, seed: Date.now().toString() });
 
+              if (!problem || !problem.testCases || problem.testCases.some(tc => tc.expected === undefined || tc.expected === null) || problem.testCases.length < 5) {
+                console.error("AI returned invalid problem object, retrying...");
+                setTimeout(() => createMatchWithRetry(retryCount + 1), 2000);
+                return;
+              }
 
-            toast({ title: "Match Found!", description: "Let's go!" });
-            router.push(`/clash/${clashDocRef.id}`);
+              const clashDocRef = await addDoc(collection(db, 'clashes'), {
+                topicId,
+                problem: JSON.stringify(problem),
+                participants: [
+                  { userId: currentUser.uid, userName: currentUser.displayName, userAvatar: currentUser.photoURL, score: 0, solvedTimestamp: null, ready: false },
+                  { userId: opponentId, userName: (opponentData as any).userName, userAvatar: (opponentData as any).userAvatar, score: 0, solvedTimestamp: null, ready: false }
+                ],
+                createdAt: firestoreServerTimestamp(),
+                status: 'pending'
+              });
 
-          } catch(e) {
-            console.error("Failed to create match:", e);
-            toast({title: "Failed to Create Match", description: "Could not create a match. Please try again.", variant: 'destructive'});
-            router.push('/lobby');
-          }
+              await update(ref(rtdb, `matchmaking/${topicId}/${opponentId}`), { clashId: clashDocRef.id });
+              remove(ref(rtdb, `matchmaking/${topicId}/${currentUser.uid}`));
+
+              toast({ title: "Match Found!", description: "Let's go!" });
+              router.push(`/clash/${clashDocRef.id}`);
+
+            } catch (error: any) {
+              console.error(`Failed to create match (attempt ${retryCount + 1}):`, error);
+              if (error instanceof FirebaseError && error.code === 'permission-denied') {
+                  router.push('/setup-error');
+              } else {
+                  setTimeout(() => createMatchWithRetry(retryCount + 1), 2000);
+              }
+            }
+          };
+
+          createMatchWithRetry();
 
         } else {
           // --- I AM THE WAITER ---
@@ -176,7 +194,6 @@ function MatchingContent() {
               matchmakingActive.current = true;
               toast({ title: "Match Found!", description: "Let's go!" });
               router.push(`/clash/${data.clashId}`);
-              // Cleanup will happen in unmount
             }
           });
         }
