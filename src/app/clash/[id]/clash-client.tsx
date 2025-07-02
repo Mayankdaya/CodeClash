@@ -107,12 +107,12 @@ const executeInWorker = (code: string, entryPoint: string, testCases: TestCase[]
             const smartParse = (value) => {
                 if (typeof value !== 'string') return value;
                 try {
-                  if ((value.startsWith('[') && value.endsWith(']')) || (value.startsWith('{') && value.endsWith('}'))) {
+                    // This correctly parses stringified JSON: arrays, objects, numbers, booleans, and null.
                     return JSON.parse(value);
-                  }
                 } catch (e) {
+                    // If JSON.parse fails, it's a simple string that isn't valid JSON, so return as is.
+                    return value;
                 }
-                return value;
             };
 
             self.onmessage = function(e) {
@@ -142,14 +142,7 @@ const executeInWorker = (code: string, entryPoint: string, testCases: TestCase[]
 
                         const endTime = performance.now();
                         
-                        let expectedValue = tc.expected;
-                        if(typeof expectedValue === 'string'){
-                            try {
-                                expectedValue = JSON.parse(expectedValue);
-                            } catch (e) {
-                                // Not a valid JSON string, proceed with original value
-                            }
-                        }
+                        const expectedValue = smartParse(tc.expected);
                         
                         const passed = !error && deepEqual(output, expectedValue);
                         if (passed) passedCount++;
@@ -192,26 +185,21 @@ const executeInWorker = (code: string, entryPoint: string, testCases: TestCase[]
 
 const formatInputForDisplay = (input: any) => {
     try {
-        let args = Array.isArray(input) ? input : JSON.parse(input);
-        
         const smartParse = (value: any) => {
             if (typeof value !== 'string') return value;
             try {
-                if ((value.startsWith('[') && value.endsWith(']')) || (value.startsWith('{') && value.endsWith('}'))) {
-                    return JSON.parse(value);
-                }
-            } catch (e) { /* Not valid JSON, return original string */ }
-            return value;
+                // Try to parse it as JSON. This will handle numbers, arrays, objects, etc.
+                return JSON.parse(value);
+            } catch (e) {
+                // If it fails, it's just a regular string.
+                return value;
+            }
         };
-        
-        if (!Array.isArray(args)) {
-             return JSON.stringify(args, null, 2);
-        }
 
-        return args
-            .map(smartParse)
-            .map(arg => JSON.stringify(arg))
-            .join(', ');
+        const args = Array.isArray(input) ? input.map(smartParse) : [smartParse(input)];
+        
+        return args.map(arg => JSON.stringify(arg)).join(', ');
+
     } catch (e) {
         return String(input);
     }
