@@ -407,6 +407,9 @@ export default function ClashClient({ id }: { id: string }) {
     const opponentPeerRef = ref(rtdb, `${baseSignalingPath}/${opponentId}`);
     let unsubscribeOpponent: () => void;
 
+    // A lock to prevent race conditions from multiple signaling updates at once.
+    let isProcessingSignal = false;
+
     const startConnection = async () => {
         try {
             localStreamForRTC = await navigator.mediaDevices.getUserMedia({ video: true, audio: false });
@@ -437,13 +440,15 @@ export default function ClashClient({ id }: { id: string }) {
         };
         
         unsubscribeOpponent = onValue(opponentPeerRef, async (snapshot) => {
-            if (ignore || !snapshot.exists()) return;
+            if (ignore || !snapshot.exists() || isProcessingSignal) return;
+
+            isProcessingSignal = true;
+
             const data = snapshot.val();
 
             try {
-                // Callee: Process the offer if we receive one and haven't already.
-                // `currentRemoteDescription` is the latch to prevent reprocessing.
-                if (data.offer && !isCaller && !pc.currentRemoteDescription) {
+                // Process offer if I'm the callee and in the stable state.
+                if (data.offer && !isCaller && pc.signalingState === 'stable') {
                     await pc.setRemoteDescription(new RTCSessionDescription(data.offer));
                     if (ignore) return;
                     const answer = await pc.createAnswer();
@@ -453,19 +458,21 @@ export default function ClashClient({ id }: { id: string }) {
                     await update(myPeerRef, { answer });
                 }
 
-                // Caller: Process the answer if we receive one and are in the correct state.
+                // Process answer if I'm the caller and waiting for one.
                 if (data.answer && isCaller && pc.signalingState === 'have-local-offer') {
                     await pc.setRemoteDescription(new RTCSessionDescription(data.answer));
                 }
                 
-                // Both: Process any candidates. The browser queues them automatically.
-                if (data.candidate) {
+                // Add candidates as they come. The browser will queue them if needed, but it's safer to check.
+                if (data.candidate && pc.remoteDescription) {
                    await pc.addIceCandidate(new RTCIceCandidate(data.candidate));
                 }
             } catch (e) {
                 if (!ignore) {
                    console.error('Signaling error:', e);
                 }
+            } finally {
+                isProcessingSignal = false;
             }
         });
 
