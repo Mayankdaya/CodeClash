@@ -12,9 +12,18 @@ import { ai } from '@/ai/genkit';
 import { z } from 'genkit';
 import type { Problem } from '@/lib/problems';
 
+// A schema for any valid JSON value. This is more specific than `z.any()` and helps
+// the AI model understand the expected structure, preventing API errors.
+const literalSchema = z.union([z.string(), z.number(), z.boolean(), z.null()]);
+type Literal = z.infer<typeof literalSchema>;
+type Json = Literal | { [key: string]: Json } | Json[];
+const jsonSchema: z.ZodType<Json> = z.lazy(() =>
+  z.union([literalSchema, z.array(jsonSchema), z.record(jsonSchema)])
+);
+
 const TestCaseSchema = z.object({
-  input: z.array(z.any()).describe("An array of arguments for the function. This MUST be an array of pure JSON values."),
-  expected: z.any().refine(val => val !== null && val !== undefined, { message: "Expected value cannot be null or undefined." }).describe("The expected output for the test case. It MUST NOT be null or undefined."),
+  input: z.array(jsonSchema).describe("An array of arguments for the function. This MUST be an array of pure JSON values."),
+  expected: jsonSchema.refine(val => val !== null && val !== undefined, { message: "Expected value cannot be null or undefined." }).describe("The expected output for the test case. It MUST NOT be null or undefined."),
 });
 
 const ProblemSchema: z.ZodType<Problem> = z.object({
