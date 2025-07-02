@@ -2,7 +2,7 @@
 'use client';
 
 import { useEffect, useState, type ReactNode } from 'react';
-import { onAuthStateChanged, type User, signOut } from 'firebase/auth';
+import { onAuthStateChanged, type User } from 'firebase/auth';
 import { auth } from '@/lib/firebase';
 import { Loader2 } from 'lucide-react';
 import { ensureUserProfile } from '@/lib/user';
@@ -21,31 +21,28 @@ export default function AuthGuard({ children }: { children: ReactNode }) {
     }
 
     const unsubscribe = onAuthStateChanged(auth, async (user: User | null) => {
-      try {
-        if (user) {
-          // User is logged in. This function will throw an error if it can't
-          // read or write the user's profile in Firestore.
+      if (user) {
+        // User is logged in.
+        try {
+          // We still try to ensure the profile exists on every load for resilience.
           await ensureUserProfile(user);
-          setIsAuthorized(true);
-        } else {
-          // User is not logged in. Redirect to the login page.
-          if (typeof window !== 'undefined') {
-            window.location.assign('/login');
-          }
+        } catch (error) {
+          // IMPORTANT: If this fails, we now only show a console warning
+          // instead of redirecting to the error page. This unblocks the user
+          // if their DB rules are misconfigured.
+          console.warn(
+            "AuthGuard Warning: Could not read or write user profile. This is likely due to restrictive Firebase security rules. The app will proceed, but some features like scoring may not work until the rules are configured correctly.",
+            error
+          );
         }
-      } catch (error) {
-          console.error("AuthGuard Error: Could not ensure user profile. This is likely a Firestore security rule issue.", error);
-          
-          // If any error occurs (e.g., Firestore permission denied), sign the user out
-          // to prevent a login state mismatch, then redirect to a helpful setup page.
-          if (auth) {
-            await signOut(auth);
-          }
-          if (typeof window !== 'undefined') {
-            window.location.assign('/setup-error');
-          }
-      } finally {
+        // As long as the user object exists, we grant access.
+        setIsAuthorized(true);
         setLoading(false);
+      } else {
+        // User is not logged in. Redirect to the login page.
+        if (typeof window !== 'undefined') {
+          window.location.assign('/login');
+        }
       }
     });
 
