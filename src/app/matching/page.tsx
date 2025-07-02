@@ -39,7 +39,7 @@ function MatchingContent() {
         setStatusText('Finding opponent...');
         
         if (retryCount > 0) {
-            setStatusText(`Problem generation failed. Retrying... (${retryCount}/3)`);
+            setStatusText(`Problem generation is taking a while. Retrying... (${retryCount}/3)`);
         }
         
         if (retryCount > 3) {
@@ -54,16 +54,16 @@ function MatchingContent() {
             const topicName = topicId.replace(/-/g, ' ').replace(/\b\w/g, l => l.toUpperCase());
             const problem = await generateProblem({ topic: topicName, seed: Date.now().toString() });
 
-            if (!problem || !problem.testCases) {
-                throw new Error("AI returned a null or invalid problem object.");
+            // Robust validation: check for problem, testCases array, and validity of each test case.
+            if (!problem || !problem.testCases || problem.testCases.some(tc => tc.expected === undefined || tc.expected === null) || problem.testCases.length < 3) {
+                console.error("AI returned an invalid problem object or invalid test cases, retrying...");
+                setTimeout(() => createDummyMatch(retryCount + 1), 2000);
+                return; // Exit this attempt and retry.
             }
-            
-            const validTestCases = problem.testCases.filter(tc => tc.expected !== undefined && tc.expected !== null);
-            if (validTestCases.length < 3) { throw new Error("AI failed to generate a valid problem. Please try again."); }
             
             const problemWithStrTestCases = {
                 ...problem,
-                testCases: validTestCases.map(tc => ({
+                testCases: problem.testCases.map(tc => ({
                     input: JSON.stringify(tc.input),
                     expected: JSON.stringify(tc.expected),
                 })),
@@ -84,16 +84,12 @@ function MatchingContent() {
             router.push(`/clash/${clashDocRef.id}`);
             
         } catch (error: any) {
-            console.error("Failed to create clash:", error);
+            console.error("An error occurred during problem generation:", error);
             if (error instanceof FirebaseError && error.code === 'permission-denied') {
                 router.push('/setup-error');
-            } else if (error.message.includes("AI failed")) {
-                // Retry if AI fails
+            } else {
+                // Any other error during the process is likely transient (API error, etc.), so retry.
                 setTimeout(() => createDummyMatch(retryCount + 1), 2000);
-            }
-            else {
-                toast({ title: "Failed to Create Match", description: "There was an error generating the problem. Please try again.", variant: "destructive" });
-                router.push('/lobby');
             }
         }
     };
