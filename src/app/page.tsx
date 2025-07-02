@@ -4,6 +4,7 @@ import { ArrowRight, Code, Users, Trophy, GitMerge, List, Swords, MoveHorizontal
 import Link from "next/link";
 import { Header } from "@/components/Header";
 import { Spotlight } from "@/components/ui/spotlight";
+import { OnlineCount } from "@/components/OnlineCount";
 
 const howItWorksSteps = [
   {
@@ -75,7 +76,8 @@ export default function Home() {
             <p className="mx-auto mt-8 max-w-3xl text-lg text-muted-foreground md:text-xl">
               Challenge your skills against peers in live coding battles. Select a topic, join a match, and code your way to victory in 30-minute clashes.
             </p>
-            <div className="mt-12 flex justify-center items-center gap-4">
+            <OnlineCount />
+            <div className="mt-8 flex justify-center items-center gap-4">
               <Button size="lg" className="text-lg px-8 py-6 bg-primary text-primary-foreground hover:bg-primary/90 shadow-lg shadow-primary/30 transition-all duration-300 hover:shadow-primary/50 hover:scale-105" asChild>
                 <Link href="/lobby">
                   Start a Clash

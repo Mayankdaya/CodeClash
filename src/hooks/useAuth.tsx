@@ -3,9 +3,10 @@
 
 import { useState, useEffect, createContext, useContext, type ReactNode } from 'react';
 import { onAuthStateChanged, type User } from 'firebase/auth';
-import { auth, db } from '@/lib/firebase';
+import { auth, db, rtdb } from '@/lib/firebase';
 import { ensureUserProfile } from '@/lib/user';
 import { doc, getDoc } from 'firebase/firestore';
+import { ref, onValue, set, onDisconnect, serverTimestamp } from 'firebase/database';
 
 interface AuthContextType {
   user: User | null;
@@ -28,6 +29,33 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         await ensureUserProfile(user);
         const refreshedUser = auth.currentUser; // Get the user object with potentially updated profile
         setUser(refreshedUser);
+
+        // ---- START PRESENCE LOGIC ----
+        if (rtdb && refreshedUser) {
+          const userStatusDatabaseRef = ref(rtdb, '/status/' + refreshedUser.uid);
+
+          const isOfflineForDatabase = {
+            isOnline: false,
+            lastChanged: serverTimestamp(),
+          };
+  
+          const isOnlineForDatabase = {
+            isOnline: true,
+            lastChanged: serverTimestamp(),
+          };
+          
+          const presenceRef = ref(rtdb, '.info/connected');
+          onValue(presenceRef, (snapshot) => {
+              if (snapshot.val() === false) {
+                  return;
+              }
+              onDisconnect(userStatusDatabaseRef).set(isOfflineForDatabase).then(() => {
+                  set(userStatusDatabaseRef, isOnlineForDatabase);
+              });
+          });
+        }
+        // ---- END PRESENCE LOGIC ----
+
       } else {
         // User is signed out.
         setUser(null);
