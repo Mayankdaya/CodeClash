@@ -52,20 +52,24 @@ const generateProblemPrompt = ai.definePrompt({
 
 The problem should be self-contained and clearly explained. The difficulty should be easy to medium. The problem, examples, and test cases should be solvable in JavaScript.
 
-**CRITICAL INSTRUCTIONS:**
+**CRITICAL INSTRUCTIONS - FOLLOW THESE EXACTLY:**
 1.  **Output Format:** You MUST return a single JSON object that strictly adheres to the provided schema. ALL fields (\`id\`, \`title\`, \`description\`, \`examples\`, \`starterCode\`, \`solution\`, \`testCases\`, \`entryPoint\`) are mandatory.
-2.  **TEST CASE VALIDITY IS PARAMOUNT:** This is the most important rule.
+2.  **TEST CASE VALIDITY IS PARAMOUNT:** This is the most important rule. Failure to follow this rule will result in an error.
     *   You MUST provide at least 5 complete test cases.
-    *   For every single test case, the \`expected\` field MUST have a valid, concrete value. It CANNOT be \`null\` or \`undefined\`.
-    *   For problems where the output is an empty structure (like an empty array \`[]\`), use that structure as the \`expected\` value. DO NOT use \`null\`.
+    *   For **EVERY SINGLE TEST CASE**, the \`expected\` field MUST have a valid, concrete value.
+    *   The \`expected\` field **CANNOT BE \`null\`**.
+    *   The \`expected\` field **CANNOT BE \`undefined\`**.
+    *   If the correct output is an empty array, the \`expected\` value must be \`[]\`.
+    *   If the correct output is an empty string, the \`expected\` value must be \`""\`.
+    *   If the correct output is \`0\`, the \`expected\` value must be \`0\`.
+    *   **There are no exceptions. The \`expected\` field must always be populated with a real value.**
 3.  **\`testCases\` \`input\` Format:** The \`input\` values inside \`testCases\` MUST be pure JSON arrays of arguments, NOT strings that look like JSON. For example, for a function that takes an array and a number, the value must be \`[[1, 2, 3], 42]\`, NOT \`'["[1, 2, 3]", "42"]'\`.
 4.  **No Comments:** The final JSON output must NOT contain any comments.
 
 **Topic:** {{{topic}}}
 **Unique Request Seed:** {{{seed}}}
 
-Generate a problem with all the required fields, paying special attention to the format and validity of the \`testCases\`.
-`,
+Generate a problem with all the required fields, paying special attention to the format and validity of the \`testCases\`. Double-check your work to ensure \`expected\` is never null or undefined.`,
 });
 
 const generateProblemFlow = ai.defineFlow(

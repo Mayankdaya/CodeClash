@@ -61,7 +61,7 @@ function MatchingContent() {
             const problem = await generateProblem({ topic: topicName, seed: Date.now().toString() });
 
             // Robust validation: check for problem, testCases array, and validity of each test case.
-            if (!problem || !problem.testCases || problem.testCases.some(tc => tc.expected === undefined || tc.expected === null) || problem.testCases.length < 3) {
+            if (!problem || !problem.testCases || problem.testCases.some(tc => tc.expected === undefined || tc.expected === null) || problem.testCases.length < 5) {
                 console.error("AI returned an invalid problem object or invalid test cases, retrying...");
                 setTimeout(() => createDummyMatch(retryCount + 1), 2000);
                 return; // Exit this attempt and retry.
