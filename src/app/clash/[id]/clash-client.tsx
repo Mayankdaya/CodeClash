@@ -77,13 +77,28 @@ const executeInWorker = (code: string, entryPoint: string, testCases: TestCase[]
                 }
                 const isArray1 = Array.isArray(obj1);
                 const isArray2 = Array.isArray(obj2);
+
                 if (isArray1 && isArray2) {
                     if (obj1.length !== obj2.length) return false;
-                    // For arrays, a simple JSON stringify comparison works to check for deep equality with order.
-                    return JSON.stringify(obj1) === JSON.stringify(obj2);
+                    
+                    // Create sorted copies for comparison to handle cases where order doesn't matter.
+                    // This is a simplification; for arrays of objects, a more complex sort would be needed.
+                    // But for competitive programming problems which usually return primitives, this is sufficient.
+                    const sorted1 = [...obj1].sort();
+                    const sorted2 = [...obj2].sort();
+
+                    // Recursively check each element in the sorted arrays.
+                    for (let i = 0; i < sorted1.length; i++) {
+                        if (!deepEqual(sorted1[i], sorted2[i])) {
+                            return false;
+                        }
+                    }
+                    return true;
                 }
+
                 if (isArray1 !== isArray2) return false;
 
+                // For objects
                 const keys1 = Object.keys(obj1);
                 const keys2 = Object.keys(obj2);
                 if (keys1.length !== keys2.length) return false;
@@ -101,7 +116,7 @@ const executeInWorker = (code: string, entryPoint: string, testCases: TestCase[]
                     // Try parsing, if it's a valid JSON string (like an array or object), it will be parsed.
                     return JSON.parse(value);
                 } catch (e) {
-                    // If it fails, it's just a regular string.
+                    // If it fails, it's just a regular string that isn't valid JSON.
                     return value;
                 }
             };
@@ -178,16 +193,17 @@ const executeInWorker = (code: string, entryPoint: string, testCases: TestCase[]
 
 const formatInputForDisplay = (input: any) => {
     try {
-        // The input from execution results should be a stringified array.
+        // 'input' is a stringified array of arguments, e.g., "[[1,2,3], 4]"
         const args = JSON.parse(input);
         
-        // We want to display it as a comma-separated list of stringified values.
         if (Array.isArray(args)) {
+            // We want to display it as a comma-separated list of values
+            // without extra quotes on arrays/objects.
             return args.map(arg => JSON.stringify(arg)).join(', ');
         }
         return input;
     } catch (e) {
-        // If it's not a JSON string, just return it as is.
+        // Fallback for malformed input
         return String(input);
     }
 };

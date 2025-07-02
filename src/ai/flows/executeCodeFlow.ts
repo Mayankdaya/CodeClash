@@ -56,12 +56,12 @@ Your task is to take a user's code snippet in a specific language, execute it ag
 
 **Execution Rules:**
 
-1.  **Analyze and Execute:** Carefully analyze the provided code. Before executing, intelligently parse the \`input\` values in the test cases. If an input value is a string that represents a valid JSON array or primitive (e.g., \`"[1,2,3]"\` or \`"123"\`), parse it into its correct data type before passing it to the function. Simulate its execution for each test case.
+1.  **Analyze and Execute:** Carefully analyze the provided code. Before executing, you MUST parse the \`input\` values in the test cases. If an input value is a string that represents a valid JSON structure (like \`"[1,2,3]"\`) or a numeric/boolean primitive (like \`"123"\`), you must parse it to its correct data type before passing it to the function. Do not treat numbers as strings. Simulate the code's execution for each test case.
 2.  **Error Handling:**
     *   If there's a syntax error, compilation error, or a runtime error that prevents execution for all test cases (e.g., an infinite loop), set the 'status' to 'error' and provide a concise, helpful 'message' explaining the issue. The 'results' array should be empty.
     *   If an error occurs for a specific test case, mark that test case as failed. The 'output' for that result should be the error message.
 3.  **Judge Correctness:** For each test case, compare the actual output of the code with the 'expected' output.
-    *   For arrays, the order of elements does not matter unless the problem implies order.
+    *   For arrays, the order of elements does not matter unless the problem implies order. For example, if the expected output for a 'two sum' problem is [0, 1], an actual output of [1, 0] should be considered correct.
     *   Perform a deep equality check for objects and nested structures.
 4.  **Structured Output:** You MUST return a JSON object that strictly conforms to the provided output schema.
     *   'status': 'success' if the code could be executed against all test cases (even if some failed), 'error' if a fatal error occurred.

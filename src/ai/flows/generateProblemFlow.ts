@@ -13,7 +13,7 @@ import { z } from 'genkit';
 import type { Problem } from '@/lib/problems';
 
 const TestCaseSchema = z.object({
-  input: z.any().describe("An array of arguments for the function. IMPORTANT: Values within this array must be valid JSON primitives, arrays, or objects. They MUST NOT be strings that represent JSON (e.g., use `[1, 2]` instead of `'[1, 2]'`). For a function twoSum(nums, target), an example input is [[2, 7, 11, 15], 9]."),
+  input: z.any().describe("An array of arguments for the function. CRITICAL: Values MUST be valid JSON. Numbers must be numbers (e.g., 42), not strings (e.g., '42'). Arrays must be arrays (e.g., [1,2]), not strings (e.g., '[1,2]'). For a function twoSum(nums, target), a CORRECT example input is [[2, 7, 11, 15], 9]. An INCORRECT example is ['[2, 7, 11, 15]', '9']. YOU MUST PROVIDE PURE JSON VALUES."),
   expected: z.any().refine(val => val !== null && val !== undefined, { message: "Expected value cannot be null or undefined." }).describe("The expected output for the test case. It MUST NOT be null or undefined."),
 });
 
@@ -63,13 +63,13 @@ The problem should be self-contained and clearly explained. The difficulty shoul
     *   If the correct output is an empty string, the \`expected\` value must be \`""\`.
     *   If the correct output is \`0\`, the \`expected\` value must be \`0\`.
     *   **There are no exceptions. The \`expected\` field must always be populated with a real value.**
-3.  **\`testCases\` \`input\` Format:** The \`input\` values inside \`testCases\` MUST be pure JSON arrays of arguments, NOT strings that look like JSON. For example, for a function that takes an array and a number, the value must be \`[[1, 2, 3], 42]\`, NOT \`'["[1, 2, 3]", "42"]'\`.
+3.  **\`testCases\` \`input\` Format:** The \`input\` values inside \`testCases\` MUST be pure JSON arrays of arguments, NOT strings that look like JSON. For example, for a function that takes an array and a number, the value must be \`[[1, 2, 3], 42]\`, NOT \`'["[1, 2, 3]", "42"]'\`. Numbers must be sent as numbers, not strings.
 4.  **No Comments:** The final JSON output must NOT contain any comments.
 
 **Topic:** {{{topic}}}
 **Unique Request Seed:** {{{seed}}}
 
-Generate a problem with all the required fields, paying special attention to the format and validity of the \`testCases\`. Double-check your work to ensure \`expected\` is never null or undefined.`,
+Generate a problem with all the required fields, paying special attention to the format and validity of the \`testCases\`. Double-check your work to ensure \`expected\` is never null or undefined and that all input values are pure JSON types.`,
 });
 
 const generateProblemFlow = ai.defineFlow(
