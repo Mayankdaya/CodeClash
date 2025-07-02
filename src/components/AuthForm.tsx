@@ -9,8 +9,6 @@ import {
   createUserWithEmailAndPassword,
   signInWithEmailAndPassword,
   updateProfile,
-  signInWithPopup,
-  GoogleAuthProvider,
 } from 'firebase/auth';
 import { useToast } from '@/hooks/use-toast';
 import { auth } from '@/lib/firebase';
@@ -212,35 +210,6 @@ type AuthFormProps = {
 
 export function AuthForm({ mode }: AuthFormProps) {
   const isLogin = mode === 'login';
-  const { toast } = useToast();
-  const [isGoogleLoading, setIsGoogleLoading] = useState(false);
-
-  const handleGoogleSignIn = async () => {
-    setIsGoogleLoading(true);
-    if (!auth) {
-        toast({ title: "Auth not configured", variant: "destructive" });
-        setIsGoogleLoading(false);
-        return;
-    }
-    const provider = new GoogleAuthProvider();
-    try {
-        const result = await signInWithPopup(auth, provider);
-        await ensureUserProfile(result.user);
-        // On success, AuthGuard will handle the redirect.
-    } catch (error: any) {
-        // This specific error code means the user closed the popup. It's not a "failure"
-        // in the traditional sense, so we don't show a scary error toast.
-        if (error.code !== 'auth/popup-closed-by-user') {
-            toast({
-                title: "Google Sign-In Failed",
-                description: getFirebaseAuthErrorMessage(error),
-                variant: "destructive",
-            });
-        }
-    } finally {
-        setIsGoogleLoading(false);
-    }
-  };
 
   return (
     <Card className="w-full max-w-md mx-auto bg-card/50 backdrop-blur-lg border-white/10">
@@ -252,24 +221,6 @@ export function AuthForm({ mode }: AuthFormProps) {
       </CardHeader>
       <CardContent>
         {isLogin ? <LoginForm /> : <SignupForm />}
-        <div className="relative my-6">
-          <div className="absolute inset-0 flex items-center">
-            <span className="w-full border-t" />
-          </div>
-          <div className="relative flex justify-center text-xs uppercase">
-            <span className="bg-card px-2 text-muted-foreground">Or continue with</span>
-          </div>
-        </div>
-         <Button variant="outline" className="w-full" onClick={handleGoogleSignIn} disabled={isGoogleLoading}>
-          {isGoogleLoading ? (
-            <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-          ) : (
-            <svg className="mr-2 h-4 w-4" aria-hidden="true" focusable="false" data-prefix="fab" data-icon="google" role="img" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 488 512">
-              <path fill="currentColor" d="M488 261.8C488 403.3 381.5 504 248 504 110.8 504 0 393.2 0 256S110.8 8 248 8c66.8 0 126 21.2 173.5 58.8l-65.2 64.2C335.5 97.4 294.8 80 248 80c-82.8 0-150 67.2-150 150s67.2 150 150 150c94.2 0 120.3-72.3 124.2-108.2H248v-85.3h236.1c2.3 12.7 3.9 26.9 3.9 41.4z"></path>
-            </svg>
-          )}
-          Sign in with Google
-        </Button>
       </CardContent>
       <CardFooter>
         <div className="text-center text-sm w-full">
