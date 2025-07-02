@@ -379,6 +379,7 @@ export default function ClashClient({ id }: { id: string }) {
   useEffect(() => {
     if (!rtdb || !id || !clashData || !currentUser || !opponent) return;
 
+    let ignore = false;
     let localStreamForRTC: MediaStream | null = null;
     const pc = new RTCPeerConnection({
         iceServers: [{ urls: ['stun:stun1.l.google.com:19302', 'stun:stun2.l.google.com:19302'] }]
@@ -395,21 +396,25 @@ export default function ClashClient({ id }: { id: string }) {
     const startConnection = async () => {
         try {
             localStreamForRTC = await navigator.mediaDevices.getUserMedia({ video: true, audio: false });
+            if (ignore) {
+                localStreamForRTC?.getTracks().forEach(track => track.stop());
+                return;
+            }
             localStreamForRTC.getTracks().forEach(track => pc.addTrack(track, localStreamForRTC!));
         } catch (e) {
             console.error("Could not get local stream for WebRTC", e);
-            setIsConnecting(false);
+            if (!ignore) setIsConnecting(false);
             return;
         }
 
         pc.onicecandidate = (event) => {
-            if (event.candidate) {
+            if (event.candidate && !ignore) {
                 update(myPeerRef, { candidate: event.candidate.toJSON() });
             }
         };
 
         pc.ontrack = (event) => {
-            if (event.streams && event.streams[0]) {
+            if (event.streams && event.streams[0] && !ignore) {
                 setRemoteStream(event.streams[0]);
                 setIsConnecting(false);
             }
@@ -419,18 +424,26 @@ export default function ClashClient({ id }: { id: string }) {
 
         if (isCaller) {
             const offer = await pc.createOffer();
+            if (ignore) return;
             await pc.setLocalDescription(offer);
+            if (ignore) return;
             await update(myPeerRef, { offer });
         }
         
+        if (ignore) return;
+
         unsubscribeOpponent = onValue(opponentPeerRef, async (snapshot) => {
+            if (ignore) return;
             const data = snapshot.val();
             if (!data) return;
 
             if (data.offer && !isCaller) {
                 await pc.setRemoteDescription(new RTCSessionDescription(data.offer));
+                if (ignore) return;
                 const answer = await pc.createAnswer();
+                if (ignore) return;
                 await pc.setLocalDescription(answer);
+                if (ignore) return;
                 await update(myPeerRef, { answer });
             }
 
@@ -442,16 +455,20 @@ export default function ClashClient({ id }: { id: string }) {
             
             if (data.candidate) {
                 try {
-                    await pc.addIceCandidate(new RTCIceCandidate(data.candidate));
+                    if (pc.signalingState !== 'closed') {
+                       await pc.addIceCandidate(new RTCIceCandidate(data.candidate));
+                    }
                 } catch (e) {
-                    console.error('Error adding received ice candidate', e);
+                    if (!ignore) {
+                       console.error('Error adding received ice candidate', e);
+                    }
                 }
             }
         });
 
         // Set a timeout for connection
         const connectionTimeout = setTimeout(() => {
-            if(pc.connectionState !== 'connected' && pc.connectionState !== 'completed') {
+            if(!ignore && pc.connectionState !== 'connected' && pc.connectionState !== 'completed') {
                 setIsConnecting(false);
             }
         }, 15000); // 15 second timeout
@@ -465,6 +482,7 @@ export default function ClashClient({ id }: { id: string }) {
     startConnection();
 
     return () => {
+      ignore = true;
       pc.close();
       if(localStreamForRTC) {
         localStreamForRTC.getTracks().forEach(track => track.stop());
@@ -1079,5 +1097,3 @@ export default function ClashClient({ id }: { id: string }) {
       </div>
   );
 }
-
-    
