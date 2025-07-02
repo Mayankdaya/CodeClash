@@ -179,6 +179,18 @@ const executeInWorker = (code: string, entryPoint: string, testCases: TestCase[]
 };
 
 const formatInputForDisplay = (input: any) => {
+    const smartParse = (value: any) => {
+        if (typeof value !== 'string') return value;
+        try {
+            if ((value.startsWith('[') && value.endsWith(']')) || (value.startsWith('{') && value.endsWith('}'))) {
+                return JSON.parse(value);
+            }
+        } catch (e) {
+            // Not valid JSON, return original string
+        }
+        return value;
+    };
+
     let args = input;
     if (typeof args === 'string') {
         try {
@@ -187,10 +199,15 @@ const formatInputForDisplay = (input: any) => {
             return args;
         }
     }
+
     if (!Array.isArray(args)) {
         return JSON.stringify(args);
     }
-    return args.map(arg => JSON.stringify(arg)).join(', ');
+
+    return args
+        .map(smartParse)
+        .map(arg => JSON.stringify(arg))
+        .join(', ');
 };
 
 export default function ClashClient({ id }: { id: string }) {
