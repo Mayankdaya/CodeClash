@@ -224,6 +224,7 @@ export default function ClashClient({ id }: { id: string }) {
   const [isRunning, setIsRunning] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [consoleTab, setConsoleTab] = useState('test-result');
+  const [leftTab, setLeftTab] = useState('problem');
   const [submissionResult, setSubmissionResult] = useState<{ status: 'Accepted' | 'Wrong Answer' | 'Error'; message: string; } | null>(null);
   const [isSettingReady, setIsSettingReady] = useState(false);
   
@@ -231,6 +232,12 @@ export default function ClashClient({ id }: { id: string }) {
 
   const [isGettingHint, setIsGettingHint] = useState(false);
   const [hint, setHint] = useState<string | null>(null);
+  
+  const [solutionCode, setSolutionCode] = useState('');
+  const [solutionLanguage, setSolutionLanguage] = useState('javascript');
+  const [solutionCodes, setSolutionCodes] = useState<Record<string, string>>({});
+  const [isTranslatingSolution, setIsTranslatingSolution] = useState(false);
+
 
   const endOfMessagesRef = useRef<HTMLDivElement>(null);
   const languages = ["javascript", "python", "java", "cpp"];
@@ -266,6 +273,10 @@ export default function ClashClient({ id }: { id: string }) {
           const starterCode = initialProblem.starterCode || `function ${initialProblem.entryPoint}() {\n  // your code here\n}`;
           setCode(starterCode);
           setStarterCodes({ javascript: starterCode });
+
+          const initialSolution = initialProblem.solution || '';
+          setSolutionCode(initialSolution);
+          setSolutionCodes({ javascript: initialSolution });
 
         } else if (!data.problem && !problem) {
           toast({ title: "Problem not found", description: "The problem for this clash is missing.", variant: 'destructive' });
@@ -380,7 +391,7 @@ export default function ClashClient({ id }: { id: string }) {
           text: newMessage.trim(),
           senderId: currentUser.uid,
           senderName: currentUser.displayName || 'Anonymous',
-          senderAvatar: currentUser.photoURL || 'https://placehold.co/32x32.png',
+          senderAvatar: currentUser.photoURL || `https://api.dicebear.com/8.x/initials/svg?seed=${encodeURIComponent(currentUser.displayName || '??')}&backgroundColor=e74c86&textColor=ffffff&radius=50`,
           timestamp: serverTimestamp(),
         });
         setNewMessage('');
@@ -417,6 +428,36 @@ export default function ClashClient({ id }: { id: string }) {
       toast({ title: "Error Translating Code", description: "Could not generate a template for this language.", variant: "destructive" });
     } finally {
       setIsTranslatingCode(false);
+    }
+  };
+
+  const handleSolutionLanguageChange = async (newLang: string) => {
+    setSolutionLanguage(newLang);
+
+    if (solutionCodes[newLang]) {
+        setSolutionCode(solutionCodes[newLang]);
+        return;
+    }
+
+    if (!problem || !solutionCodes.javascript) return;
+
+    setIsTranslatingSolution(true);
+    try {
+        const result = await translateCode({
+            sourceCode: solutionCodes.javascript,
+            sourceLanguage: 'javascript',
+            targetLanguage: newLang,
+            entryPoint: problem.entryPoint,
+            isSolution: true,
+        });
+        const newCode = result.translatedCode;
+        setSolutionCode(newCode);
+        setSolutionCodes(prev => ({ ...prev, [newLang]: newCode }));
+    } catch (error) {
+        console.error("Error translating solution:", error);
+        toast({ title: "Error Translating Solution", description: "Could not generate a solution for this language.", variant: "destructive" });
+    } finally {
+        setIsTranslatingSolution(false);
     }
   };
 
@@ -638,28 +679,64 @@ export default function ClashClient({ id }: { id: string }) {
             <PanelGroup direction="horizontal">
                 <Panel defaultSize={35} minSize={25}>
                     <div className="h-full flex flex-col bg-card/50 border border-white/10 rounded-xl overflow-hidden">
-                        <div className="p-4 border-b border-border shrink-0 flex items-center gap-2">
-                            <BookOpen className="h-5 w-5 text-primary"/>
-                            <h1 className="text-xl font-bold">Problem Description</h1>
-                        </div>
-                        <div className="flex-1 min-h-0 overflow-y-auto p-4 pr-2">
-                            <h2 className="text-2xl font-bold mb-2">{problem.title}</h2>
-                            <div className='prose prose-invert max-w-none prose-p:text-muted-foreground prose-strong:text-foreground'>
-                                <p className="whitespace-pre-wrap">{problem.description}</p>
-                                {problem.examples && problem.examples.map((example, index) => (
-                                    <div key={index}>
-                                        <p><strong>Example {index + 1}:</strong></p>
-                                        <pre className='mt-2 p-2 rounded-md bg-muted/50 text-base whitespace-pre-wrap font-code not-prose'>
-                                            <code>
-                                            <strong>Input:</strong> {example.input}<br/>
-                                            <strong>Output:</strong> {example.output}
-                                            {example.explanation && <><br/><strong>Explanation:</strong> {example.explanation}</>}
-                                            </code>
-                                        </pre>
-                                    </div>
-                                ))}
+                        <Tabs value={leftTab} onValueChange={setLeftTab} className="flex-1 flex flex-col min-h-0">
+                            <div className='p-2 border-b border-border/50 shrink-0'>
+                                <TabsList className="grid w-full grid-cols-2">
+                                    <TabsTrigger value="problem"><BookOpen className="mr-2 h-4 w-4"/>Problem</TabsTrigger>
+                                    <TooltipProvider>
+                                      <Tooltip>
+                                        <TooltipTrigger asChild>
+                                          <TabsTrigger value="solution" disabled={!me?.solvedTimestamp && timeLeft > 0}>
+                                              <CheckCircle2 className="mr-2 h-4 w-4" /> Solution
+                                          </TabsTrigger>
+                                        </TooltipTrigger>
+                                        {(!me?.solvedTimestamp && timeLeft > 0) && (
+                                          <TooltipContent>
+                                            <p>Solve the problem or wait for the timer to see the solution.</p>
+                                          </TooltipContent>
+                                        )}
+                                      </Tooltip>
+                                    </TooltipProvider>
+                                </TabsList>
                             </div>
-                        </div>
+                            <TabsContent value="problem" className="m-0 flex-1 min-h-0">
+                                <div className="h-full overflow-y-auto p-4 pr-2">
+                                    <h2 className="text-2xl font-bold mb-2">{problem.title}</h2>
+                                    <div className='prose prose-invert max-w-none prose-p:text-muted-foreground prose-strong:text-foreground'>
+                                        <p className="whitespace-pre-wrap">{problem.description}</p>
+                                        {problem.examples && problem.examples.map((example, index) => (
+                                            <div key={index}>
+                                                <p><strong>Example {index + 1}:</strong></p>
+                                                <pre className='mt-2 p-2 rounded-md bg-muted/50 text-base whitespace-pre-wrap font-code not-prose'>
+                                                    <code>
+                                                    <strong>Input:</strong> {example.input}<br/>
+                                                    <strong>Output:</strong> {example.output}
+                                                    {example.explanation && <><br/><strong>Explanation:</strong> {example.explanation}</>}
+                                                    </code>
+                                                </pre>
+                                            </div>
+                                        ))}
+                                    </div>
+                                </div>
+                            </TabsContent>
+                            <TabsContent value="solution" className="m-0 flex-1 flex flex-col min-h-0">
+                               <div className="p-2 border-b border-border flex items-center justify-end shrink-0">
+                                    <Select value={solutionLanguage} onValueChange={handleSolutionLanguageChange} disabled={isTranslatingSolution}>
+                                        <SelectTrigger className="w-[180px] h-9"><SelectValue placeholder="Select Language" /></SelectTrigger>
+                                        <SelectContent>{languages.map((lang) => (<SelectItem key={lang} value={lang} className='capitalize'>{lang.charAt(0).toUpperCase() + lang.slice(1)}</SelectItem>))}</SelectContent>
+                                    </Select>
+                                </div>
+                                <div className="flex-1 min-h-0 relative">
+                                    {isTranslatingSolution && (
+                                        <div className="absolute inset-0 bg-slate-900/80 backdrop-blur-sm flex flex-col items-center justify-center z-10 text-foreground rounded-md">
+                                            <Loader2 className="h-8 w-8 animate-spin" />
+                                            <p className="mt-2 text-sm">Translating to {solutionLanguage}...</p>
+                                        </div>
+                                    )}
+                                    <CodeEditor key={`solution-${solutionLanguage}`} language={solutionLanguage} value={solutionCode} onChange={() => {}} disabled={true} />
+                                </div>
+                            </TabsContent>
+                        </Tabs>
                     </div>
                 </Panel>
                 <PanelResizeHandle className="w-2 bg-border/50 hover:bg-primary transition-colors data-[resize-handle-state=drag]:bg-primary" />
