@@ -3,7 +3,7 @@
 
 import { useState, useEffect } from 'react';
 import { useSearchParams, useRouter } from 'next/navigation';
-import { collection, addDoc, serverTimestamp as firestoreServerTimestamp } from 'firebase/firestore';
+import { collection, addDoc, serverTimestamp as firestoreServerTimestamp, FirebaseError } from 'firebase/firestore';
 import { useToast } from '@/hooks/use-toast';
 import { Header } from '@/components/Header';
 import { db } from '@/lib/firebase';
@@ -97,6 +97,10 @@ function MatchingContent() {
 
         } catch (error: any) {
             console.error("Error creating dummy match:", error);
+            if (error instanceof FirebaseError && error.code === 'permission-denied') {
+                router.push('/setup-error');
+                return;
+            }
             toast({ title: "Matchmaking Error", description: error.message || "Could not create the match.", variant: "destructive" });
             router.push('/lobby');
         }
