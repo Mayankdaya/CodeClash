@@ -6,7 +6,7 @@ import Image from 'next/image';
 import { useRouter } from 'next/navigation';
 import { addDoc, collection, doc, onSnapshot, orderBy, query, runTransaction, serverTimestamp, getDoc, updateDoc } from 'firebase/firestore';
 import { db, rtdb } from '@/lib/firebase';
-import { ref, onValue, set, update, remove } from 'firebase/database';
+import { ref, onValue, set, update, remove, onDisconnect } from 'firebase/database';
 import { useToast } from '@/hooks/use-toast';
 import { Panel, PanelGroup, PanelResizeHandle } from "react-resizable-panels";
 import { useAuth } from '@/hooks/useAuth';
@@ -295,25 +295,24 @@ export default function ClashClient({ id }: { id: string }) {
   const endOfMessagesRef = useRef<HTMLDivElement>(null);
   const languages = ["javascript", "python", "java", "cpp"];
   
-  const me = clashData?.participants.find(p => p.userId === currentUser?.uid);
-  const opponent = clashData?.participants.find(p => p.userId !== currentUser?.uid);
-  const allReady = clashData?.participants.every(p => p.ready) ?? false;
+  // Memoize participant-related data to stabilize useEffect dependencies for WebRTC
+  const participantIds = useMemo(() => {
+    return clashData?.participants.map(p => p.userId).sort() ?? [];
+  }, [clashData?.participants]);
+
+  const me = useMemo(() => clashData?.participants.find(p => p.userId === currentUser?.uid), [clashData?.participants, currentUser?.uid]);
+  const opponent = useMemo(() => clashData?.participants.find(p => p.userId !== currentUser?.uid), [clashData?.participants, currentUser?.uid]);
+  const opponentId = opponent?.userId; // This is a stable string for the useEffect dependency
+
+  const allReady = useMemo(() => clashData?.participants.every(p => p.ready) ?? false, [clashData?.participants]);
   const isClashActive = (clashData?.status === 'active' || allReady);
-
-  // Memoize participant-related data to stabilize useEffect dependencies
-  const participantsString = useMemo(() => JSON.stringify(clashData?.participants), [clashData?.participants]);
   
-  const stableOpponent = useMemo(() => {
-      if (!clashData?.participants || !currentUser) return null;
-      return clashData.participants.find(p => p.userId !== currentUser.uid);
-  }, [participantsString, currentUser]);
-
+  // Deterministic role assignment for WebRTC connection
   const isCaller = useMemo(() => {
-      if (!clashData?.participants || !currentUser) return null;
-      // The first participant in the array is designated as the caller
-      return clashData.participants.length > 0 && clashData.participants[0].userId === currentUser.uid;
-  }, [participantsString, currentUser]);
-
+    if (participantIds.length < 2 || !currentUser) return null;
+    // The user with the lexicographically smaller ID is the caller.
+    return currentUser.uid === participantIds[0];
+  }, [participantIds, currentUser]);
 
   useEffect(() => {
     if (!db || !id) return;
@@ -390,23 +389,27 @@ export default function ClashClient({ id }: { id: string }) {
     }
   }, [allReady, clashData, currentUser?.uid, db, id]);
 
-    // WebRTC Signaling Logic
+    // WebRTC Signaling Logic - REWRITTEN FOR STABILITY
   useEffect(() => {
-    if (!rtdb || !id || !currentUser || !stableOpponent || isCaller === null) return;
+    if (!rtdb || !id || !currentUser || !opponentId || isCaller === null) {
+      return;
+    }
 
+    setIsConnecting(true);
     let ignore = false;
     let localStreamForRTC: MediaStream | null = null;
+    
     const pc = new RTCPeerConnection({
         iceServers: [{ urls: ['stun:stun1.l.google.com:19302', 'stun:stun2.l.google.com:19302'] }]
     });
     peerConnectionRef.current = pc;
-    
+    processingSignal.current = false; // Reset lock
+
     const myId = currentUser.uid;
-    const opponentId = stableOpponent.userId;
     const baseSignalingPath = `clash-video-signaling/${id}`;
     const myPeerRef = ref(rtdb, `${baseSignalingPath}/${myId}`);
     const opponentPeerRef = ref(rtdb, `${baseSignalingPath}/${opponentId}`);
-    let unsubscribeOpponent: () => void;
+    let unsubscribeOpponent: (() => void) | undefined;
 
     const startConnection = async () => {
         try {
@@ -444,20 +447,15 @@ export default function ClashClient({ id }: { id: string }) {
             const data = snapshot.val();
 
             try {
-                // Callee: Handle the offer from the caller
-                if (data.offer && !isCaller && pc.signalingState === 'stable') {
+                if (data.offer && pc.signalingState === 'stable') {
                     await pc.setRemoteDescription(new RTCSessionDescription(data.offer));
                     const answer = await pc.createAnswer();
                     await pc.setLocalDescription(answer);
-                    await update(myPeerRef, { answer });
-                }
-
-                // Caller: Handle the answer from the callee
-                if (data.answer && isCaller && pc.signalingState === 'have-local-offer') {
+                    await update(myPeerRef, { answer: pc.localDescription });
+                } else if (data.answer && pc.signalingState === 'have-local-offer') {
                     await pc.setRemoteDescription(new RTCSessionDescription(data.answer));
                 }
                 
-                // Both: Handle ICE candidates
                 if (data.candidate && pc.remoteDescription) {
                    await pc.addIceCandidate(new RTCIceCandidate(data.candidate));
                 }
@@ -470,20 +468,23 @@ export default function ClashClient({ id }: { id: string }) {
             }
         });
 
-        // The caller creates the initial offer.
         if (isCaller) {
+          try {
             const offer = await pc.createOffer();
             if (ignore) return;
             await pc.setLocalDescription(offer);
             if (ignore) return;
-            await update(myPeerRef, { offer });
+            await set(myPeerRef, { offer: pc.localDescription });
+          } catch(e) {
+            console.error("Error creating offer:", e);
+          }
         }
         
         const connectionTimeout = setTimeout(() => {
             if(!ignore && pc.connectionState !== 'connected' && pc.connectionState !== 'completed') {
                 setIsConnecting(false);
             }
-        }, 15000); // 15 second timeout
+        }, 15000);
         
         return () => {
             if (unsubscribeOpponent) unsubscribeOpponent();
@@ -499,14 +500,18 @@ export default function ClashClient({ id }: { id: string }) {
           pc.ontrack = null;
           pc.onicecandidate = null;
           pc.close();
+          peerConnectionRef.current = null;
       }
       if(localStreamForRTC) {
         localStreamForRTC.getTracks().forEach(track => track.stop());
       }
       if(unsubscribeOpponent) unsubscribeOpponent();
-      remove(ref(rtdb, `clash-video-signaling/${id}/${currentUser.uid}`));
+      
+      const userSignalingRef = ref(rtdb, `clash-video-signaling/${id}/${currentUser.uid}`);
+      onDisconnect(userSignalingRef).cancel();
+      remove(userSignalingRef);
     };
-  }, [id, currentUser, stableOpponent, isCaller, rtdb]);
+  }, [id, currentUser, opponentId, isCaller, rtdb]);
 
   useEffect(() => {
     endOfMessagesRef.current?.scrollIntoView({ behavior: 'smooth' });
@@ -537,8 +542,8 @@ export default function ClashClient({ id }: { id: string }) {
             
             const data = clashDoc.data() as ClashData;
             
-            const me = data.participants.find(p => p.userId === currentUser.uid);
-            if (!me || me.solvedTimestamp) return;
+            const meInDb = data.participants.find(p => p.userId === currentUser.uid);
+            if (!meInDb || meInDb.solvedTimestamp) return;
 
             const isFirstSolver = !data.participants.some(p => p.solvedTimestamp);
             let currentPoints = 100;
