@@ -1,7 +1,7 @@
 
 'use client';
 
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef, useMemo } from 'react';
 import Image from 'next/image';
 import { useRouter } from 'next/navigation';
 import { addDoc, collection, doc, onSnapshot, orderBy, query, runTransaction, serverTimestamp, getDoc, updateDoc } from 'firebase/firestore';
@@ -299,6 +299,20 @@ export default function ClashClient({ id }: { id: string }) {
   const allReady = clashData?.participants.every(p => p.ready) ?? false;
   const isClashActive = (clashData?.status === 'active' || allReady);
 
+  // Memoize participant-related data to stabilize useEffect dependencies
+  const participantsString = useMemo(() => JSON.stringify(clashData?.participants), [clashData?.participants]);
+  
+  const stableOpponent = useMemo(() => {
+      if (!clashData?.participants || !currentUser) return null;
+      return clashData.participants.find(p => p.userId !== currentUser.uid);
+  }, [participantsString, currentUser]);
+
+  const isCaller = useMemo(() => {
+      if (!clashData?.participants || !currentUser) return null;
+      // The first participant in the array is designated as the caller
+      return clashData.participants[0].userId === currentUser.uid;
+  }, [participantsString, currentUser]);
+
 
   useEffect(() => {
     if (!db || !id) return;
@@ -377,7 +391,7 @@ export default function ClashClient({ id }: { id: string }) {
 
     // WebRTC Signaling Logic
   useEffect(() => {
-    if (!rtdb || !id || !clashData || !currentUser || !opponent) return;
+    if (!rtdb || !id || !currentUser || !stableOpponent || isCaller === null) return;
 
     let ignore = false;
     let localStreamForRTC: MediaStream | null = null;
@@ -387,7 +401,7 @@ export default function ClashClient({ id }: { id: string }) {
     peerConnectionRef.current = pc;
     
     const myId = currentUser.uid;
-    const opponentId = opponent.userId;
+    const opponentId = stableOpponent.userId;
     const baseSignalingPath = `clash-video-signaling/${id}`;
     const myPeerRef = ref(rtdb, `${baseSignalingPath}/${myId}`);
     const opponentPeerRef = ref(rtdb, `${baseSignalingPath}/${opponentId}`);
@@ -421,29 +435,17 @@ export default function ClashClient({ id }: { id: string }) {
                 setIsConnecting(false);
             }
         };
-
-        const isCaller = clashData.participants[0].userId === myId;
-
-        if (isCaller) {
-            const offer = await pc.createOffer();
-            if (ignore) return;
-            await pc.setLocalDescription(offer);
-            if (ignore) return;
-            await update(myPeerRef, { offer });
-        }
         
-        if (ignore) return;
-
         unsubscribeOpponent = onValue(opponentPeerRef, async (snapshot) => {
             if (ignore) return;
             const data = snapshot.val();
             if (!data) return;
 
             try {
-                // Callee receives an offer. Only process if we are not the caller and the connection is stable.
-                if (data.offer && !isCaller && pc.signalingState === 'stable') {
+                // If we receive an offer and we are not the caller (i.e., we are the callee),
+                // and we don't have a remote description yet, we process it.
+                if (data.offer && !isCaller && !pc.remoteDescription) {
                     await pc.setRemoteDescription(new RTCSessionDescription(data.offer));
-                    if (ignore) return;
                     const answer = await pc.createAnswer();
                     if (ignore) return;
                     await pc.setLocalDescription(answer);
@@ -451,16 +453,16 @@ export default function ClashClient({ id }: { id: string }) {
                     await update(myPeerRef, { answer });
                 }
 
-                // Caller receives an answer. Only process if we are the caller and we have a local offer pending.
-                if (data.answer && isCaller && pc.signalingState === 'have-local-offer') {
+                // If we receive an answer and we are the caller,
+                // and we don't have a remote description yet, we process it.
+                if (data.answer && isCaller && !pc.remoteDescription) {
                     await pc.setRemoteDescription(new RTCSessionDescription(data.answer));
                 }
                 
-                // Both receive candidates. Only add them if the remote description is set.
+                // Process candidates as they come in. WebRTC handles queueing them internally
+                // if the remote description isn't set yet.
                 if (data.candidate) {
-                    if (pc.remoteDescription) {
-                       await pc.addIceCandidate(new RTCIceCandidate(data.candidate));
-                    }
+                   await pc.addIceCandidate(new RTCIceCandidate(data.candidate));
                 }
             } catch (e) {
                 if (!ignore) {
@@ -469,7 +471,15 @@ export default function ClashClient({ id }: { id: string }) {
             }
         });
 
-        // Set a timeout for connection
+        // The caller creates the initial offer.
+        if (isCaller) {
+            const offer = await pc.createOffer();
+            if (ignore) return;
+            await pc.setLocalDescription(offer);
+            if (ignore) return;
+            await update(myPeerRef, { offer });
+        }
+        
         const connectionTimeout = setTimeout(() => {
             if(!ignore && pc.connectionState !== 'connected' && pc.connectionState !== 'completed') {
                 setIsConnecting(false);
@@ -486,14 +496,14 @@ export default function ClashClient({ id }: { id: string }) {
 
     return () => {
       ignore = true;
-      pc.close();
+      if (pc) pc.close();
       if(localStreamForRTC) {
         localStreamForRTC.getTracks().forEach(track => track.stop());
       }
       if(unsubscribeOpponent) unsubscribeOpponent();
-      remove(myPeerRef);
+      remove(ref(rtdb, `clash-video-signaling/${id}/${currentUser.uid}`));
     };
-  }, [id, clashData, currentUser, opponent, rtdb]);
+  }, [id, currentUser, stableOpponent, isCaller, rtdb]);
 
   useEffect(() => {
     endOfMessagesRef.current?.scrollIntoView({ behavior: 'smooth' });
@@ -1100,5 +1110,3 @@ export default function ClashClient({ id }: { id: string }) {
       </div>
   );
 }
-
-    
