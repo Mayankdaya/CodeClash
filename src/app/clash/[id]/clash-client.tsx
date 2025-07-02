@@ -103,17 +103,6 @@ const executeInWorker = (code: string, entryPoint: string, testCases: TestCase[]
                 }
                 return true;
             };
-            
-            const smartParse = (value) => {
-                if (typeof value !== 'string') return value;
-                try {
-                    // This correctly parses stringified JSON: arrays, objects, numbers, booleans, and null.
-                    return JSON.parse(value);
-                } catch (e) {
-                    // If JSON.parse fails, it's a simple string that isn't valid JSON, so return as is.
-                    return value;
-                }
-            };
 
             self.onmessage = function(e) {
                 const { code, entryPoint, testCases } = e.data;
@@ -133,8 +122,7 @@ const executeInWorker = (code: string, entryPoint: string, testCases: TestCase[]
                         let output, error = null;
                         
                         try {
-                            const parsedInput = Array.isArray(tc.input) ? tc.input.map(smartParse) : [smartParse(tc.input)];
-                            const inputClone = JSON.parse(JSON.stringify(parsedInput));
+                            const inputClone = JSON.parse(JSON.stringify(tc.input));
                             output = userFunc(...inputClone);
                         } catch (err) {
                             error = err;
@@ -142,7 +130,7 @@ const executeInWorker = (code: string, entryPoint: string, testCases: TestCase[]
 
                         const endTime = performance.now();
                         
-                        const expectedValue = smartParse(tc.expected);
+                        const expectedValue = tc.expected;
                         
                         const passed = !error && deepEqual(output, expectedValue);
                         if (passed) passedCount++;
@@ -185,21 +173,8 @@ const executeInWorker = (code: string, entryPoint: string, testCases: TestCase[]
 
 const formatInputForDisplay = (input: any) => {
     try {
-        const smartParse = (value: any) => {
-            if (typeof value !== 'string') return value;
-            try {
-                // Try to parse it as JSON. This will handle numbers, arrays, objects, etc.
-                return JSON.parse(value);
-            } catch (e) {
-                // If it fails, it's just a regular string.
-                return value;
-            }
-        };
-
-        const args = Array.isArray(input) ? input.map(smartParse) : [smartParse(input)];
-        
+        const args = Array.isArray(input) ? input : [input];
         return args.map(arg => JSON.stringify(arg)).join(', ');
-
     } catch (e) {
         return String(input);
     }
@@ -222,7 +197,6 @@ export default function ClashClient({ id }: { id: string }) {
   const [isRunning, setIsRunning] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [consoleTab, setConsoleTab] = useState('test-result');
-  const [leftTab, setLeftTab] = useState('problem');
   const [submissionResult, setSubmissionResult] = useState<{ status: 'Accepted' | 'Wrong Answer' | 'Error'; message: string; } | null>(null);
   const [isSettingReady, setIsSettingReady] = useState(false);
   
@@ -256,18 +230,7 @@ export default function ClashClient({ id }: { id: string }) {
         setClashData(data);
         
         if (!problem && data.problem) {
-          const parsedTestCases = (data.problem.testCases as any[]).map(tc => {
-              try {
-                  const input = typeof tc.input === 'string' ? JSON.parse(tc.input) : tc.input;
-                  const expected = typeof tc.expected === 'string' ? JSON.parse(tc.expected) : tc.expected;
-                  return { ...tc, input, expected };
-              } catch (e) {
-                  console.error("Error parsing a test case, returning as-is to avoid a crash", tc, e);
-                  return tc;
-              }
-          });
-
-          const initialProblem = { ...data.problem, testCases: parsedTestCases };
+          const initialProblem = data.problem;
           setProblem(initialProblem);
           
           const starterCode = initialProblem.starterCode || `function ${initialProblem.entryPoint}() {\n  // your code here\n}`;
@@ -679,64 +642,28 @@ export default function ClashClient({ id }: { id: string }) {
             <PanelGroup direction="horizontal">
                 <Panel defaultSize={35} minSize={25}>
                     <div className="h-full flex flex-col bg-card/50 border border-white/10 rounded-xl overflow-hidden">
-                        <Tabs value={leftTab} onValueChange={setLeftTab} className="flex-1 flex flex-col min-h-0">
-                            <div className='p-2 border-b border-border/50 shrink-0'>
-                                <TabsList className="grid w-full grid-cols-2">
-                                    <TabsTrigger value="problem"><BookOpen className="mr-2 h-4 w-4"/>Problem</TabsTrigger>
-                                    <TooltipProvider>
-                                      <Tooltip>
-                                        <TooltipTrigger asChild>
-                                          <TabsTrigger value="solution" disabled={!me?.solvedTimestamp && timeLeft > 0}>
-                                              <CheckCircle2 className="mr-2 h-4 w-4" /> Solution
-                                          </TabsTrigger>
-                                        </TooltipTrigger>
-                                        {(!me?.solvedTimestamp && timeLeft > 0) && (
-                                          <TooltipContent>
-                                            <p>Solve the problem or wait for the timer to see the solution.</p>
-                                          </TooltipContent>
-                                        )}
-                                      </Tooltip>
-                                    </TooltipProvider>
-                                </TabsList>
-                            </div>
-                            <TabsContent value="problem" className="m-0 flex-1 min-h-0">
-                                <div className="h-full overflow-y-auto p-4 pr-2">
-                                    <h2 className="text-2xl font-bold mb-2">{problem.title}</h2>
-                                    <div className='prose prose-invert max-w-none prose-p:text-muted-foreground prose-strong:text-foreground'>
-                                        <p className="whitespace-pre-wrap">{problem.description}</p>
-                                        {problem.examples && problem.examples.map((example, index) => (
-                                            <div key={index}>
-                                                <p><strong>Example {index + 1}:</strong></p>
-                                                <pre className='mt-2 p-2 rounded-md bg-muted/50 text-base whitespace-pre-wrap font-code not-prose'>
-                                                    <code>
-                                                    <strong>Input:</strong> {example.input}<br/>
-                                                    <strong>Output:</strong> {example.output}
-                                                    {example.explanation && <><br/><strong>Explanation:</strong> {example.explanation}</>}
-                                                    </code>
-                                                </pre>
-                                            </div>
-                                        ))}
+                        <div className="p-4 border-b border-border/50 shrink-0 flex items-center gap-2">
+                            <BookOpen className="h-5 w-5 text-primary"/>
+                            <h1 className="text-xl font-bold">Problem</h1>
+                        </div>
+                        <div className="h-full overflow-y-auto p-4 pr-2">
+                            <h2 className="text-2xl font-bold mb-2">{problem.title}</h2>
+                            <div className='prose prose-invert max-w-none prose-p:text-muted-foreground prose-strong:text-foreground'>
+                                <p className="whitespace-pre-wrap">{problem.description}</p>
+                                {problem.examples && problem.examples.map((example, index) => (
+                                    <div key={index}>
+                                        <p><strong>Example {index + 1}:</strong></p>
+                                        <pre className='mt-2 p-2 rounded-md bg-muted/50 text-base whitespace-pre-wrap font-code not-prose'>
+                                            <code>
+                                            <strong>Input:</strong> {example.input}<br/>
+                                            <strong>Output:</strong> {example.output}
+                                            {example.explanation && <><br/><strong>Explanation:</strong> {example.explanation}</>}
+                                            </code>
+                                        </pre>
                                     </div>
-                                </div>
-                            </TabsContent>
-                            <TabsContent value="solution" className="m-0 flex-1 flex flex-col min-h-0">
-                               <div className="p-2 border-b border-border flex items-center justify-end shrink-0">
-                                    <Select value={solutionLanguage} onValueChange={handleSolutionLanguageChange} disabled={isTranslatingSolution}>
-                                        <SelectTrigger className="w-[180px] h-9"><SelectValue placeholder="Select Language" /></SelectTrigger>
-                                        <SelectContent>{languages.map((lang) => (<SelectItem key={lang} value={lang} className='capitalize'>{lang.charAt(0).toUpperCase() + lang.slice(1)}</SelectItem>))}</SelectContent>
-                                    </Select>
-                                </div>
-                                <div className="flex-1 min-h-0 relative">
-                                    {isTranslatingSolution && (
-                                        <div className="absolute inset-0 bg-slate-900/80 backdrop-blur-sm flex flex-col items-center justify-center z-10 text-foreground rounded-md">
-                                            <Loader2 className="h-8 w-8 animate-spin" />
-                                            <p className="mt-2 text-sm">Translating to {solutionLanguage}...</p>
-                                        </div>
-                                    )}
-                                    <CodeEditor key={`solution-${solutionLanguage}`} language={solutionLanguage} value={solutionCode} onChange={() => {}} disabled={true} />
-                                </div>
-                            </TabsContent>
-                        </Tabs>
+                                ))}
+                            </div>
+                        </div>
                     </div>
                 </Panel>
                 <PanelResizeHandle className="w-2 bg-border/50 hover:bg-primary transition-colors data-[resize-handle-state=drag]:bg-primary" />
@@ -769,9 +696,23 @@ export default function ClashClient({ id }: { id: string }) {
                             <div className="h-full flex flex-col bg-card/50 border border-white/10 rounded-xl overflow-hidden">
                                 <Tabs value={consoleTab} onValueChange={setConsoleTab} className="flex-1 flex flex-col min-h-0">
                                     <div className='p-2 border-b border-border/50 shrink-0'>
-                                        <TabsList className="grid w-full grid-cols-2">
+                                        <TabsList className="grid w-full grid-cols-3">
                                             <TabsTrigger value="test-result"><Terminal className="mr-2 h-4 w-4"/>Test Result</TabsTrigger>
                                             <TabsTrigger value="testcases"><TestTube2 className="mr-2 h-4 w-4"/>Testcases</TabsTrigger>
+                                            <TooltipProvider>
+                                                <Tooltip>
+                                                    <TooltipTrigger asChild>
+                                                    <TabsTrigger value="solution" disabled={!me?.solvedTimestamp && timeLeft > 0}>
+                                                        <CheckCircle2 className="mr-2 h-4 w-4" /> Solution
+                                                    </TabsTrigger>
+                                                    </TooltipTrigger>
+                                                    {(!me?.solvedTimestamp && timeLeft > 0) && (
+                                                    <TooltipContent>
+                                                        <p>Solve the problem or wait for the timer to see the solution.</p>
+                                                    </TooltipContent>
+                                                    )}
+                                                </Tooltip>
+                                            </TooltipProvider>
                                         </TabsList>
                                     </div>
                                     <div className="flex-1 min-h-0">
@@ -808,6 +749,23 @@ export default function ClashClient({ id }: { id: string }) {
                                                 </div>
                                             ))}
                                         </div>
+                                        </TabsContent>
+                                        <TabsContent value="solution" className="m-0 h-full flex flex-col">
+                                            <div className="p-2 border-b border-border flex items-center justify-end shrink-0">
+                                                    <Select value={solutionLanguage} onValueChange={handleSolutionLanguageChange} disabled={isTranslatingSolution}>
+                                                        <SelectTrigger className="w-[180px] h-9"><SelectValue placeholder="Select Language" /></SelectTrigger>
+                                                        <SelectContent>{languages.map((lang) => (<SelectItem key={lang} value={lang} className='capitalize'>{lang.charAt(0).toUpperCase() + lang.slice(1)}</SelectItem>))}</SelectContent>
+                                                    </Select>
+                                                </div>
+                                                <div className="flex-1 min-h-0 relative">
+                                                    {isTranslatingSolution && (
+                                                        <div className="absolute inset-0 bg-slate-900/80 backdrop-blur-sm flex flex-col items-center justify-center z-10 text-foreground rounded-md">
+                                                            <Loader2 className="h-8 w-8 animate-spin" />
+                                                            <p className="mt-2 text-sm">Translating to {solutionLanguage}...</p>
+                                                        </div>
+                                                    )}
+                                                    <CodeEditor key={`solution-${solutionLanguage}`} language={solutionLanguage} value={solutionCode} onChange={() => {}} disabled={true} />
+                                                </div>
                                         </TabsContent>
                                     </div>
                                 </Tabs>

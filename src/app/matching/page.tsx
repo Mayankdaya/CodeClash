@@ -67,17 +67,9 @@ function MatchingContent() {
                 return; // Exit this attempt and retry.
             }
             
-            const problemWithStrTestCases = {
-                ...problem,
-                testCases: problem.testCases.map(tc => ({
-                    input: JSON.stringify(tc.input),
-                    expected: JSON.stringify(tc.expected),
-                })),
-            };
-            
             const clashDocRef = await addDoc(collection(db, 'clashes'), {
                 topicId,
-                problem: JSON.parse(JSON.stringify(problemWithStrTestCases)),
+                problem: JSON.parse(JSON.stringify(problem)), // Store the problem object directly. Firestore handles nested objects/arrays.
                 participants: [
                     { userId: currentUser.uid, userName: currentUser.displayName, userAvatar: currentUser.photoURL, score: 0, solvedTimestamp: null, ready: false },
                     { userId: 'test-user-id', userName: 'Test User', userAvatar: 'https://api.dicebear.com/8.x/bottts-neutral/svg?seed=Test', score: 0, solvedTimestamp: null, ready: true }
