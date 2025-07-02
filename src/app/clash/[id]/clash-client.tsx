@@ -407,9 +407,6 @@ export default function ClashClient({ id }: { id: string }) {
     const opponentPeerRef = ref(rtdb, `${baseSignalingPath}/${opponentId}`);
     let unsubscribeOpponent: () => void;
 
-    // A lock to prevent race conditions from multiple signaling updates at once.
-    let isProcessingSignal = false;
-
     const startConnection = async () => {
         try {
             localStreamForRTC = await navigator.mediaDevices.getUserMedia({ video: true, audio: false });
@@ -440,14 +437,12 @@ export default function ClashClient({ id }: { id: string }) {
         };
         
         unsubscribeOpponent = onValue(opponentPeerRef, async (snapshot) => {
-            if (ignore || !snapshot.exists() || isProcessingSignal) return;
-
-            isProcessingSignal = true;
+            if (ignore || !snapshot.exists()) return;
 
             const data = snapshot.val();
 
             try {
-                // Process offer if I'm the callee and in the stable state.
+                // Handle Offer from Caller
                 if (data.offer && !isCaller && pc.signalingState === 'stable') {
                     await pc.setRemoteDescription(new RTCSessionDescription(data.offer));
                     if (ignore) return;
@@ -458,12 +453,12 @@ export default function ClashClient({ id }: { id: string }) {
                     await update(myPeerRef, { answer });
                 }
 
-                // Process answer if I'm the caller and waiting for one.
+                // Handle Answer from Callee
                 if (data.answer && isCaller && pc.signalingState === 'have-local-offer') {
                     await pc.setRemoteDescription(new RTCSessionDescription(data.answer));
                 }
                 
-                // Add candidates as they come. The browser will queue them if needed, but it's safer to check.
+                // Add candidates as they come.
                 if (data.candidate && pc.remoteDescription) {
                    await pc.addIceCandidate(new RTCIceCandidate(data.candidate));
                 }
@@ -471,8 +466,6 @@ export default function ClashClient({ id }: { id: string }) {
                 if (!ignore) {
                    console.error('Signaling error:', e);
                 }
-            } finally {
-                isProcessingSignal = false;
             }
         });
 
