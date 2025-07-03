@@ -438,7 +438,7 @@ export default function ClashClient({ id }: { id: string }) {
     // 4. When a local ICE candidate is generated, push it to our signaling path
     pc.onicecandidate = (event) => {
       if (event.candidate && !ignore) {
-        push(ref(mySignalingRef, 'candidates'), event.candidate.toJSON());
+        push(ref(rtdb, `${baseSignalingPath}/${currentUser.uid}/candidates`), event.candidate.toJSON());
       }
     };
   
@@ -476,7 +476,7 @@ export default function ClashClient({ id }: { id: string }) {
     });
   
     // 6. Listen for new ICE candidates added by the opponent
-    const opponentCandidatesRef = ref(opponentSignalingRef, 'candidates');
+    const opponentCandidatesRef = ref(rtdb, `${baseSignalingPath}/${opponentId}/candidates`);
     const candidatesListener = onChildAdded(opponentCandidatesRef, (snapshot) => {
       if (snapshot.exists() && !ignore) {
         pc.addIceCandidate(new RTCIceCandidate(snapshot.val())).catch(e => {
