@@ -382,142 +382,144 @@ export default function ClashClient({ id }: { id: string }) {
     }
   }, [allReady, clashData, currentUser?.uid, db, id]);
 
-  // WebRTC Signaling Logic - REWRITTEN FOR ROBUSTNESS
+  // WebRTC Signaling Logic - Re-architected for Robustness
   useEffect(() => {
     if (!rtdb || !id || !currentUser || !opponentId || isCaller === null) {
       return;
     }
-
+  
     let ignore = false;
+    let isProcessing = false;
     setIsConnecting(true);
-
+  
     const pc = new RTCPeerConnection({
-        iceServers: [{ urls: ['stun:stun1.l.google.com:19302', 'stun:stun2.l.google.com:19302'] }]
+      iceServers: [{ urls: ['stun:stun1.l.google.com:19302', 'stun:stun2.l.google.com:19302'] }]
     });
     peerConnectionRef.current = pc;
-
+  
     const baseSignalingPath = `clash-video-signaling/${id}`;
-    const myPeerRef = ref(rtdb, `${baseSignalingPath}/${currentUser.uid}`);
-    const opponentPeerRef = ref(rtdb, `${baseSignalingPath}/${opponentId}`);
-    const myCandidatesRef = ref(rtdb, `${baseSignalingPath}/${currentUser.uid}/candidates`);
-    const opponentCandidatesRef = ref(rtdb, `${baseSignalingPath}/${opponentId}/candidates`);
-
-    // 1. Get user media and add tracks to the connection
+    const mySignalingRef = ref(rtdb, `${baseSignalingPath}/${currentUser.uid}`);
+    const opponentSignalingRef = ref(rtdb, `${baseSignalingPath}/${opponentId}`);
+  
+    // 1. Get user media and add tracks
     navigator.mediaDevices.getUserMedia({ video: true, audio: false })
       .then(stream => {
         if (ignore) {
-            stream.getTracks().forEach(track => track.stop());
-            return;
+          stream.getTracks().forEach(track => track.stop());
+          return;
         }
         localStreamRef.current = stream;
         stream.getTracks().forEach(track => pc.addTrack(track, stream));
-
+  
         // 2. If caller, create offer. This kicks off the signaling process.
         if (isCaller) {
-            pc.createOffer()
-              .then(offer => pc.setLocalDescription(offer))
-              .then(() => {
-                  if (ignore) return;
-                  // Set offer payload, overwriting previous data
-                  set(myPeerRef, { offer: pc.localDescription?.toJSON() });
-              })
-              .catch(e => console.error("Error creating offer:", e));
+          pc.createOffer()
+            .then(offer => pc.setLocalDescription(offer))
+            .then(() => {
+              if (ignore) return;
+              const offerPayload = { offer: pc.localDescription?.toJSON() };
+              set(mySignalingRef, offerPayload); // Overwrite previous data
+            })
+            .catch(e => console.error("Error creating offer:", e));
         }
-    }).catch(e => {
+      }).catch(e => {
         console.error("Could not get user media", e);
         if (!ignore) setIsConnecting(false);
-    });
-
+      });
+  
     // 3. Handle receiving remote video tracks
     pc.ontrack = (event) => {
-        if (event.streams && event.streams[0]) {
-            if (!ignore) {
-                setRemoteStream(event.streams[0]);
-                setIsConnecting(false);
-            }
-        }
+      if (event.streams && event.streams[0] && !ignore) {
+        setRemoteStream(event.streams[0]);
+        setIsConnecting(false);
+      }
     };
-
+  
     // 4. When a local ICE candidate is generated, push it to our signaling path
     pc.onicecandidate = (event) => {
-        if (event.candidate && !ignore) {
-            push(myCandidatesRef, event.candidate.toJSON());
-        }
+      if (event.candidate && !ignore) {
+        push(ref(mySignalingRef, 'candidates'), event.candidate.toJSON());
+      }
     };
-
+  
     // 5. Listen for the main offer/answer signals from the opponent
-    const offerAnswerCallback = onValue(opponentPeerRef, async (snapshot) => {
-        if (ignore || !snapshot.exists()) return;
-        const data = snapshot.val();
-        
-        try {
-            // If we receive an offer and we are not the caller
-            if (data.offer && pc.signalingState === 'stable') {
-                await pc.setRemoteDescription(new RTCSessionDescription(data.offer));
-                const answer = await pc.createAnswer();
-                await pc.setLocalDescription(answer);
-                if (!ignore) {
-                    // Update our signaling path with the answer
-                    await update(myPeerRef, { answer: pc.localDescription?.toJSON() });
-                }
-            }
-
-            // If we receive an answer and we are the caller
-            if (data.answer && pc.signalingState === 'have-local-offer') {
-                await pc.setRemoteDescription(new RTCSessionDescription(data.answer));
-            }
-        } catch (e) {
-            console.error("Signaling error:", e);
+    const handleSignal = async (data: any) => {
+      if (isProcessing || ignore || !data) return;
+      isProcessing = true;
+  
+      try {
+        // If we are the CALLER and receive an ANSWER
+        if (data.answer && isCaller && pc.signalingState === 'have-local-offer') {
+          await pc.setRemoteDescription(new RTCSessionDescription(data.answer));
         }
-    });
-
-    // 6. Listen for new ICE candidates added by the opponent
-    const candidatesCallback = onChildAdded(opponentCandidatesRef, (snapshot) => {
-        if (ignore || !snapshot.exists()) return;
-        const candidate = snapshot.val();
-        if (candidate) {
-            pc.addIceCandidate(new RTCIceCandidate(candidate)).catch(e => {
-                if(!ignore) console.error("Error adding received ICE candidate", e)
-            });
+  
+        // If we are the CALLEE and receive an OFFER
+        else if (data.offer && !isCaller && pc.signalingState === 'stable') {
+          await pc.setRemoteDescription(new RTCSessionDescription(data.offer));
+          const answer = await pc.createAnswer();
+          await pc.setLocalDescription(answer);
+          if (!ignore) {
+            await update(mySignalingRef, { answer: pc.localDescription?.toJSON() });
+          }
         }
-    });
-    
-    // Set a timeout for the connection attempt
-    const connectionTimeout = setTimeout(() => {
-        if(!ignore && pc.connectionState !== 'connected' && pc.connectionState !== 'completed') {
-            setIsConnecting(false);
-            console.warn("WebRTC connection timed out.");
-        }
-    }, 15000);
-
-    // 7. Cleanup logic
-    return () => {
-        console.log("Cleaning up WebRTC connection for", currentUser.uid);
-        ignore = true;
-        clearTimeout(connectionTimeout);
-
-        // Detach all Firebase listeners
-        off(opponentPeerRef, 'value', offerAnswerCallback);
-        off(opponentCandidatesRef, 'child_added', candidatesCallback);
-
-        if (pc) {
-            pc.ontrack = null;
-            pc.onicecandidate = null;
-            pc.close();
-            peerConnectionRef.current = null;
-        }
-        
-        if (localStreamRef.current) {
-            localStreamRef.current.getTracks().forEach(track => track.stop());
-            localStreamRef.current = null;
-        }
-        
-        // Cancel onDisconnect and remove our signaling data
-        const userSignalingRef = ref(rtdb, `${baseSignalingPath}/${currentUser.uid}`);
-        onDisconnect(userSignalingRef).cancel();
-        remove(userSignalingRef).catch(e => console.error("Error removing signaling ref on cleanup:", e));
+      } catch (e) {
+        console.error("Signaling error:", e);
+      } finally {
+        isProcessing = false;
+      }
     };
-}, [id, currentUser, opponentId, isCaller, rtdb]);
+    
+    const offerAnswerListener = onValue(opponentSignalingRef, (snapshot) => {
+        if(snapshot.exists()) {
+            handleSignal(snapshot.val());
+        }
+    });
+  
+    // 6. Listen for new ICE candidates added by the opponent
+    const opponentCandidatesRef = ref(opponentSignalingRef, 'candidates');
+    const candidatesListener = onChildAdded(opponentCandidatesRef, (snapshot) => {
+      if (snapshot.exists() && !ignore) {
+        pc.addIceCandidate(new RTCIceCandidate(snapshot.val())).catch(e => {
+          if (!ignore) console.error("Error adding received ICE candidate", e);
+        });
+      }
+    });
+  
+    // 7. Set a timeout for the connection attempt
+    const connectionTimeout = setTimeout(() => {
+      if (!ignore && pc.connectionState !== 'connected' && pc.connectionState !== 'completed') {
+        setIsConnecting(false);
+        console.warn("WebRTC connection timed out.");
+      }
+    }, 15000);
+  
+    // 8. Cleanup logic
+    return () => {
+      console.log("Cleaning up WebRTC connection for", currentUser.uid);
+      ignore = true;
+      clearTimeout(connectionTimeout);
+  
+      // Detach all Firebase listeners
+      off(opponentSignalingRef, 'value', offerAnswerListener);
+      off(opponentCandidatesRef, 'child_added', candidatesListener);
+  
+      if (pc) {
+        pc.ontrack = null;
+        pc.onicecandidate = null;
+        pc.close();
+        peerConnectionRef.current = null;
+      }
+  
+      if (localStreamRef.current) {
+        localStreamRef.current.getTracks().forEach(track => track.stop());
+        localStreamRef.current = null;
+      }
+  
+      // Cancel onDisconnect and remove our signaling data
+      onDisconnect(mySignalingRef).cancel();
+      remove(mySignalingRef).catch(e => console.error("Error removing signaling ref on cleanup:", e));
+    };
+  }, [id, currentUser, opponentId, isCaller, rtdb]);
 
   useEffect(() => {
     endOfMessagesRef.current?.scrollIntoView({ behavior: 'smooth' });
