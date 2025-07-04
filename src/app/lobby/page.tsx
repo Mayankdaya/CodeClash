@@ -7,13 +7,17 @@ import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle }
 import { Header } from "@/components/Header";
 import { 
   ArrowRight, Coins, List, Search, GitMerge, Link as LinkIcon, ToyBrick, MoveHorizontal, 
-  Type, Repeat, Binary, Container, Pocket, GitBranchPlus, Workflow, SpellCheck, Users
+  Type, Repeat, Binary, Container, Pocket, GitBranchPlus, Workflow, SpellCheck, Users,
+  Zap, Trophy, Clock, Sparkles
 } from "lucide-react";
 import Link from "next/link";
 import { rtdb } from "@/lib/firebase";
 import { ref, onValue } from "firebase/database";
 import { useToast } from "@/hooks/use-toast";
 import AuthGuard from "@/components/AuthGuard";
+import { motion } from "framer-motion";
+import { cn } from "@/lib/utils";
+import { AuroraBackground } from "@/components/ui/aurora-background";
 
 const topics = [
   { id: "arrays", icon: List, title: "Arrays", description: "Master problems involving data structures and algorithms for arrays." },
@@ -72,43 +76,89 @@ function LobbyContent() {
   }, [toast]);
 
   return (
-    <div className="flex flex-col min-h-dvh bg-transparent text-foreground font-body">
+    <div className="flex flex-col min-h-dvh bg-transparent text-foreground font-body relative">
+      <AuroraBackground className="fixed inset-0 opacity-20" />
       <Header />
-      <main className="flex-1 py-12 md:py-20">
+      <main className="flex-1 py-12 md:py-24 relative z-10">
         <div className="container max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="text-center mb-12">
-            <h1 className="text-4xl font-extrabold tracking-tight sm:text-5xl">Choose Your Challenge</h1>
-            <p className="mt-4 text-lg text-muted-foreground">Select a topic to find an opponent.</p>
-          </div>
+          <motion.div 
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.5 }}
+            className="text-center mb-16"
+          >
+            <div className="inline-block mb-4">
+              <div className="flex items-center justify-center gap-2 px-4 py-2 bg-accent/10 backdrop-blur-sm rounded-full border border-accent/20 text-accent-foreground">
+                <Sparkles className="h-4 w-4" />
+                <span className="text-sm font-medium">Select your coding challenge</span>
+              </div>
+            </div>
+            <h1 className="text-5xl md:text-6xl font-extrabold tracking-tight bg-clip-text text-transparent bg-gradient-to-r from-primary via-white to-accent">
+              Master Your Skills
+            </h1>
+            <p className="mt-6 text-xl text-muted-foreground max-w-2xl mx-auto">
+              Choose a topic below to find an opponent and test your coding prowess in real-time competitive challenges.
+            </p>
+          </motion.div>
 
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
-            {topics.map((topic) => {
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
+            {topics.map((topic, index) => {
               const waitingCount = waitingCounts[topic.id] || 0;
               return (
-                <Card key={topic.title} className="bg-card/50 backdrop-blur-lg border border-white/10 rounded-2xl shadow-lg flex flex-col">
-                  <CardHeader className="flex-row items-center gap-4 space-y-0 pb-4">
-                    <div className="p-3 bg-primary/10 rounded-full ring-1 ring-inset ring-primary/20">
-                      <topic.icon className="h-6 w-6 text-primary" />
-                    </div>
-                    <CardTitle className="text-xl">{topic.title}</CardTitle>
-                  </CardHeader>
-                  <CardContent className="flex-grow">
-                    <CardDescription>{topic.description}</CardDescription>
-                  </CardContent>
-                  <CardFooter className="flex-col items-stretch">
-                      {waitingCount > 0 && (
-                      <div className="text-xs text-center text-accent-foreground/80 flex items-center justify-center gap-2 p-1 bg-accent/20 rounded-md mb-2">
-                        <Users className="h-3 w-3" />
-                        {waitingCount} {waitingCount === 1 ? 'player' : 'players'} waiting
+                <motion.div
+                  key={topic.title}
+                  initial={{ opacity: 0, y: 20 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  transition={{ duration: 0.5, delay: index * 0.05 }}
+                >
+                  <Card className="h-full bg-card/40 backdrop-blur-xl border border-white/10 rounded-2xl shadow-xl hover:shadow-primary/5 hover:border-primary/20 transition-all duration-300 flex flex-col overflow-hidden group">
+                    <div className="absolute inset-0 bg-gradient-to-br from-primary/5 via-transparent to-accent/5 opacity-0 group-hover:opacity-100 transition-opacity duration-500 pointer-events-none"></div>
+                    <CardHeader className="pb-4">
+                      <div className="flex items-center gap-4">
+                        <div className="p-3 bg-gradient-to-br from-primary/20 to-accent/20 rounded-xl ring-1 ring-inset ring-white/10 shadow-inner">
+                          <topic.icon className="h-6 w-6 text-primary" />
+                        </div>
+                        <CardTitle className="text-xl font-bold">{topic.title}</CardTitle>
                       </div>
-                    )}
-                    <Button className="w-full bg-primary/90 text-primary-foreground hover:bg-primary" asChild>
-                      <Link href={`/matching?topic=${topic.id}`}>
-                        Find Opponent <ArrowRight className="ml-2 h-4 w-4" />
-                      </Link>
-                    </Button>
-                  </CardFooter>
-                </Card>
+                    </CardHeader>
+                    <CardContent className="flex-grow">
+                      <CardDescription className="text-white/70 text-sm">{topic.description}</CardDescription>
+                    </CardContent>
+                    <CardFooter className="flex-col items-stretch pt-4 pb-5 border-t border-white/5">
+                      <div className="flex justify-between items-center mb-4">
+                        <div className="flex items-center gap-2 text-xs text-muted-foreground">
+                          <Clock className="h-3.5 w-3.5" />
+                          <span>~20 min</span>
+                        </div>
+                        <div className="flex items-center gap-2 text-xs text-muted-foreground">
+                          <Trophy className="h-3.5 w-3.5" />
+                          <span>+25 XP</span>
+                        </div>
+                        {waitingCount > 0 && (
+                          <div className="flex items-center gap-2 text-xs text-accent">
+                            <Users className="h-3.5 w-3.5" />
+                            <span>{waitingCount} waiting</span>
+                          </div>
+                        )}
+                      </div>
+                      <Button 
+                        className={cn(
+                          "w-full group relative overflow-hidden",
+                          waitingCount > 0 
+                            ? "bg-gradient-to-r from-primary to-accent text-primary-foreground hover:opacity-90 transition-opacity shadow-lg shadow-primary/20" 
+                            : "bg-card/80 text-primary hover:bg-white/10 border border-white/10"
+                        )} 
+                        asChild
+                      >
+                        <Link href={`/matching?topic=${topic.id}`} className="flex items-center justify-center gap-2">
+                          {waitingCount > 0 && <Zap className="h-4 w-4 animate-pulse" />}
+                          {waitingCount > 0 ? 'Join Now' : 'Find Opponent'}
+                          <ArrowRight className="h-4 w-4 transition-transform group-hover:translate-x-1" />
+                        </Link>
+                      </Button>
+                    </CardFooter>
+                  </Card>
+                </motion.div>
               );
             })}
           </div>

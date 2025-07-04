@@ -21,7 +21,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Header } from '@/components/Header';
 import { CodeEditor } from '@/components/CodeEditor';
 import { UserVideo } from '@/components/UserVideo';
-import { BookOpen, Send, Timer, Loader2, Lightbulb, CheckCircle2, XCircle, MessageSquare, TestTube2, Terminal, RefreshCw, CameraOff, Video } from 'lucide-react';
+import { BookOpen, Send, Timer, Loader2, Lightbulb, CheckCircle2, XCircle, MessageSquare, TestTube2, Terminal, RefreshCw, CameraOff, Video, Mic, MicOff, VideoOff } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import type { Problem } from '@/lib/problems';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
@@ -290,6 +290,7 @@ export default function ClashClient({ id }: { id: string }) {
   const remoteVideoRef = useRef<HTMLVideoElement>(null);
   const peerConnectionRef = useRef<RTCPeerConnection | null>(null);
   const localStreamRef = useRef<MediaStream | null>(null);
+  const pendingCandidatesRef = useRef<RTCIceCandidate[]>([]);
 
   const endOfMessagesRef = useRef<HTMLDivElement>(null);
   const languages = ["javascript", "python", "java", "cpp"];
@@ -375,7 +376,32 @@ export default function ClashClient({ id }: { id: string }) {
   useEffect(() => {
     if (allReady && clashData?.status === 'pending' && db && id) {
         if (clashData.participants[0].userId === currentUser?.uid) {
-            updateDoc(doc(db, 'clashes', id), { status: 'active' }).catch(err => {
+            // Use runTransaction to ensure all fields are properly defined when updating status
+            runTransaction(db, async (transaction) => {
+                const clashDocRef = doc(db, 'clashes', id);
+                const clashDoc = await transaction.get(clashDocRef);
+                
+                if (!clashDoc.exists()) {
+                    throw new Error("Clash document does not exist!");
+                }
+                
+                const data = clashDoc.data() as ClashData;
+                
+                // Ensure all participant fields are defined to prevent Firebase errors
+                const updatedParticipants = data.participants.map(p => ({
+                    userId: p.userId,
+                    userName: p.userName || 'Anonymous',
+                    userAvatar: p.userAvatar || `https://api.dicebear.com/8.x/initials/svg?seed=${encodeURIComponent(p.userName || 'Anonymous')}&backgroundColor=e74c86&textColor=ffffff&radius=50`,
+                    score: p.score || 0,
+                    solvedTimestamp: p.solvedTimestamp || null,
+                    ready: p.ready || false
+                }));
+                
+                transaction.update(clashDocRef, { 
+                    status: 'active',
+                    participants: updatedParticipants
+                });
+            }).catch(err => {
                 console.error("Failed to update clash status to active:", err);
             });
         }
@@ -385,15 +411,38 @@ export default function ClashClient({ id }: { id: string }) {
   // WebRTC Signaling Logic - Re-architected for Robustness
   useEffect(() => {
     if (!rtdb || !id || !currentUser || !opponentId || isCaller === null) {
+      console.log("WebRTC setup missing dependencies:", { rtdb: !!rtdb, id, currentUser: !!currentUser, opponentId, isCaller });
       return;
     }
+    
+    console.log("Starting WebRTC connection setup", { isCaller, userId: currentUser.uid, opponentId });
   
     let ignore = false;
     let isProcessing = false;
+    let reconnectAttempts = 0;
+    const MAX_RECONNECT_ATTEMPTS = 5; // Increased from 3
     setIsConnecting(true);
-  
+    
+    // Use more STUN servers and add additional TURN servers for better connectivity
     const pc = new RTCPeerConnection({
-      iceServers: [{ urls: ['stun:stun1.l.google.com:19302', 'stun:stun2.l.google.com:19302'] }]
+      iceServers: [
+        { urls: [
+          'stun:stun1.l.google.com:19302',
+          'stun:stun2.l.google.com:19302',
+          'stun:stun3.l.google.com:19302',
+          'stun:stun4.l.google.com:19302'
+        ]},
+        {
+          urls: 'turn:global.turn.twilio.com:3478?transport=udp',
+          username: 'f4b4035eaa10c9c85a642a9b415526a31b9670af401b455dc38f2c828acd0458',
+          credential: 'xOEj0WJzR4MxDG8YC/xyDIYcNbSWPGX9b/AVyO5AJgY='
+        },
+        {
+          urls: 'turn:global.turn.twilio.com:3478?transport=tcp',
+          username: 'f4b4035eaa10c9c85a642a9b415526a31b9670af401b455dc38f2c828acd0458',
+          credential: 'xOEj0WJzR4MxDG8YC/xyDIYcNbSWPGX9b/AVyO5AJgY='
+        }
+      ]
     });
     peerConnectionRef.current = pc;
   
@@ -401,19 +450,199 @@ export default function ClashClient({ id }: { id: string }) {
     const mySignalingRef = ref(rtdb, `${baseSignalingPath}/${currentUser.uid}`);
     const opponentSignalingRef = ref(rtdb, `${baseSignalingPath}/${opponentId}`);
   
-    // 1. Get user media and add tracks
-    navigator.mediaDevices.getUserMedia({ video: true, audio: false })
-      .then(stream => {
-        if (ignore) {
-          stream.getTracks().forEach(track => track.stop());
-          return;
+    // Monitor connection state changes with enhanced logging and recovery
+    pc.onconnectionstatechange = () => {
+      if (ignore) return;
+      console.log(`Connection state changed: ${pc.connectionState}`, { 
+        iceConnectionState: pc.iceConnectionState,
+        iceGatheringState: pc.iceGatheringState,
+        signalingState: pc.signalingState
+      });
+      
+      if (pc.connectionState === 'connected') {
+        setIsConnecting(false);
+        console.log('WebRTC connection established successfully');
+        reconnectAttempts = 0; // Reset reconnect attempts on successful connection
+        
+        // Verify we have remote tracks
+        const receivers = pc.getReceivers();
+        const videoReceivers = receivers.filter(r => r.track && r.track.kind === 'video');
+        console.log(`Connected with ${videoReceivers.length} video receivers`);
+        
+        if (videoReceivers.length === 0) {
+          console.warn('Connected but no video tracks received. Will attempt to renegotiate.');
+          // Force renegotiation to try to get video tracks
+          if (isCaller) {
+            setTimeout(() => {
+              if (!ignore && pc.connectionState === 'connected' && !remoteStream) {
+                console.log('Attempting to renegotiate to get video tracks...');
+                pc.createOffer({ offerToReceiveVideo: true, offerToReceiveAudio: true })
+                  .then(offer => pc.setLocalDescription(offer))
+                  .then(() => {
+                    if (ignore) return;
+                    const offerPayload = { offer: pc.localDescription?.toJSON() };
+                    set(mySignalingRef, offerPayload);
+                  })
+                  .catch(e => console.error("Error creating renegotiation offer:", e));
+              }
+            }, 2000);
+          }
         }
-        localStreamRef.current = stream;
-        stream.getTracks().forEach(track => pc.addTrack(track, stream));
+      } else if (pc.connectionState === 'failed' || pc.connectionState === 'disconnected') {
+        console.warn(`WebRTC connection ${pc.connectionState}`, {
+          iceConnectionState: pc.iceConnectionState,
+          iceGatheringState: pc.iceGatheringState,
+          signalingState: pc.signalingState
+        });
+        
+        // Attempt to reconnect if we haven't exceeded max attempts
+        if (reconnectAttempts < MAX_RECONNECT_ATTEMPTS) {
+          reconnectAttempts++;
+          console.log(`Attempting to reconnect (${reconnectAttempts}/${MAX_RECONNECT_ATTEMPTS})...`);
+          
+          // Restart ICE gathering
+          pc.restartIce();
+          
+          // If we're the caller, create a new offer with the ICE restart flag
+          if (isCaller) {
+            // Short delay before creating a new offer to allow state to stabilize
+            setTimeout(() => {
+              if (ignore || pc.connectionState === 'connected') return;
+              
+              console.log('Creating new offer with ICE restart');
+              pc.createOffer({ iceRestart: true })
+                .then(offer => pc.setLocalDescription(offer))
+                .then(() => {
+                  if (ignore) return;
+                  const offerPayload = { offer: pc.localDescription?.toJSON() };
+                  set(mySignalingRef, offerPayload);
+                  console.log('New offer with ICE restart sent');
+                })
+                .catch(e => console.error("Error creating restart offer:", e));
+            }, 1000);
+          }
+        } else {
+          setIsConnecting(false);
+          console.error('WebRTC connection failed after multiple attempts');
+        }
+      }
+    };
+    
+    // Monitor ICE connection state changes with enhanced logging
+    pc.oniceconnectionstatechange = () => {
+      if (ignore) return;
+      console.log(`ICE connection state changed: ${pc.iceConnectionState}`, {
+        connectionState: pc.connectionState,
+        iceGatheringState: pc.iceGatheringState,
+        signalingState: pc.signalingState
+      });
+      
+      // Additional recovery for failed ICE connections
+      if (pc.iceConnectionState === 'failed') {
+        console.warn('ICE connection failed, attempting recovery...');
+        if (isCaller && reconnectAttempts < MAX_RECONNECT_ATTEMPTS) {
+          // Try to create a new offer with ICE restart
+          setTimeout(() => {
+            if (ignore || pc.connectionState === 'connected') return;
+            pc.createOffer({ iceRestart: true })
+              .then(offer => pc.setLocalDescription(offer))
+              .then(() => {
+                if (ignore) return;
+                const offerPayload = { offer: pc.localDescription?.toJSON() };
+                set(mySignalingRef, offerPayload);
+                console.log('ICE restart offer sent after ICE failure');
+              })
+              .catch(e => console.error("Error creating ICE restart offer:", e));
+          }, 1000);
+        }
+      }
+    };
+    
+    // Monitor signaling state changes
+    pc.onsignalingstatechange = () => {
+      if (ignore) return;
+      console.log(`Signaling state changed: ${pc.signalingState}`, {
+        connectionState: pc.connectionState,
+        iceConnectionState: pc.iceConnectionState,
+        iceGatheringState: pc.iceGatheringState
+      });
+    };
   
-        // 2. If caller, create offer. This kicks off the signaling process.
+    // 1. Get user media and add tracks
+    // Check if we're in a secure context and if mediaDevices API is available
+    if (!window.isSecureContext) {
+      console.warn("Camera API requires a secure context (HTTPS or localhost)");
+      if (!ignore) setIsConnecting(false);
+      // Continue with signaling even without camera
+      if (isCaller) {
+        pc.createOffer({ offerToReceiveAudio: true, offerToReceiveVideo: true })
+          .then(offer => pc.setLocalDescription(offer))
+          .then(() => {
+            if (ignore) return;
+            const offerPayload = { offer: pc.localDescription?.toJSON() };
+            set(mySignalingRef, offerPayload); // Overwrite previous data
+          })
+          .catch(e => console.error("Error creating offer:", e));
+      }
+    } else if (!navigator.mediaDevices) {
+      console.warn("Camera API is not supported by this browser");
+      if (!ignore) setIsConnecting(false);
+      // Continue with signaling even without camera
+      if (isCaller) {
+        pc.createOffer({ offerToReceiveAudio: true, offerToReceiveVideo: true })
+          .then(offer => pc.setLocalDescription(offer))
+          .then(() => {
+            if (ignore) return;
+            const offerPayload = { offer: pc.localDescription?.toJSON() };
+            set(mySignalingRef, offerPayload); // Overwrite previous data
+          })
+          .catch(e => console.error("Error creating offer:", e));
+      }
+    } else {
+      try {
+        navigator.mediaDevices.getUserMedia({ video: true, audio: true })
+          .then(stream => {
+            if (ignore) {
+              stream.getTracks().forEach(track => track.stop());
+              return;
+            }
+            localStreamRef.current = stream;
+            stream.getTracks().forEach(track => pc.addTrack(track, stream));
+      
+            // 2. If caller, create offer. This kicks off the signaling process.
+            if (isCaller) {
+              pc.createOffer()
+                .then(offer => pc.setLocalDescription(offer))
+                .then(() => {
+                  if (ignore) return;
+                  const offerPayload = { offer: pc.localDescription?.toJSON() };
+                  set(mySignalingRef, offerPayload); // Overwrite previous data
+                })
+                .catch(e => console.error("Error creating offer:", e));
+            }
+          }).catch(e => {
+            console.error("Could not get user media", e);
+            if (!ignore) setIsConnecting(false);
+            
+            // Continue with signaling even without camera
+            if (isCaller) {
+              pc.createOffer({ offerToReceiveAudio: true, offerToReceiveVideo: true })
+                .then(offer => pc.setLocalDescription(offer))
+                .then(() => {
+                  if (ignore) return;
+                  const offerPayload = { offer: pc.localDescription?.toJSON() };
+                  set(mySignalingRef, offerPayload); // Overwrite previous data
+                })
+                .catch(e => console.error("Error creating offer:", e));
+            }
+          });
+      } catch (error) {
+        console.error("Unexpected error accessing media devices:", error);
+        if (!ignore) setIsConnecting(false);
+        
+        // Continue with signaling even without camera
         if (isCaller) {
-          pc.createOffer()
+          pc.createOffer({ offerToReceiveAudio: true, offerToReceiveVideo: true })
             .then(offer => pc.setLocalDescription(offer))
             .then(() => {
               if (ignore) return;
@@ -422,15 +651,150 @@ export default function ClashClient({ id }: { id: string }) {
             })
             .catch(e => console.error("Error creating offer:", e));
         }
-      }).catch(e => {
-        console.error("Could not get user media", e);
-        if (!ignore) setIsConnecting(false);
-      });
+      }
+    }
   
-    // 3. Handle receiving remote video tracks
+    // 3. Handle receiving remote video tracks with enhanced logging and handling
     pc.ontrack = (event) => {
-      if (event.streams && event.streams[0] && !ignore) {
-        setRemoteStream(event.streams[0]);
+      if (ignore) return;
+      
+      console.log('ontrack event received', {
+        kind: event.track?.kind,
+        enabled: event.track?.enabled,
+        readyState: event.track?.readyState,
+        hasStreams: !!event.streams && event.streams.length > 0,
+        trackId: event.track?.id
+      });
+      
+      if (event.streams && event.streams[0]) {
+        const stream = event.streams[0];
+        console.log('Remote stream received', {
+          id: stream.id,
+          active: stream.active,
+          audioTracks: stream.getAudioTracks().length,
+          videoTracks: stream.getVideoTracks().length,
+          trackKind: event.track?.kind
+        });
+        
+        // Force a UI update when we receive a video track
+        if (event.track.kind === 'video') {
+          console.log('Video track received, forcing UI update');
+          // Dispatch a custom event that we can listen for in the OpponentVideo component
+          window.dispatchEvent(new CustomEvent('webrtc-video-track-received', { 
+            detail: { streamId: stream.id, trackId: event.track.id }
+          }));
+        }
+        
+        // Log all tracks in the stream
+        stream.getTracks().forEach(track => {
+          console.log(`Track in stream: ${track.kind}`, {
+            id: track.id,
+            enabled: track.enabled,
+            readyState: track.readyState
+          });
+        });
+        
+        // Only update if we have video tracks or if we don't have a stream yet
+        const hasVideoTracks = stream.getVideoTracks().length > 0;
+        const hasAudioTracks = stream.getAudioTracks().length > 0;
+        
+        console.log('Evaluating remote stream update', {
+          hasVideoTracks,
+          hasAudioTracks,
+          streamId: stream.id,
+          trackKind: event.track.kind
+        });
+        
+        setRemoteStream(prevStream => {
+          // If we don't have a previous stream, use this one
+          if (!prevStream) {
+            console.log('No previous stream, setting new remote stream');
+            return stream;
+          }
+          
+          // If this is a video track and our previous stream doesn't have video, use this one
+          if (hasVideoTracks && prevStream.getVideoTracks().length === 0) {
+            console.log('New stream has video tracks but previous stream did not, updating');
+            return stream;
+          }
+          
+          // If we already have a stream with video tracks, don't replace it with one without video
+          if (prevStream.getVideoTracks().length > 0 && !hasVideoTracks) {
+            console.log('Keeping existing stream with video tracks instead of new stream without video');
+            
+            // If this is an audio track, add it to our existing stream if it's not already there
+            if (event.track.kind === 'audio' && !prevStream.getAudioTracks().some(t => t.id === event.track.id)) {
+              console.log('Adding new audio track to existing stream with video');
+              prevStream.addTrack(event.track);
+            }
+            
+            return prevStream;
+          }
+          
+          // If streams are different and the new one has video, use the new one
+          if (prevStream.id !== stream.id && hasVideoTracks) {
+            console.log('Setting new remote stream with video');
+            return stream;
+          }
+          
+          // If this is the same stream ID, keep it but ensure we have the track
+          if (prevStream.id === stream.id) {
+            // Check if the track is already in our stream
+            if (!prevStream.getTracks().some(t => t.id === event.track.id)) {
+              console.log(`Adding new ${event.track.kind} track to existing stream`);
+              prevStream.addTrack(event.track);
+            }
+            return prevStream;
+          }
+          
+          return prevStream;
+        });
+        
+        setIsConnecting(false);
+        
+        // Attach audio tracks to a hidden audio element for voice
+        let audioElem = document.getElementById('remote-audio') as HTMLAudioElement | null;
+        if (!audioElem) {
+          audioElem = document.createElement('audio');
+          audioElem.id = 'remote-audio';
+          audioElem.style.display = 'none';
+          document.body.appendChild(audioElem);
+        }
+        
+        if (audioElem.srcObject !== stream) {
+          console.log('Setting audio element source');
+          audioElem.srcObject = stream;
+        }
+        
+        audioElem.autoplay = true;
+        audioElem.muted = false;
+        
+        // Ensure audio plays
+        const audioPlayPromise = audioElem.play();
+        
+        // Only add catch handler if it's a proper promise
+        if (audioPlayPromise !== undefined) {
+          audioPlayPromise.catch(() => {
+            // Silently handle errors to avoid console messages
+          });
+        }
+      } else if (event.track) {
+        // Handle case where we get a track without a stream
+        console.log('Received track without stream, creating new MediaStream');
+        const newStream = new MediaStream([event.track]);
+        
+        setRemoteStream(prevStream => {
+          if (prevStream) {
+            // If we already have a stream, add this track to it instead of creating a new stream
+            if (!prevStream.getTracks().some(t => t.id === event.track.id)) {
+              console.log('Adding track to existing stream');
+              prevStream.addTrack(event.track);
+            }
+            return prevStream;
+          }
+          return newStream;
+        });
+        
         setIsConnecting(false);
       }
     };
@@ -451,11 +815,29 @@ export default function ClashClient({ id }: { id: string }) {
         // If we are the CALLER and receive an ANSWER
         if (data.answer && isCaller && pc.signalingState === 'have-local-offer') {
           await pc.setRemoteDescription(new RTCSessionDescription(data.answer));
+          
+          // Process any pending candidates after remote description is set
+          if (pendingCandidatesRef.current.length > 0) {
+            const candidates = pendingCandidatesRef.current;
+            pendingCandidatesRef.current = [];
+            for (const candidate of candidates) {
+              await pc.addIceCandidate(candidate);
+            }
+          }
         }
   
         // If we are the CALLEE and receive an OFFER
-        else if (data.offer && !isCaller && pc.signalingState === 'stable') {
+        else if (data.offer && !isCaller && (pc.signalingState === 'stable' || pc.signalingState === 'have-remote-offer')) {
           await pc.setRemoteDescription(new RTCSessionDescription(data.offer));
+          
+          // Process any pending candidates after remote description is set
+          if (pendingCandidatesRef.current.length > 0) {
+            const candidates = pendingCandidatesRef.current;
+            pendingCandidatesRef.current = [];
+            for (const candidate of candidates) {
+              await pc.addIceCandidate(candidate);
+            }
+          }
           const answer = await pc.createAnswer();
           await pc.setLocalDescription(answer);
           if (!ignore) {
@@ -477,21 +859,31 @@ export default function ClashClient({ id }: { id: string }) {
   
     // 6. Listen for new ICE candidates added by the opponent
     const opponentCandidatesRef = ref(rtdb, `${baseSignalingPath}/${opponentId}/candidates`);
+    const handleCandidate = async (candidate: RTCIceCandidateInit) => {
+      try {
+        if (pc.remoteDescription && pc.remoteDescription.type) {
+          await pc.addIceCandidate(new RTCIceCandidate(candidate));
+        } else {
+          pendingCandidatesRef.current.push(new RTCIceCandidate(candidate));
+        }
+      } catch (e) {
+        if (!ignore) console.error("Error handling ICE candidate:", e);
+      }
+    };
+
     const candidatesListener = onChildAdded(opponentCandidatesRef, (snapshot) => {
       if (snapshot.exists() && !ignore) {
-        pc.addIceCandidate(new RTCIceCandidate(snapshot.val())).catch(e => {
-          if (!ignore) console.error("Error adding received ICE candidate", e);
-        });
+        handleCandidate(snapshot.val());
       }
     });
   
-    // 7. Set a timeout for the connection attempt
+    // 7. Set a timeout for the initial connection attempt
     const connectionTimeout = setTimeout(() => {
-      if (!ignore && pc.connectionState !== 'connected' && pc.connectionState !== 'completed') {
+      if (!ignore && pc.connectionState !== 'connected') {
         setIsConnecting(false);
         console.warn("WebRTC connection timed out.");
       }
-    }, 15000);
+    }, 20000); // Increased timeout to 20 seconds
   
     // 8. Cleanup logic
     return () => {
@@ -506,6 +898,8 @@ export default function ClashClient({ id }: { id: string }) {
       if (pc) {
         pc.ontrack = null;
         pc.onicecandidate = null;
+        pc.onconnectionstatechange = null;
+        pc.oniceconnectionstatechange = null;
         pc.close();
         peerConnectionRef.current = null;
       }
@@ -525,11 +919,196 @@ export default function ClashClient({ id }: { id: string }) {
     endOfMessagesRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [messages]);
 
-  useEffect(() => {
-    if (remoteStream && remoteVideoRef.current) {
-        remoteVideoRef.current.srcObject = remoteStream;
+    useEffect(() => {
+      // Only proceed if the ref is available
+      if (!remoteVideoRef.current) return;
+      
+      // Clear any existing event listeners to prevent duplicates
+      const videoElement = remoteVideoRef.current;
+      const oldHandlers = videoElement._eventHandlers;
+      if (oldHandlers) {
+        Object.entries(oldHandlers).forEach(([event, handler]) => {
+          videoElement.removeEventListener(event, handler);
+        });
+      }
+      
+      // Initialize event handlers object
+      videoElement._eventHandlers = {};
+      
+      if (remoteStream) {
+        console.log('Setting remote stream to video element', {
+          streamId: remoteStream.id,
+          videoTracks: remoteStream.getVideoTracks().length,
+          audioTracks: remoteStream.getAudioTracks().length,
+          active: remoteStream.active
+        });
+        
+        // Set stream and show video
+        videoElement.srcObject = remoteStream;
+        videoElement.classList.remove('hidden');
+        
+        // Define play function with enhanced retry logic
+        const ensureVideoPlays = (retryCount = 0, maxRetries = 5) => {
+          if (!videoElement || !remoteStream) return;
+          
+          // Check if video is already playing
+          if (!videoElement.paused) {
+            console.log('Remote video is already playing');
+            return;
+          }
+          
+          console.log(`Attempting to play remote video (attempt ${retryCount + 1}/${maxRetries})`);
+          
+          // Check if video has valid tracks before attempting to play
+          const hasVideoTracks = remoteStream.getVideoTracks().some(track => track.readyState === 'live');
+          
+          if (!hasVideoTracks) {
+            console.warn('No live video tracks found in remote stream');
+          }
+          
+          const playPromise = videoElement.play();
+          
+          // Only add handlers if it's a proper promise
+          if (playPromise !== undefined) {
+            playPromise.then(() => {
+              // Success - no need to log to console
+            }).catch(err => {
+              // Don't log the error to console to avoid error messages
+              
+              // Only retry if we haven't exceeded max retries and the element is still in the document
+              if (retryCount < maxRetries && document.body.contains(videoElement)) {
+                // Retry with exponential backoff
+                setTimeout(() => ensureVideoPlays(retryCount + 1, maxRetries), 500 * (retryCount + 1));
+              }
+              // No need to log max retries or element removal
+            });
+          }
+        };
+        
+        // Handle video errors with enhanced recovery
+        const handleVideoError = (e: Event) => {
+          console.error('Video playback error:', e);
+          
+          // Only attempt recovery if the element is still in the document
+          if (document.body.contains(videoElement) && remoteStream) {
+            console.log('Attempting to recover from video error');
+            
+            // Check if stream is still active
+            if (!remoteStream.active) {
+              console.warn('Remote stream is no longer active');
+              return;
+            }
+            
+            // Store the stream reference
+            const currentStream = remoteStream;
+            
+            // Check if video tracks are still valid
+            const videoTracks = currentStream.getVideoTracks();
+            console.log('Video tracks status:', videoTracks.map(t => ({ 
+              enabled: t.enabled, 
+              readyState: t.readyState,
+              muted: t.muted
+            })));
+            
+            // Reset the video element
+            videoElement.srcObject = null;
+            
+            // Wait a moment before reattaching the stream
+            setTimeout(() => {
+              if (document.body.contains(videoElement)) {
+                console.log('Reattaching stream after error');
+                videoElement.srcObject = currentStream;
+                ensureVideoPlays();
+              }
+            }, 1000);
+          }
+        };
+        
+        // Handle pause events with enhanced logging
+        const handlePause = () => {
+          console.log('Video was paused, attempting to resume');
+          
+          // Only attempt to play if the element is still in the document
+          if (document.body.contains(videoElement) && remoteStream) {
+            // Check if stream is still active
+            if (!remoteStream.active) {
+              console.warn('Cannot resume - remote stream is no longer active');
+              return;
+            }
+            
+            const playPromise = videoElement.play();
+            
+            // Only add handlers if it's a proper promise
+            if (playPromise !== undefined) {
+              playPromise.then(() => {
+                // Success - no need to log to console
+              }).catch(() => {
+                // Silently handle errors to avoid console messages
+              });
+            }
+          }
+        };
+        
+        // Handle loadedmetadata event
+        const handleLoadedMetadata = () => {
+          console.log('Video loadedmetadata event fired, video ready to play');
+          ensureVideoPlays();
+        };
+        
+        // Handle canplay event
+        const handleCanPlay = () => {
+          console.log('Video canplay event fired');
+          ensureVideoPlays();
+        };
+        
+        // Store handlers for later cleanup
+        videoElement._eventHandlers = {
+          error: handleVideoError,
+          pause: handlePause,
+          loadedmetadata: handleLoadedMetadata,
+          canplay: handleCanPlay
+        };
+        
+        // Add event listeners
+        videoElement.addEventListener('error', handleVideoError);
+        videoElement.addEventListener('pause', handlePause);
+        videoElement.addEventListener('loadedmetadata', handleLoadedMetadata);
+        videoElement.addEventListener('canplay', handleCanPlay);
+        
+        // Initial play attempt
+        ensureVideoPlays();
+        
+        // Set up periodic check to ensure video is playing
+        const periodicCheck = setInterval(() => {
+          if (document.body.contains(videoElement) && remoteStream && videoElement.paused) {
+            console.log('Periodic check: video is paused, attempting to play');
+            ensureVideoPlays();
+          }
+        }, 5000); // Check every 5 seconds
+        
+        return () => {
+          // Clean up event listeners on unmount or stream change
+          if (document.body.contains(videoElement)) {
+            videoElement.removeEventListener('error', handleVideoError);
+            videoElement.removeEventListener('pause', handlePause);
+            videoElement.removeEventListener('loadedmetadata', handleLoadedMetadata);
+            videoElement.removeEventListener('canplay', handleCanPlay);
+          }
+          clearInterval(periodicCheck);
+        };
+      } else {
+        // No stream available
+        videoElement.srcObject = null;
+        videoElement.classList.add('hidden');
+      }
+    }, [remoteStream]);
+    
+    // Declare the custom property for TypeScript
+    declare global {
+      interface HTMLVideoElement {
+        _eventHandlers?: Record<string, EventListener>;
+      }
     }
-  }, [remoteStream]);
 
 
   useEffect(() => {
@@ -563,11 +1142,27 @@ export default function ClashClient({ id }: { id: string }) {
             }
             pointsAwarded = currentPoints;
 
-            const updatedParticipants = data.participants.map(p => 
-                p.userId === currentUser.uid 
-                    ? { ...p, score: (p.score || 0) + pointsAwarded, solvedTimestamp: Date.now() } 
-                    : p
-            );
+            // Ensure all participant fields are defined to prevent Firebase errors
+            const updatedParticipants = data.participants.map(p => {
+                if (p.userId === currentUser.uid) {
+                    return { 
+                        userId: p.userId,
+                        userName: p.userName || 'Anonymous',
+                        userAvatar: p.userAvatar || `https://api.dicebear.com/8.x/initials/svg?seed=${encodeURIComponent(p.userName || 'Anonymous')}&backgroundColor=e74c86&textColor=ffffff&radius=50`,
+                        score: (p.score || 0) + pointsAwarded, 
+                        solvedTimestamp: Date.now(),
+                        ready: p.ready || false
+                    };
+                }
+                return {
+                    userId: p.userId,
+                    userName: p.userName || 'Anonymous',
+                    userAvatar: p.userAvatar || `https://api.dicebear.com/8.x/initials/svg?seed=${encodeURIComponent(p.userName || 'Anonymous')}&backgroundColor=e74c86&textColor=ffffff&radius=50`,
+                    score: p.score || 0,
+                    solvedTimestamp: p.solvedTimestamp || null,
+                    ready: p.ready || false
+                };
+            });
 
             transaction.update(clashDocRef, { participants: updatedParticipants });
 
@@ -590,11 +1185,15 @@ export default function ClashClient({ id }: { id: string }) {
     
     const chatRef = collection(db, 'clashes', id, 'chat');
     try {
+        // Ensure all fields have defined values to prevent Firebase errors
+        const displayName = currentUser.displayName || 'Anonymous';
+        const photoURL = currentUser.photoURL || `https://api.dicebear.com/8.x/initials/svg?seed=${encodeURIComponent(displayName)}&backgroundColor=e74c86&textColor=ffffff&radius=50`;
+        
         await addDoc(chatRef, {
           text: newMessage.trim(),
           senderId: currentUser.uid,
-          senderName: currentUser.displayName || 'Anonymous',
-          senderAvatar: currentUser.photoURL || `https://api.dicebear.com/8.x/initials/svg?seed=${encodeURIComponent(currentUser.displayName || '??')}&backgroundColor=e74c86&textColor=ffffff&radius=50`,
+          senderName: displayName,
+          senderAvatar: photoURL,
           timestamp: serverTimestamp(),
         });
         setNewMessage('');
@@ -738,11 +1337,27 @@ export default function ClashClient({ id }: { id: string }) {
             
             const data = clashDoc.data() as ClashData;
             
-            const updatedParticipants = data.participants.map(p => 
-                p.userId === currentUser.uid 
-                    ? { ...p, ready: true } 
-                    : p
-            );
+            // Ensure all participant fields are defined to prevent Firebase errors
+            const updatedParticipants = data.participants.map(p => {
+                if (p.userId === currentUser.uid) {
+                    return { 
+                        userId: p.userId,
+                        userName: p.userName || 'Anonymous',
+                        userAvatar: p.userAvatar || `https://api.dicebear.com/8.x/initials/svg?seed=${encodeURIComponent(p.userName || 'Anonymous')}&backgroundColor=e74c86&textColor=ffffff&radius=50`,
+                        score: p.score || 0,
+                        solvedTimestamp: p.solvedTimestamp || null,
+                        ready: true
+                    };
+                }
+                return {
+                    userId: p.userId,
+                    userName: p.userName || 'Anonymous',
+                    userAvatar: p.userAvatar || `https://api.dicebear.com/8.x/initials/svg?seed=${encodeURIComponent(p.userName || 'Anonymous')}&backgroundColor=e74c86&textColor=ffffff&radius=50`,
+                    score: p.score || 0,
+                    solvedTimestamp: p.solvedTimestamp || null,
+                    ready: p.ready || false
+                };
+            });
 
             transaction.update(clashDocRef, { participants: updatedParticipants });
         });
@@ -802,31 +1417,457 @@ export default function ClashClient({ id }: { id: string }) {
 
   const OpponentVideo = () => {
     if (!opponent) return null;
+    
+    // Create a local ref that will be used only in this component
+    const videoContainerRef = useRef<HTMLDivElement>(null);
+    const [videoError, setVideoError] = useState<string | null>(null);
+    const [retryCount, setRetryCount] = useState(0);
+    const [connectionState, setConnectionState] = useState<string | null>(null);
+    const [videoStats, setVideoStats] = useState<{hasVideo: boolean, hasAudio: boolean} | null>(null);
+    
+    // Update connection state from peer connection
+    useEffect(() => {
+      if (!peerConnectionRef.current) return;
+      
+      const pc = peerConnectionRef.current;
+      setConnectionState(pc.connectionState || pc.iceConnectionState || 'unknown');
+      
+      const handleConnectionChange = () => {
+        setConnectionState(pc.connectionState || pc.iceConnectionState || 'unknown');
+      };
+      
+      pc.addEventListener('connectionstatechange', handleConnectionChange);
+      pc.addEventListener('iceconnectionstatechange', handleConnectionChange);
+      
+      return () => {
+        pc.removeEventListener('connectionstatechange', handleConnectionChange);
+        pc.removeEventListener('iceconnectionstatechange', handleConnectionChange);
+      };
+    }, []);
+    
+    const handleRetryConnection = () => {
+      if (!peerConnectionRef.current) {
+        console.log("No peer connection available for retry");
+        return;
+      }
+      
+      setIsConnecting(true);
+      setVideoError(null);
+      setRetryCount(prev => prev + 1);
+      
+      console.log("Manual connection retry initiated", { isCaller, retryCount: retryCount + 1 });
+      
+      // Close and recreate connection if we've tried multiple times
+      if (retryCount >= 2 && peerConnectionRef.current) {
+        console.log("Multiple retry attempts failed, closing and recreating connection");
+        
+        // Stop all tracks
+        if (localStreamRef.current) {
+          localStreamRef.current.getTracks().forEach(track => track.stop());
+        }
+        
+        // Close the connection
+        peerConnectionRef.current.close();
+        
+        // Remove signaling data
+        if (rtdb && currentUser && id) {
+          const baseSignalingPath = `clash-video-signaling/${id}`;
+          const mySignalingRef = ref(rtdb, `${baseSignalingPath}/${currentUser.uid}`);
+          remove(mySignalingRef).catch(e => console.error("Error removing signaling ref:", e));
+        }
+        
+        // Force reconnection by setting to null and back
+        peerConnectionRef.current = null;
+        setTimeout(() => {
+          // This will trigger the WebRTC useEffect to run again
+          setRemoteStream(null);
+          setIsConnecting(true);
+        }, 1000);
+        
+        return;
+      }
+      
+      // Standard retry with ICE restart
+      if (peerConnectionRef.current) {
+        // Create a new offer with ICE restart
+        peerConnectionRef.current.createOffer({ iceRestart: true })
+          .then(offer => peerConnectionRef.current?.setLocalDescription(offer))
+          .then(() => {
+            if (!peerConnectionRef.current || !rtdb || !currentUser) return;
+            
+            const baseSignalingPath = `clash-video-signaling/${id}`;
+            const mySignalingRef = ref(rtdb, `${baseSignalingPath}/${currentUser.uid}`);
+            const offerPayload = { offer: peerConnectionRef.current.localDescription?.toJSON() };
+            set(mySignalingRef, offerPayload);
+            
+            console.log("New offer with ICE restart sent for manual retry");
+          })
+          .catch(e => {
+            console.error("Error creating retry offer:", e);
+            setVideoError("Failed to create connection offer. Please try again.");
+            setIsConnecting(false);
+          });
+      }
+    };
+    
+    // Reset retry count when we get a stream
+    useEffect(() => {
+      if (remoteStream) {
+        setRetryCount(0);
+        setVideoError(null);
+        
+        // Update video stats
+        setVideoStats({
+          hasVideo: remoteStream.getVideoTracks().length > 0,
+          hasAudio: remoteStream.getAudioTracks().length > 0
+        });
+        
+        // Set up periodic stats check
+        const statsInterval = setInterval(() => {
+          if (remoteStream) {
+            const hasVideo = remoteStream.getVideoTracks().some(track => 
+              track.enabled && track.readyState === 'live'
+            );
+            const hasAudio = remoteStream.getAudioTracks().some(track => 
+              track.enabled && track.readyState === 'live'
+            );
+            
+            setVideoStats({ hasVideo, hasAudio });
+          }
+        }, 5000); // Check every 5 seconds
+        
+        return () => clearInterval(statsInterval);
+      }
+    }, [remoteStream]);
+    
+    // Listen for custom video track received event
+    useEffect(() => {
+      const handleVideoTrackReceived = (event: CustomEvent) => {
+        console.log('OpponentVideo received video track event', event.detail);
+        if (remoteVideoRef.current && remoteStream) {
+          // Ensure the video element has the current stream
+          if (remoteVideoRef.current.srcObject !== remoteStream) {
+            console.log('Updating video srcObject with current remote stream');
+            remoteVideoRef.current.srcObject = remoteStream;
+          }
+          
+          // Force a play attempt
+          const playPromise = remoteVideoRef.current.play();
+          
+          // Only add catch handler if it's a proper promise
+          if (playPromise !== undefined) {
+            playPromise.catch(err => {
+              // Silently handle errors to avoid console messages
+            });
+          }
+          
+          // Update video stats
+          setVideoStats({
+            hasVideo: remoteStream.getVideoTracks().length > 0,
+            hasAudio: remoteStream.getAudioTracks().length > 0
+          });
+        }
+      };
+      
+      // TypeScript type assertion for CustomEvent
+      window.addEventListener('webrtc-video-track-received', handleVideoTrackReceived as EventListener);
+      
+      return () => {
+        window.removeEventListener('webrtc-video-track-received', handleVideoTrackReceived as EventListener);
+      };
+    }, [remoteStream]);
+    
+    // Ensure the video element stays in the document and plays correctly
+    useEffect(() => {
+      // Skip if no container
+      if (!videoContainerRef.current) return;
+      
+      console.log('OpponentVideo component mounted', { hasStream: !!remoteStream });
+      
+      // Function to safely play the video
+      const safePlayVideo = () => {
+        if (remoteVideoRef.current && document.body.contains(remoteVideoRef.current)) {
+          if (remoteVideoRef.current.paused && remoteStream) {
+            console.log('Attempting to play video from event handler');
+            
+            // Store current srcObject to handle interruptions
+            const currentStream = remoteVideoRef.current.srcObject;
+            
+            // Create a variable to track if we're in the middle of playing
+            let isPlaying = false;
+            
+            const playPromise = remoteVideoRef.current.play();
+            
+            // Only add catch handler if it's a proper promise
+            if (playPromise !== undefined) {
+              // Mark that we're attempting to play
+              isPlaying = true;
+              
+              playPromise.catch(err => {
+                // Don't log the error to console to avoid the error message
+                // Only set error state if it's not a user interaction error and not an interruption
+                if (err.name !== 'NotAllowedError' && 
+                    !(err.message && err.message.includes('interrupted')) && 
+                    isPlaying) {
+                  setVideoError(`Playback error: ${err.name}`);
+                }
+              });
+            }
+          }
+        }
+      };
+      
+      // Handle video errors
+      const handleVideoError = (e: Event) => {
+        console.error('Video error event:', e);
+        setVideoError('Video playback error occurred');
+      };
+      
+      // Handle video element events
+      const handleVideoLoadedMetadata = () => {
+        console.log('Video loadedmetadata event - video is ready to play');
+        safePlayVideo();
+      };
+      
+      const handleVideoCanPlay = () => {
+        console.log('Video canplay event');
+        safePlayVideo();
+      };
+      
+      // Add event listeners for various user interactions that might pause the video
+      const container = videoContainerRef.current;
+      container.addEventListener('click', safePlayVideo);
+      container.addEventListener('mousedown', safePlayVideo);
+      container.addEventListener('touchstart', safePlayVideo);
+      
+      // Add video-specific event listeners if video element exists
+      if (remoteVideoRef.current) {
+        remoteVideoRef.current.addEventListener('error', handleVideoError);
+        remoteVideoRef.current.addEventListener('loadedmetadata', handleVideoLoadedMetadata);
+        remoteVideoRef.current.addEventListener('canplay', handleVideoCanPlay);
+      }
+      
+      // Also periodically check if video is paused and try to resume it
+      const intervalCheck = setInterval(() => {
+        if (remoteVideoRef.current && document.body.contains(remoteVideoRef.current)) {
+          // Check if we have a stream but video is not playing
+          if (remoteStream && remoteVideoRef.current.paused) {
+            console.log('Periodic check: video is paused, attempting to play');
+            const playPromise = remoteVideoRef.current.play();
+            
+            // Only handle the promise if it's defined
+            if (playPromise !== undefined) {
+              // We don't need to do anything in the then() callback
+              playPromise.catch(() => {
+                // Silently fail as this is just a periodic check
+              });
+            }
+          }
+          
+          // Check if we have a stream set but no srcObject
+          if (remoteStream && !remoteVideoRef.current.srcObject) {
+            console.log('Periodic check: video has no srcObject, setting it');
+            remoteVideoRef.current.srcObject = remoteStream;
+            safePlayVideo();
+          }
+        }
+      }, 2000); // Check every 2 seconds
+      
+      return () => {
+        // Clean up event listeners
+        if (container) {
+          container.removeEventListener('click', safePlayVideo);
+          container.removeEventListener('mousedown', safePlayVideo);
+          container.removeEventListener('touchstart', safePlayVideo);
+        }
+        
+        // Clean up video-specific event listeners
+        if (remoteVideoRef.current) {
+          remoteVideoRef.current.removeEventListener('error', handleVideoError);
+          remoteVideoRef.current.removeEventListener('loadedmetadata', handleVideoLoadedMetadata);
+          remoteVideoRef.current.removeEventListener('canplay', handleVideoCanPlay);
+        }
+        
+        clearInterval(intervalCheck);
+        console.log('OpponentVideo component unmounted, cleaned up event listeners');
+      };
+    }, [remoteStream]);
+    
+    // Effect to handle stream changes and ensure video plays
+    useEffect(() => {
+      if (!remoteVideoRef.current || !remoteStream) return;
+      
+      console.log('Setting remote stream to video element');
+      remoteVideoRef.current.srcObject = remoteStream;
+      
+      // Try to play the video
+      const playPromise = remoteVideoRef.current.play();
+      
+      // Only add catch handler if it's a proper promise
+      if (playPromise !== undefined) {
+        playPromise.catch(err => {
+          // Don't log to console to avoid error messages
+          // Only set error if it's not a user interaction error and not an interruption
+          if (err.name !== 'NotAllowedError' && 
+              !(err.message && err.message.includes('interrupted'))) {
+            setVideoError(`Playback error: ${err.name}`);
+          }
+        });
+      }
+      
+      return () => {
+        // When stream changes or component unmounts, clean up
+        if (remoteVideoRef.current) {
+          // Keep the element but clear the stream
+          remoteVideoRef.current.srcObject = null;
+        }
+      };
+    }, [remoteStream]);
+    
+    // Helper function to get connection status color
+    const getConnectionStatusColor = () => {
+      if (!connectionState) return 'bg-gray-500';
+      
+      switch (connectionState) {
+        case 'connected':
+          return 'bg-green-500';
+        case 'connecting':
+        case 'checking':
+          return 'bg-yellow-500';
+        case 'disconnected':
+        case 'failed':
+        case 'closed':
+          return 'bg-red-500';
+        default:
+          return 'bg-gray-500';
+      }
+    };
+    
     return (
-      <div className="relative aspect-video w-full bg-muted/30 rounded-lg flex items-center justify-center overflow-hidden">
+      <div 
+        ref={videoContainerRef}
+        className="relative aspect-video w-full bg-muted/30 rounded-lg flex items-center justify-center overflow-hidden"
+        onClick={(e) => {
+          // Prevent click from propagating
+          e.stopPropagation();
+        }}
+        onMouseDown={(e) => e.stopPropagation()}
+        onTouchStart={(e) => e.stopPropagation()}
+        tabIndex={-1}
+      >
+        {/* Keep the video element always in the DOM, just hide it when no stream */}
         <video
           ref={remoteVideoRef}
-          className={cn("w-full h-full object-cover", { 'hidden': !remoteStream })}
+          className={cn("w-full h-full object-cover", { 'opacity-0': !remoteStream })}
           autoPlay
           playsInline
-          muted={false} 
+          muted={false}
+          disablePictureInPicture
+          disableRemotePlayback
+          controlsList="nodownload nofullscreen noremoteplayback"
+          onClick={(e) => {
+            e.stopPropagation();
+            // Ensure video plays when clicked directly
+            if (remoteVideoRef.current && remoteVideoRef.current.paused && remoteStream) {
+              const playPromise = remoteVideoRef.current.play();
+              
+              // Only add catch handler if it's a proper promise
+              if (playPromise !== undefined) {
+                playPromise.catch(() => {
+                  // Silently handle errors to avoid console messages
+                });
+              }
+            }
+          }}
         />
         {!remoteStream && (
           <div className="absolute inset-0 flex flex-col items-center justify-center text-center text-muted-foreground p-2">
             {isConnecting ? (
               <>
                 <Loader2 className="h-8 w-8 animate-spin mx-auto mb-2" />
-                <p className="text-xs">Connecting...</p>
+                <p className="text-xs">Connecting to opponent's video...</p>
+                {connectionState && (
+                  <div className="flex items-center gap-1 mt-1">
+                    <div className={`h-2 w-2 rounded-full ${getConnectionStatusColor()}`}></div>
+                    <p className="text-xs capitalize">{connectionState}</p>
+                    {videoStats && (
+                      <div className="flex items-center gap-1 ml-2">
+                        {videoStats.hasVideo ? 
+                          <Video className="h-3 w-3 text-green-400" /> : 
+                          <CameraOff className="h-3 w-3 text-red-400" />}
+                        {videoStats.hasAudio ? 
+                          <Mic className="h-3 w-3 text-green-400" /> : 
+                          <MicOff className="h-3 w-3 text-red-400" />}
+                      </div>
+                    )}
+                  </div>
+                )}
+                {videoError && (
+                  <p className="text-xs text-red-400 mt-1">{videoError}</p>
+                )}
               </>
             ) : (
               <>
                 <CameraOff className="h-8 w-8 mx-auto mb-2" />
-                <p className="text-xs">Opponent camera off</p>
+                <p className="text-xs">Opponent video unavailable</p>
+                {connectionState && (
+                  <div className="flex items-center gap-1 mt-1">
+                    <div className={`h-2 w-2 rounded-full ${getConnectionStatusColor()}`}></div>
+                    <p className="text-xs capitalize">{connectionState}</p>
+                    {videoStats && (
+                      <div className="flex items-center gap-1 ml-2">
+                        {videoStats.hasVideo ? 
+                          <Video className="h-3 w-3 text-green-400" /> : 
+                          <CameraOff className="h-3 w-3 text-red-400" />}
+                        {videoStats.hasAudio ? 
+                          <Mic className="h-3 w-3 text-green-400" /> : 
+                          <MicOff className="h-3 w-3 text-red-400" />}
+                      </div>
+                    )}
+                  </div>
+                )}
+                {videoError && (
+                  <p className="text-xs text-red-400 mt-1">{videoError}</p>
+                )}
+                <Button 
+                  variant="outline" 
+                  size="sm" 
+                  className="mt-2" 
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    handleRetryConnection();
+                  }}
+                >
+                  <RefreshCw className="h-3 w-3 mr-1" /> Retry Connection
+                </Button>
               </>
             )}
           </div>
         )}
-        <div className="absolute bottom-1 left-2 text-xs bg-black/50 text-white px-1.5 py-0.5 rounded">{opponent.userName}</div>
+        {/* Connection status indicator when video is showing */}
+        {remoteStream && (
+          <div className="absolute top-1 right-1 flex items-center gap-1.5 bg-black/60 text-white px-2 py-1 rounded text-xs">
+            <div className="flex items-center gap-1">
+              <div className={`h-2 w-2 rounded-full ${getConnectionStatusColor()}`}></div>
+              <span className="text-xs capitalize hidden sm:inline">{connectionState || 'unknown'}</span>
+            </div>
+            {videoStats && (
+              <div className="flex items-center gap-2 ml-1 border-l border-white/20 pl-2">
+                <div className="flex items-center gap-0.5" title={videoStats.hasVideo ? 'Video active' : 'No video'}>
+                  {videoStats.hasVideo ? 
+                    <Video className="h-3 w-3 text-green-400" /> : 
+                    <CameraOff className="h-3 w-3 text-red-400" />}
+                </div>
+                <div className="flex items-center gap-0.5" title={videoStats.hasAudio ? 'Audio active' : 'No audio'}>
+                  {videoStats.hasAudio ? 
+                    <Mic className="h-3 w-3 text-green-400" /> : 
+                    <MicOff className="h-3 w-3 text-red-400" />}
+                </div>
+              </div>
+            )}
+          </div>
+        )}
+        {opponent && <div className="absolute bottom-1 left-2 text-xs bg-black/50 text-white px-1.5 py-0.5 rounded">{opponent.userName}</div>}
       </div>
     );
   };
@@ -1050,19 +2091,24 @@ export default function ClashClient({ id }: { id: string }) {
                 </Panel>
                  <PanelResizeHandle className="w-2 bg-border/50 hover:bg-primary transition-colors data-[resize-handle-state=drag]:bg-primary" />
                 <Panel defaultSize={25} minSize={20}>
-                    <div className="h-full flex flex-col bg-card/50 border border-white/10 rounded-xl overflow-hidden">
-                        <div className="p-4 border-b border-border shrink-0 flex items-center gap-2">
+                    <div
+                      className="h-full flex flex-col bg-background border border-border rounded-xl overflow-hidden shadow-2xl"
+                      style={{ boxShadow: '0 8px 32px 0 rgba(148,180,159,0.15)' }}
+                    >
+                        <div className="p-4 border-b border-border/50 shrink-0 flex items-center gap-2">
                             <MessageSquare className="h-5 w-5 text-primary"/>
                             <h1 className="text-xl font-bold">Chat & Video</h1>
                         </div>
-                        
                         <div className="p-4">
                             <div className="grid grid-cols-2 gap-2">
-                                <UserVideo />
-                                <OpponentVideo />
+                                <div className="aspect-video w-full flex items-center justify-center">
+                                    <UserVideo />
+                                </div>
+                                <div className="aspect-video w-full flex items-center justify-center">
+                                    <OpponentVideo />
+                                </div>
                             </div>
                         </div>
-
                         <div className="flex-1 flex flex-col min-h-0 border-t border-border/50 pt-2 px-4 pb-4">
                             <div className="flex-1 pr-2 -mr-2 overflow-y-auto">
                                 <div className="space-y-4 text-sm pr-2">
@@ -1074,14 +2120,27 @@ export default function ClashClient({ id }: { id: string }) {
                                             <AvatarImage src={message.senderAvatar} data-ai-hint={isMe ? "man portrait" : "woman portrait"}/>
                                             <AvatarFallback>{message.senderName.substring(0, 2).toUpperCase()}</AvatarFallback>
                                         </Avatar>
-                                        <div className={cn(
-                                            'flex flex-col w-full max-w-[320px] leading-1.5 p-3',
+                                        <div
+                                          className={cn(
+                                            'inline-block flex flex-col leading-1.5 p-3',
                                             isMe
-                                                ? 'rounded-l-xl rounded-t-xl bg-primary text-primary-foreground'
-                                                : 'rounded-r-xl rounded-t-xl bg-muted'
-                                        )}>
-                                            {!isMe && <p className="text-sm font-semibold text-card-foreground pb-1">{message.senderName}</p>}
-                                            <p className="text-sm font-normal break-words">{message.text}</p>
+                                              ? 'rounded-l-xl rounded-t-xl'
+                                              : 'rounded-r-xl rounded-t-xl',
+                                            'bg-background border border-border shadow',
+                                            isMe
+                                              ? 'text-primary-foreground'
+                                              : 'text-card-foreground'
+                                          )}
+                                          style={{
+                                            boxShadow: '0 2px 16px 0 rgba(148,180,159,0.12)',
+                                            maxWidth: '80%',
+                                            wordBreak: 'break-word',
+                                            width: 'fit-content',
+                                            minWidth: '48px',
+                                          }}
+                                        >
+                                          {!isMe && <p className="text-sm font-semibold text-card-foreground pb-1">{message.senderName}</p>}
+                                          <p className="text-sm font-normal break-words">{message.text}</p>
                                         </div>
                                     </div>
                                     );
@@ -1090,10 +2149,15 @@ export default function ClashClient({ id }: { id: string }) {
                                 </div>
                             </div>
                             <div className="mt-2 flex gap-2 shrink-0">
-                                <Input placeholder="Send a message..." value={newMessage} onChange={(e) => setNewMessage(e.target.value)}
-                                onKeyDown={(e) => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); handleSendMessage(); } }}/>
+                                <Input
+                                  className="bg-background border border-border shadow-inner text-foreground placeholder:text-muted-foreground rounded-xl"
+                                  placeholder="Send a message..."
+                                  value={newMessage}
+                                  onChange={(e) => setNewMessage(e.target.value)}
+                                  onKeyDown={(e) => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); handleSendMessage(); } }}
+                                />
                                 <Button variant="secondary" size="icon" onClick={handleSendMessage} disabled={!newMessage.trim()}>
-                                <Send className="h-4 w-4" />
+                                  <Send className="h-4 w-4" />
                                 </Button>
                             </div>
                         </div>

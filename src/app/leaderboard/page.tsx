@@ -1,10 +1,8 @@
 
-import { Header } from "@/components/Header";
 import { db } from "@/lib/firebase";
 import { collection, query, orderBy, limit, getDocs } from "firebase/firestore";
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
-import { Crown, Medal, Award, AlertTriangle } from "lucide-react";
+import { LeaderboardClient } from "./leaderboard-client";
+import { cn } from "@/lib/utils";
 
 interface UserScore {
   id: string;
@@ -60,66 +58,5 @@ export default async function LeaderboardPage() {
       fetchError = error.message;
   }
 
-  return (
-    <div className="flex flex-col min-h-dvh bg-transparent text-foreground font-body">
-      <Header />
-      <main className="flex-1 py-12 md:py-20">
-        <div className="container max-w-4xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="text-center mb-12">
-            <h1 className="text-4xl font-extrabold tracking-tight sm:text-5xl">Global Leaderboard</h1>
-            <p className="mt-4 text-lg text-muted-foreground">See who is dominating the coding arena.</p>
-          </div>
-          
-          <div className="bg-card/50 backdrop-blur-lg border border-white/10 rounded-2xl shadow-lg overflow-hidden">
-            <Table>
-              <TableHeader>
-                <TableRow className="hover:bg-transparent border-b-white/10">
-                  <TableHead className="w-24 text-center">Rank</TableHead>
-                  <TableHead>Player</TableHead>
-                  <TableHead className="text-right">Score</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {fetchError ? (
-                   <TableRow>
-                      <TableCell colSpan={3} className="text-center text-destructive py-10">
-                          <div className="flex flex-col items-center gap-4">
-                            <AlertTriangle className="h-8 w-8" />
-                            <p className="font-semibold">Error Loading Leaderboard</p>
-                            <p className="text-sm max-w-md">{fetchError}</p>
-                          </div>
-                      </TableCell>
-                  </TableRow>
-                ) : leaderboard.length > 0 ? leaderboard.map((user, index) => (
-                  <TableRow key={user.id} className="hover:bg-primary/5 border-b-white/5 last:border-b-0">
-                    <TableCell className="font-medium text-center">
-                      <div className="flex justify-center items-center">
-                        <RankIcon rank={index + 1} />
-                      </div>
-                    </TableCell>
-                    <TableCell>
-                      <div className="flex items-center gap-4">
-                        <Avatar className="h-10 w-10">
-                          <AvatarImage src={user.photoURL} data-ai-hint="person portrait" />
-                          <AvatarFallback>{user.displayName.substring(0, 2).toUpperCase()}</AvatarFallback>
-                        </Avatar>
-                        <span className="font-semibold">{user.displayName}</span>
-                      </div>
-                    </TableCell>
-                    <TableCell className="text-right font-mono text-lg tracking-wider">{user.totalScore}</TableCell>
-                  </TableRow>
-                )) : (
-                    <TableRow>
-                      <TableCell colSpan={3} className="text-center text-muted-foreground py-10">
-                          No players on the leaderboard yet. Start a clash to get on the board!
-                      </TableCell>
-                  </TableRow>
-                )}
-              </TableBody>
-            </Table>
-          </div>
-        </div>
-      </main>
-    </div>
-  );
+  return <LeaderboardClient leaderboard={leaderboard} fetchError={fetchError} />;
 }

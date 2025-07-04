@@ -55,77 +55,45 @@ function MatchingContent() {
       return;
     }
     
-    const createDummyMatch = async (retryCount = 0) => {
-        if (retryCount > 0) {
-            setStatusText(`Problem generation is taking a while. Retrying... (${retryCount}/3)`);
-        } else {
-            setStatusText('Finding opponent...');
-        }
-        
-        if (retryCount > 3) {
-            toast({ title: "Failed to Create Match", description: "The AI model seems to be unavailable right now. Please try again later.", variant: "destructive" });
-            router.push('/lobby');
-            return;
-        }
-
-        try {
-            setStatusText('Opponent found! Generating challenge...');
-            
-            const topicName = topicId.replace(/-/g, ' ').replace(/\b\w/g, l => l.toUpperCase());
-            const problem = await generateProblem({ topic: topicName, seed: Date.now().toString() });
-
-            if (!problem || !problem.testCases || problem.testCases.some(tc => tc.expected === undefined || tc.expected === null) || problem.testCases.length < 5) {
-                console.error("AI returned an invalid problem object or invalid test cases, retrying...");
-                setTimeout(() => createDummyMatch(retryCount + 1), 2000);
-                return;
-            }
-            
-            const clashDocRef = await addDoc(collection(db, 'clashes'), {
-                topicId,
-                problem: JSON.stringify(problem),
-                participants: [
-                    { userId: currentUser.uid, userName: currentUser.displayName, userAvatar: currentUser.photoURL, score: 0, solvedTimestamp: null, ready: false },
-                    { userId: 'test-user-id', userName: 'Test User', userAvatar: 'https://api.dicebear.com/8.x/bottts-neutral/svg?seed=Test', score: 0, solvedTimestamp: null, ready: true }
-                ],
-                createdAt: firestoreServerTimestamp(),
-                status: 'pending'
-            });
-
-            toast({ title: "Match Found!", description: "Let's go!" });
-            router.push(`/clash/${clashDocRef.id}`);
-            
-        } catch (error: any) {
-            console.error(`An error occurred during problem generation (attempt ${retryCount + 1}):`, error);
-            if (error instanceof FirebaseError && error.code === 'permission-denied') {
-                router.push('/setup-error');
-            } else {
-                setTimeout(() => createDummyMatch(retryCount + 1), 2000);
-            }
-        }
-    };
+    // Real-time matchmaking only - bot matching functionality removed
     
     const startRealtimeMatchmaking = async () => {
       const queueRef = ref(rtdb, `matchmaking/${topicId}`);
       try {
         const snapshot = await get(queueRef);
         if (matchmakingActive.current) return;
-
+    
+        // Simplified opponent filtering logic - only filter by user ID
         const opponents = snapshot.exists()
-          ? Object.entries(snapshot.val()).filter(([uid]) => uid !== currentUser.uid)
+          ? Object.entries(snapshot.val())
+              .filter(([uid]) => uid !== currentUser.uid)
+              // Sort by timestamp if available
+              .sort((a, b) => {
+                const aData = a[1] as any;
+                const bData = b[1] as any;
+                return (aData.timestamp || 0) - (bData.timestamp || 0);
+              })
           : [];
-
+    
+        console.log('Queue snapshot:', snapshot.val());
+        console.log('Current user ID:', currentUser.uid);
+        console.log('Found opponents:', opponents.length);
+        if (opponents.length > 0) {
+          console.log('First opponent data:', opponents[0][1]);
+        }
+    
         if (opponents.length > 0) {
           // --- I AM THE MATCHER ---
           matchmakingActive.current = true;
           const [opponentId, opponentData] = opponents[0];
-
+    
           const createMatchWithRetry = async (retryCount = 0) => {
             if (retryCount > 0) {
               setStatusText(`Problem generation is taking a while. Retrying... (${retryCount}/3)`);
             } else {
               setStatusText('Opponent found! Generating challenge...');
             }
-
+    
             if (retryCount > 3) {
               toast({ title: "Failed to Create Match", description: "The AI model seems to be unavailable right now. Please try again later.", variant: "destructive" });
               // Clean up opponent's queue entry so they don't get stuck waiting
@@ -133,34 +101,40 @@ function MatchingContent() {
               router.push('/lobby');
               return;
             }
-
+    
             try {
               const topicName = topicId.replace(/-/g, ' ').replace(/\b\w/g, l => l.toUpperCase());
               const problem = await generateProblem({ topic: topicName, seed: Date.now().toString() });
-
+    
               if (!problem || !problem.testCases || problem.testCases.some(tc => tc.expected === undefined || tc.expected === null) || problem.testCases.length < 5) {
                 console.error("AI returned invalid problem object, retrying...");
                 setTimeout(() => createMatchWithRetry(retryCount + 1), 2000);
                 return;
               }
-
+              
+              // Ensure all participant fields are defined to prevent Firebase errors
+              const currentUserName = currentUser.displayName || 'Anonymous';
+              const currentUserAvatar = currentUser.photoURL || `https://api.dicebear.com/8.x/initials/svg?seed=${encodeURIComponent(currentUserName)}`;
+              const opponentName = (opponentData as any).userName || 'Anonymous';
+              const opponentAvatar = (opponentData as any).userAvatar || `https://api.dicebear.com/8.x/initials/svg?seed=${encodeURIComponent(opponentName)}`;
+    
               const clashDocRef = await addDoc(collection(db, 'clashes'), {
                 topicId,
                 problem: JSON.stringify(problem),
                 participants: [
-                  { userId: currentUser.uid, userName: currentUser.displayName, userAvatar: currentUser.photoURL, score: 0, solvedTimestamp: null, ready: false },
-                  { userId: opponentId, userName: (opponentData as any).userName, userAvatar: (opponentData as any).userAvatar, score: 0, solvedTimestamp: null, ready: false }
+                  { userId: currentUser.uid, userName: currentUserName, userAvatar: currentUserAvatar, score: 0, solvedTimestamp: null, ready: false },
+                  { userId: opponentId, userName: opponentName, userAvatar: opponentAvatar, score: 0, solvedTimestamp: null, ready: false }
                 ],
                 createdAt: firestoreServerTimestamp(),
                 status: 'pending'
               });
-
+    
               await update(ref(rtdb, `matchmaking/${topicId}/${opponentId}`), { clashId: clashDocRef.id });
               remove(ref(rtdb, `matchmaking/${topicId}/${currentUser.uid}`));
-
+    
               toast({ title: "Match Found!", description: "Let's go!" });
               router.push(`/clash/${clashDocRef.id}`);
-
+    
             } catch (error: any) {
               console.error(`Failed to create match (attempt ${retryCount + 1}):`, error);
               if (error instanceof FirebaseError && error.code === 'permission-denied') {
@@ -170,28 +144,44 @@ function MatchingContent() {
               }
             }
           };
-
+    
           createMatchWithRetry();
-
+    
         } else {
           // --- I AM THE WAITER ---
           setStatusText('Waiting for an opponent...');
           const myRef = ref(rtdb, `matchmaking/${topicId}/${currentUser.uid}`);
           myQueueRef.current = myRef;
-          
+    
           const myData = {
             userName: currentUser.displayName,
             userAvatar: currentUser.photoURL,
+            timestamp: Date.now(),  // Add timestamp for sorting
           };
-
+    
+          console.log('Adding myself to queue with data:', myData);
           onDisconnect(myRef).remove();
           await set(myRef, myData);
-          
+    
+          // Set a timeout to notify the user if no opponents are found after 60 seconds
+          const timeoutId = setTimeout(() => {
+            if (!matchmakingActive.current) {
+              setStatusText('Still waiting for an opponent... You can continue waiting or try again later.');
+              toast({
+                title: "No opponents found yet",
+                description: "You can continue waiting or cancel to try again later.",
+                variant: "default"
+              });
+            }
+          }, 60000); // 60 seconds
+    
           onValue(myRef, (snap) => {
             if (matchmakingActive.current) return;
             const data = snap.val();
+            console.log('My queue entry updated:', data);
             if (data && data.clashId) {
               matchmakingActive.current = true;
+              clearTimeout(timeoutId); // Clear the timeout if matched
               toast({ title: "Match Found!", description: "Let's go!" });
               router.push(`/clash/${data.clashId}`);
             }
@@ -204,13 +194,8 @@ function MatchingContent() {
       }
     };
     
-    // Per user request, 'arrays' topic uses a bot. Others use real-time matching.
-    if (topicId === 'arrays') {
-      matchmakingActive.current = true;
-      createDummyMatch();
-    } else {
-      startRealtimeMatchmaking();
-    }
+    // All topics now use real-time matching
+    startRealtimeMatchmaking();
 
     return () => {
       cleanup();
@@ -248,7 +233,10 @@ function MatchingContent() {
               <p>{statusText}</p>
             </div>
 
-            <Button variant="outline" onClick={handleCancel}>Cancel Search</Button>
+            <div className="flex flex-col sm:flex-row items-center gap-4 w-full justify-center">
+              <Button variant="outline" onClick={handleCancel}>Cancel Search</Button>
+              {/* Bot practice button removed as per user request */}
+            </div>
           </CardContent>
         </Card>
       </main>
