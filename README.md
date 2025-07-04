@@ -1,7 +1,7 @@
 # CodeClash
 
 <div align="center">
-  <img src="public/logo.svg" alt="CodeClash Logo" width="200" height="200">
+  <img src="public/WhatsApp Image 2025-07-04 at 23.28.48_8c24692e.jpg" alt="CodeClash Logo" width="200" height="200">
   <h3>Real-time Competitive Coding Platform</h3>
 </div>
 
@@ -30,7 +30,7 @@
 CodeClash is a real-time competitive coding platform where developers can challenge each other to solve coding problems. The platform features live video chat, real-time code collaboration, and a global leaderboard to track progress and rankings.
 
 <div align="center">
-  <img src="public/home_screen.svg" alt="CodeClash Home Screen" width="800">
+  <img src="public/WhatsApp Image 2025-07-04 at 23.28.48_8c24692e.jpg" alt="CodeClash Home Screen" width="800">
 </div>
 
 ## Features
