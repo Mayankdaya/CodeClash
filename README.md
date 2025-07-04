@@ -30,7 +30,7 @@
 CodeClash is a real-time competitive coding platform where developers can challenge each other to solve coding problems. The platform features live video chat, real-time code collaboration, and a global leaderboard to track progress and rankings.
 
 <div align="center">
-  <img src="public/screenshot.png" alt="CodeClash Screenshot" width="800">
+  <img src="public/home_screen.svg" alt="CodeClash Home Screen" width="800">
 </div>
 
 ## Features
