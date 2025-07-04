@@ -1,7 +1,7 @@
 # CodeClash
 
 <div align="center">
-  <img src="public/WhatsApp Image 2025-07-04 at 23.28.48_8c24692e.jpg" alt="CodeClash Logo" width="200" height="200">
+  <img src="public/logo.svg" alt="CodeClash Logo" width="200" height="200">
   <h3>Real-time Competitive Coding Platform</h3>
 </div>
 
