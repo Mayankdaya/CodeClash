@@ -1,4 +1,3 @@
-
 'use client';
 
 import { useState, useEffect, useRef, useMemo } from 'react';
@@ -21,7 +20,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Header } from '@/components/Header';
 import { CodeEditor } from '@/components/CodeEditor';
 import { UserVideo } from '@/components/UserVideo';
-import { BookOpen, Send, Timer, Loader2, Lightbulb, CheckCircle2, XCircle, MessageSquare, TestTube2, Terminal, RefreshCw, CameraOff, Video, Mic, MicOff, VideoOff } from 'lucide-react';
+import { BookOpen, Send, Timer, Loader2, Lightbulb, CheckCircle2, XCircle, MessageSquare, TestTube2, Terminal, RefreshCw, CameraOff, Video, Mic, MicOff, VideoOff, Trophy, Medal, Star, Sparkles, ChevronRight, Clock, Lock } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import type { Problem } from '@/lib/problems';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
@@ -47,6 +46,9 @@ interface Participant {
   score: number;
   solvedTimestamp: number | null;
   ready: boolean;
+  isTestUser?: boolean;
+  flagged?: boolean;
+  flagReason?: string;
 }
 
 interface ClashData {
@@ -54,6 +56,8 @@ interface ClashData {
   problem: Problem;
   participants: Participant[];
   status: 'pending' | 'active' | 'finished';
+  isTestMatch?: boolean;
+  startTime?: number; // Timestamp when the clash became active
 }
 
 interface Message {
@@ -67,6 +71,7 @@ interface Message {
 
 type TestCaseResult = ExecuteCodeOutput['results'][0];
 type TestCase = Problem['testCases'][0];
+type PerformanceAnalysis = ExecuteCodeOutput['performance'];
 
 /**
  * Recursively parses string values in a data structure. If a string can be parsed
@@ -272,10 +277,15 @@ export default function ClashClient({ id }: { id: string }) {
   const [isRunning, setIsRunning] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [consoleTab, setConsoleTab] = useState('test-result');
-  const [submissionResult, setSubmissionResult] = useState<{ status: 'Accepted' | 'Wrong Answer' | 'Error'; message: string; } | null>(null);
+  const [submissionResult, setSubmissionResult] = useState<{ 
+    status: 'Accepted' | 'Wrong Answer' | 'Error'; 
+    message: string;
+    performance?: PerformanceAnalysis;
+  } | null>(null);
   const [isSettingReady, setIsSettingReady] = useState(false);
   
-  const [timeLeft, setTimeLeft] = useState(30 * 60);
+  const [timeLeft, setTimeLeft] = useState(30 * 60); // Default time, will be updated based on startTime
+  const [performanceAnalysis, setPerformanceAnalysis] = useState<PerformanceAnalysis | null>(null);
 
   const [isGettingHint, setIsGettingHint] = useState(false);
   const [hint, setHint] = useState<string | null>(null);
@@ -308,6 +318,42 @@ export default function ClashClient({ id }: { id: string }) {
     return currentUser.uid < opponentId;
   }, [currentUser, opponentId]);
 
+  const [showVictoryDialog, setShowVictoryDialog] = useState<boolean>(false);
+  const [victoryData, setVictoryData] = useState<{
+    score: number;
+    rank?: number;
+    isFirstSolver: boolean;
+    opponentSolved: boolean;
+  } | null>(null);
+
+  // Track page visibility and tab switching
+  const [tabSwitchWarnings, setTabSwitchWarnings] = useState<number>(0);
+  const [isTabSwitchDialogOpen, setIsTabSwitchDialogOpen] = useState<boolean>(false);
+  const [tabSwitchTimestamp, setTabSwitchTimestamp] = useState<number | null>(null);
+  const maxTabSwitches = 3; // Maximum number of tab switches allowed
+
+  // Show win modal
+  const [showWinModal, setShowWinModal] = useState<{
+    totalPoints: number;
+    breakdown: {
+      base: number;
+      firstSolve: number;
+      time: number;
+    };
+    firstToSolve: boolean;
+    opponentSolved: boolean;
+  } | null>(null);
+
+  // Track if the user has submitted their solution
+  const hasSubmittedSolution = !!me?.solvedTimestamp;
+  
+  // Use ref to track visibility without rerenders
+  const visibilityRef = useRef({
+    isHidden: false,
+    lastHidden: 0,
+    warningShown: false,
+  });
+
   useEffect(() => {
     if (!db || !id) return;
 
@@ -324,6 +370,14 @@ export default function ClashClient({ id }: { id: string }) {
 
         const data = { ...rawData, problem: problemData } as ClashData;
         setClashData(data);
+        
+        // Calculate time left based on startTime if available and clash is active
+        if (data.status === 'active' && data.startTime) {
+          const totalDuration = 30 * 60; // 30 minutes in seconds
+          const elapsedTime = Math.floor((Date.now() - data.startTime) / 1000);
+          const remainingTime = Math.max(0, totalDuration - elapsedTime);
+          setTimeLeft(remainingTime);
+        }
         
         if (!problem && data.problem) {
           const initialProblem = data.problem;
@@ -374,6 +428,34 @@ export default function ClashClient({ id }: { id: string }) {
   }, [id, router, toast, problem, currentUser]);
 
   useEffect(() => {
+    // For test matches, automatically mark the simulated opponent as ready when the user is ready
+    if (clashData?.isTestMatch && me?.ready && opponent?.isTestUser && db && id && clashData?.status === 'pending') {
+      const clashDocRef = doc(db, 'clashes', id);
+      runTransaction(db, async (transaction) => {
+        const clashDoc = await transaction.get(clashDocRef);
+        if (!clashDoc.exists()) {
+          throw new Error("Clash document does not exist!");
+        }
+        
+        const data = clashDoc.data() as ClashData;
+        const updatedParticipants = data.participants.map(p => {
+          if (p.userId !== currentUser?.uid && p.isTestUser) {
+            // Auto-ready the simulated opponent
+            return { ...p, ready: true };
+          }
+          return p;
+        });
+        
+        transaction.update(clashDocRef, { 
+          participants: updatedParticipants,
+          status: 'active', // Also update status to active
+          startTime: Date.now() // Set the start time when activating the clash
+        });
+      }).catch(error => {
+        console.error("Error updating test opponent:", error);
+      });
+    }
+  
     if (allReady && clashData?.status === 'pending' && db && id) {
         if (clashData.participants[0].userId === currentUser?.uid) {
             // Use runTransaction to ensure all fields are properly defined when updating status
@@ -399,17 +481,84 @@ export default function ClashClient({ id }: { id: string }) {
                 
                 transaction.update(clashDocRef, { 
                     status: 'active',
-                    participants: updatedParticipants
+                    participants: updatedParticipants,
+                    startTime: Date.now() // Set the start time when activating the clash
                 });
             }).catch(err => {
                 console.error("Failed to update clash status to active:", err);
             });
         }
     }
-  }, [allReady, clashData, currentUser?.uid, db, id]);
+  }, [allReady, clashData, currentUser?.uid, db, id, me?.ready, opponent?.isTestUser]);
+
+  // Add another effect to simulate the test opponent solving the problem after a delay
+  useEffect(() => {
+    // Only proceed if this is a test match and the match is active
+    if (!clashData?.isTestMatch || clashData.status !== 'active' || !opponent?.isTestUser || !db || !id) {
+      return;
+    }
+
+    // Set a random delay between 60 and 180 seconds for the test opponent to solve the problem
+    const solveDelay = Math.floor(Math.random() * (180 - 60 + 1) + 60) * 1000;
+    
+    const timer = setTimeout(() => {
+      // Update the opponent's status to show they've solved the problem
+      const clashDocRef = doc(db, 'clashes', id);
+      runTransaction(db, async (transaction) => {
+        const clashDoc = await transaction.get(clashDocRef);
+        if (!clashDoc.exists()) {
+          return;
+        }
+        
+        const data = clashDoc.data() as ClashData;
+        
+        // Don't proceed if the current user has already solved the problem
+        const currentUserParticipant = data.participants.find(p => p.userId === currentUser?.uid);
+        if (currentUserParticipant?.solvedTimestamp) {
+          return;
+        }
+        
+        const updatedParticipants = data.participants.map(p => {
+          if (p.isTestUser) {
+            // Simulate the test opponent solving the problem
+            return { 
+              ...p, 
+              solvedTimestamp: Date.now(),
+              score: 100 // Give them a perfect score
+            };
+          }
+          return p;
+        });
+        
+        transaction.update(clashDocRef, { participants: updatedParticipants });
+        
+        // Also add a message from the test opponent
+        const chatRef = collection(db, 'clashes', id, 'chat');
+        const messageData = {
+          senderId: opponent.userId,
+          senderName: opponent.userName,
+          senderAvatar: opponent.userAvatar,
+          text: "I've completed the challenge! How are you doing?",
+          timestamp: firestoreServerTimestamp()
+        };
+        
+        transaction.set(doc(chatRef), messageData);
+      }).catch(error => {
+        console.error("Error simulating test opponent solving:", error);
+      });
+    }, solveDelay);
+    
+    return () => clearTimeout(timer);
+  }, [clashData?.isTestMatch, clashData?.status, opponent?.isTestUser, db, id, currentUser?.uid, opponent]);
 
   // WebRTC Signaling Logic - Re-architected for Robustness
   useEffect(() => {
+    // Skip video connection setup for test matches
+    if (clashData?.isTestMatch) {
+      setIsConnecting(false);
+      return;
+    }
+    
     if (!rtdb || !id || !currentUser || !opponentId || isCaller === null) {
       console.log("WebRTC setup missing dependencies:", { rtdb: !!rtdb, id, currentUser: !!currentUser, opponentId, isCaller });
       return;
@@ -1105,77 +1254,114 @@ export default function ClashClient({ id }: { id: string }) {
     
     // Declare the custom property for TypeScript
     declare global {
-      interface HTMLVideoElement {
-        _eventHandlers?: Record<string, EventListener>;
-      }
+      // Define custom properties for HTMLVideoElement to track event handlers
+      // This is used to properly clean up event listeners
     }
 
 
   useEffect(() => {
+    // Only update the timer if the clash is active and time is remaining
     if (!isClashActive || timeLeft <= 0) return;
-    const timer = setInterval(() => setTimeLeft((prev) => prev - 1), 1000);
+    
+    const timer = setInterval(() => setTimeLeft((prev) => Math.max(0, prev - 1)), 1000);
+    
     return () => clearInterval(timer);
   }, [isClashActive, timeLeft]);
+
+  // Add an effect to handle when the timer reaches zero
+  useEffect(() => {
+    if (timeLeft === 0 && isClashActive && db && id) {
+      // Update the clash status to finished when time runs out
+      const clashDocRef = doc(db, 'clashes', id);
+      updateDoc(clashDocRef, { status: 'finished' })
+        .catch(err => {
+          console.error("Failed to update clash status to finished:", err);
+        });
+      
+      toast({ 
+        title: "Time's up!", 
+        description: "The coding challenge has ended.", 
+        variant: 'default'
+      });
+    }
+  }, [timeLeft, isClashActive, db, id, toast]);
   
   const awardPoints = async () => {
-    if (!db || !currentUser) return;
+    if (!currentUser || !clashData || !id || !db) return;
+    
     const clashDocRef = doc(db, 'clashes', id);
 
     try {
-        let pointsAwarded = 0;
-        await runTransaction(db, async (transaction) => {
-            const clashDoc = await transaction.get(clashDocRef);
-            if (!clashDoc.exists()) throw "Clash document does not exist!";
-            
-            const data = clashDoc.data() as ClashData;
-            
-            const meInDb = data.participants.find(p => p.userId === currentUser.uid);
-            if (!meInDb || meInDb.solvedTimestamp) return;
-
-            const isFirstSolver = !data.participants.some(p => p.solvedTimestamp);
-            let currentPoints = 100;
-            let toastDescription = "You solved the problem!";
-
-            if (isFirstSolver) {
-                currentPoints += 50;
-                toastDescription = "First blood! You solved the problem first and earned bonus points!";
-            }
-            pointsAwarded = currentPoints;
-
-            // Ensure all participant fields are defined to prevent Firebase errors
-            const updatedParticipants = data.participants.map(p => {
-                if (p.userId === currentUser.uid) {
-                    return { 
-                        userId: p.userId,
-                        userName: p.userName || 'Anonymous',
-                        userAvatar: p.userAvatar || `https://api.dicebear.com/8.x/initials/svg?seed=${encodeURIComponent(p.userName || 'Anonymous')}&backgroundColor=e74c86&textColor=ffffff&radius=50`,
-                        score: (p.score || 0) + pointsAwarded, 
-                        solvedTimestamp: Date.now(),
-                        ready: p.ready || false
-                    };
-                }
-                return {
-                    userId: p.userId,
-                    userName: p.userName || 'Anonymous',
-                    userAvatar: p.userAvatar || `https://api.dicebear.com/8.x/initials/svg?seed=${encodeURIComponent(p.userName || 'Anonymous')}&backgroundColor=e74c86&textColor=ffffff&radius=50`,
-                    score: p.score || 0,
-                    solvedTimestamp: p.solvedTimestamp || null,
-                    ready: p.ready || false
-                };
-            });
-
-            transaction.update(clashDocRef, { participants: updatedParticipants });
-
-            toast({ title: `+${pointsAwarded} Points!`, description: toastDescription });
-        });
-        
-        if (pointsAwarded > 0) {
-            await updateUserScore(currentUser.uid, pointsAwarded);
+      await runTransaction(db, async (transaction) => {
+        const clashDoc = await transaction.get(clashDocRef);
+        if (!clashDoc.exists()) {
+          throw new Error("Clash document does not exist!");
         }
-
-    } catch (e) {
-        console.error("Transaction failed: ", e);
-        toast({ title: "Error", description: "Could not update your score.", variant: "destructive" });
+        
+        const data = clashDoc.data() as ClashData;
+        
+        // Find the current participant's index
+        const participantIndex = data.participants.findIndex(p => p.userId === currentUser.uid);
+        if (participantIndex === -1) throw new Error("You are not a participant in this clash.");
+        
+        // Check if already solved (prevent duplicate points)
+        if (data.participants[participantIndex].solvedTimestamp !== null) return;
+        
+        // Update the participant's score and mark as solved
+        const newParticipants = [...data.participants];
+        
+        // Award 100 points for solving
+        const basePoints = 100;
+        
+        // Bonus points for being first to solve (50 points)
+        const firstToSolve = !data.participants.some(p => p.solvedTimestamp !== null);
+        const firstSolveBonus = firstToSolve ? 50 : 0;
+        
+        // Time bonus (up to 50 points for solving quickly)
+        // Earliest possible submit is when clash starts, latest is when timer ends
+        const elapsedSeconds = (Date.now() - (data.startTime || 0)) / 1000;
+        const maxTimeBonus = 50;
+        const timeBonus = Math.max(0, Math.floor(maxTimeBonus * (1 - elapsedSeconds / (30 * 60))));
+        
+        // Calculate total points
+        const totalPoints = basePoints + firstSolveBonus + timeBonus;
+        
+        newParticipants[participantIndex] = {
+          ...newParticipants[participantIndex],
+          score: (newParticipants[participantIndex].score || 0) + totalPoints,
+          solvedTimestamp: Date.now(),
+        };
+        
+        // Reset any tab switching flags/warnings - solution has been submitted successfully
+        if (newParticipants[participantIndex].flagged) {
+          newParticipants[participantIndex].flagged = false;
+          newParticipants[participantIndex].flagReason = '';
+        }
+        
+        transaction.update(clashDocRef, { participants: newParticipants });
+        
+        // Update user profile with score
+        updateUserScore(currentUser.uid, totalPoints);
+        
+        // Update local state to show congratulations modal
+        setShowWinModal({
+          totalPoints,
+          breakdown: {
+            base: basePoints,
+            firstSolve: firstSolveBonus,
+            time: timeBonus
+          },
+          firstToSolve,
+          opponentSolved: data.participants.some(p => p.userId !== currentUser.uid && p.solvedTimestamp !== null)
+        });
+      });
+    } catch (error) {
+      console.error("Failed to award points:", error);
+      toast({ 
+        title: "Error", 
+        description: "Failed to record your solution. Please try again.",
+        variant: "destructive" 
+      });
     }
   };
 
@@ -1284,25 +1470,52 @@ export default function ClashClient({ id }: { id: string }) {
 
       if (result.status === 'error') {
         setOutput(result.message || 'An unknown execution error occurred.');
-        if (isSubmission) setSubmissionResult({ status: 'Error', message: `An error occurred: ${result.message || 'Unknown error'}` });
+        if (isSubmission) setSubmissionResult({ 
+          status: 'Error', 
+          message: `An error occurred: ${result.message || 'Unknown error'}` 
+        });
       } else {
+        // Store performance analysis if available
+        if (result.performance && isSubmission) {
+          setPerformanceAnalysis(result.performance);
+        }
+        
         setOutput(result.results);
+        
         if (isSubmission) {
-            if (result.passedCount === result.totalCount) {
-                setSubmissionResult({ status: 'Accepted', message: `Congratulations! All ${result.totalCount} test cases passed.` });
-                awardPoints();
-            } else {
-                setSubmissionResult({ status: 'Wrong Answer', message: `Your solution failed. Passed ${result.passedCount} out of ${result.totalCount} test cases.` });
-            }
+          if (result.passedCount === result.totalCount) {
+            setSubmissionResult({ 
+              status: 'Accepted', 
+              message: `Congratulations! All ${result.totalCount} test cases passed.`,
+              performance: result.performance
+            });
+            awardPoints();
+          } else {
+            // Find failing test cases and their explanations
+            const failingTests = result.results.filter(r => !r.passed);
+            const failureExplanations = failingTests
+              .filter(test => test.explanation)
+              .map(test => `• Test ${test.case}: ${test.explanation}`)
+              .join('\n');
+              
+            setSubmissionResult({ 
+              status: 'Wrong Answer', 
+              message: `Your solution failed. Passed ${result.passedCount} out of ${result.totalCount} test cases.${failureExplanations ? `\n\nHints:\n${failureExplanations}` : ''}`,
+              performance: result.performance
+            });
+          }
         }
       }
     } catch (error: any) {
-        const errorMessage = error.message || 'Unknown error';
-        setOutput(`An unexpected error occurred: ${errorMessage}`);
-        if (isSubmission) setSubmissionResult({ status: 'Error', message: `An unexpected framework error occurred: ${errorMessage}` });
+      const errorMessage = error.message || 'Unknown error';
+      setOutput(`An unexpected error occurred: ${errorMessage}`);
+      if (isSubmission) setSubmissionResult({ 
+        status: 'Error', 
+        message: `An unexpected framework error occurred: ${errorMessage}` 
+      });
     } finally {
-        if (isSubmission) setIsSubmitting(false);
-        else setIsRunning(false);
+      if (isSubmission) setIsSubmitting(false);
+      else setIsRunning(false);
     }
   };
   
@@ -1386,6 +1599,99 @@ export default function ClashClient({ id }: { id: string }) {
 
   const progressValue = (timeLeft / (30 * 60)) * 100;
 
+  // Function to determine if user can change tabs
+  const canChangeTab = (value: string) => {
+    // Always allow changing to test-result or testcases
+    if (value === 'test-result' || value === 'testcases') return true;
+    
+    // For solution tab, check if user has submitted a solution or time has expired
+    if (value === 'solution') {
+      return me?.solvedTimestamp !== null || timeLeft <= 0;
+    }
+    
+    return true;
+  };
+
+  // Function to record tab switching events in Firebase
+  const recordTabSwitchEvent = async () => {
+    if (!currentUser || !id || !db) return;
+    
+    try {
+      // Record in a subcollection of the clash
+      const tabSwitchRef = collection(db, 'clashes', id, 'tabSwitches');
+      await addDoc(tabSwitchRef, {
+        userId: currentUser.uid,
+        userName: currentUser.displayName || 'Anonymous',
+        timestamp: serverTimestamp(),
+        count: tabSwitchWarnings + 1,
+        clientTimestamp: Date.now() // Backup client timestamp
+      });
+      
+      // If this exceeds the maximum allowed tab switches, flag the clash
+      if (tabSwitchWarnings + 1 >= maxTabSwitches) {
+        // Update the clash document with a flag
+        const clashDocRef = doc(db, 'clashes', id);
+        await updateDoc(clashDocRef, {
+          [`participants.${clashData?.participants.findIndex(p => p.userId === currentUser.uid)}.flagged`]: true,
+          [`participants.${clashData?.participants.findIndex(p => p.userId === currentUser.uid)}.flagReason`]: 'Excessive tab switching'
+        });
+      }
+    } catch (error) {
+      console.error('Failed to record tab switch:', error);
+    }
+  };
+
+  // Add visibility change detection
+  useEffect(() => {
+    if (!isClashActive || hasSubmittedSolution) return;
+    
+    const handleVisibilityChange = () => {
+      if (document.hidden) {
+        // User has switched tabs or minimized the window
+        visibilityRef.current.isHidden = true;
+        visibilityRef.current.lastHidden = Date.now();
+        setTabSwitchTimestamp(Date.now());
+        
+        // If they haven't submitted yet and the clash is active
+        if (!hasSubmittedSolution && isClashActive) {
+          setTabSwitchWarnings(prev => prev + 1);
+          setIsTabSwitchDialogOpen(true);
+          
+          // Record the tab switch event in Firebase
+          recordTabSwitchEvent();
+        }
+      } else {
+        // User has returned to the tab
+        visibilityRef.current.isHidden = false;
+        
+        // If warning was shown, we can clear it now
+        if (visibilityRef.current.warningShown) {
+          visibilityRef.current.warningShown = false;
+        }
+      }
+    };
+
+    // Handle beforeunload event to warn users before they leave
+    const handleBeforeUnload = (e: BeforeUnloadEvent) => {
+      if (!hasSubmittedSolution && isClashActive) {
+        // Standard way to show a confirmation dialog before leaving
+        e.preventDefault();
+        e.returnValue = '';
+        return '';
+      }
+    };
+
+    // Add event listeners
+    document.addEventListener('visibilitychange', handleVisibilityChange);
+    window.addEventListener('beforeunload', handleBeforeUnload);
+
+    // Cleanup
+    return () => {
+      document.removeEventListener('visibilitychange', handleVisibilityChange);
+      window.removeEventListener('beforeunload', handleBeforeUnload);
+    };
+  }, [isClashActive, hasSubmittedSolution, tabSwitchWarnings, id, currentUser, clashData, db]);
+
   if (!clashData || !problem || !currentUser) {
     return (
       <div className="flex h-dvh items-center justify-center bg-background">
@@ -1416,7 +1722,26 @@ export default function ClashClient({ id }: { id: string }) {
   const currentUserScore = me?.score ?? 0;
 
   const OpponentVideo = () => {
-    if (!opponent) return null;
+    // If this is a test user, show a static avatar instead of video
+    if (opponent?.isTestUser) {
+      return (
+        <div className="relative aspect-video w-full bg-muted/30 rounded-lg overflow-hidden flex items-center justify-center">
+          <div className="flex flex-col items-center justify-center">
+            <div className="w-24 h-24 rounded-full overflow-hidden border-2 border-primary mb-2">
+              <img 
+                src={opponent.userAvatar} 
+                alt={opponent.userName}
+                className="w-full h-full object-cover"
+              />
+            </div>
+            <div className="text-center">
+              <p className="font-medium">{opponent.userName}</p>
+              <p className="text-xs text-muted-foreground">Test Opponent</p>
+            </div>
+          </div>
+        </div>
+      );
+    }
     
     // Create a local ref that will be used only in this component
     const videoContainerRef = useRef<HTMLDivElement>(null);
@@ -1875,6 +2200,37 @@ export default function ClashClient({ id }: { id: string }) {
   return (
       <div className="flex flex-col min-h-dvh bg-transparent text-foreground font-body">
         <Header />
+        
+        {/* Tab Switch Warning Dialog */}
+        <AlertDialog open={isTabSwitchDialogOpen} onOpenChange={setIsTabSwitchDialogOpen}>
+          <AlertDialogContent>
+            <AlertDialogHeader>
+              <AlertDialogTitle className="text-red-500 flex items-center">
+                <XCircle className="h-5 w-5 mr-2" />
+                Tab Switch Detected!
+              </AlertDialogTitle>
+              <AlertDialogDescription className="space-y-3">
+                <p>You have switched away from the challenge tab. This may be considered cheating.</p>
+                
+                <div className="bg-amber-500/10 border border-amber-500/30 rounded-md p-3 text-amber-200">
+                  <p className="font-medium">Warning {tabSwitchWarnings} of {maxTabSwitches}</p>
+                  <p className="text-sm mt-1">Continued tab switching may result in disqualification.</p>
+                </div>
+                
+                {tabSwitchWarnings >= maxTabSwitches && (
+                  <div className="bg-red-500/10 border border-red-500/30 rounded-md p-3 text-red-200">
+                    <p className="font-medium">Final warning!</p>
+                    <p className="text-sm mt-1">Your activity has been flagged for review. Further violations may result in automatic disqualification.</p>
+                  </div>
+                )}
+              </AlertDialogDescription>
+            </AlertDialogHeader>
+            <AlertDialogFooter>
+              <AlertDialogAction>I understand</AlertDialogAction>
+            </AlertDialogFooter>
+          </AlertDialogContent>
+        </AlertDialog>
+        
         <main className="flex-1 flex flex-col p-4 gap-4">
         {!isClashActive ? (
             <Card className="bg-card/50 border border-white/10 rounded-xl shrink-0">
@@ -2006,7 +2362,21 @@ export default function ClashClient({ id }: { id: string }) {
                         <PanelResizeHandle className="h-2 bg-border/50 hover:bg-primary transition-colors data-[resize-handle-state=drag]:bg-primary" />
                         <Panel defaultSize={40} minSize={25}>
                             <div className="h-full flex flex-col bg-card/50 border border-white/10 rounded-xl overflow-hidden">
-                                <Tabs value={consoleTab} onValueChange={setConsoleTab} className="flex-1 flex flex-col min-h-0">
+                                <Tabs 
+                                  value={consoleTab} 
+                                  onValueChange={(value) => {
+                                    if (canChangeTab(value)) {
+                                      setConsoleTab(value);
+                                    } else {
+                                      toast({ 
+                                        title: "Cannot switch tab", 
+                                        description: "You need to submit your solution or wait for the challenge to end to access this tab.",
+                                        variant: "destructive" 
+                                      });
+                                    }
+                                  }} 
+                                  className="flex-1 flex flex-col min-h-0"
+                                >
                                     <div className='p-2 border-b border-border/50 shrink-0'>
                                         <TabsList className="grid w-full grid-cols-3">
                                             <TabsTrigger value="test-result"><Terminal className="mr-2 h-4 w-4"/>Test Result</TabsTrigger>
@@ -2014,14 +2384,32 @@ export default function ClashClient({ id }: { id: string }) {
                                             <TooltipProvider>
                                                 <Tooltip>
                                                     <TooltipTrigger asChild>
-                                                    <TabsTrigger value="solution" disabled={!me?.solvedTimestamp && timeLeft > 0}>
-                                                        <CheckCircle2 className="mr-2 h-4 w-4" /> Solution
-                                                    </TabsTrigger>
+                                                        <TabsTrigger 
+                                                            value="solution" 
+                                                            disabled={!me?.solvedTimestamp && timeLeft > 0}
+                                                            className={(!me?.solvedTimestamp && timeLeft > 0) ? 
+                                                                "relative border border-amber-500/30 bg-amber-500/10 text-amber-200 opacity-80" : 
+                                                                ""}
+                                                        >
+                                                            {(!me?.solvedTimestamp && timeLeft > 0) ? (
+                                                                <>
+                                                                    <Lock className="mr-2 h-4 w-4 text-amber-400" />
+                                                                    <span>Solution</span>
+                                                                </>
+                                                            ) : (
+                                                                <>
+                                                                    <CheckCircle2 className="mr-2 h-4 w-4" />
+                                                                    <span>Solution</span>
+                                                                </>
+                                                            )}
+                                                        </TabsTrigger>
                                                     </TooltipTrigger>
                                                     {(!me?.solvedTimestamp && timeLeft > 0) && (
-                                                    <TooltipContent>
-                                                        <p>Solve the problem or wait for the timer to see the solution.</p>
-                                                    </TooltipContent>
+                                                        <TooltipContent className="max-w-xs">
+                                                            <p>
+                                                                <span className="font-bold text-amber-400">Locked</span>: You must submit a correct solution or wait for the challenge timer to end before accessing the solution tab.
+                                                            </p>
+                                                        </TooltipContent>
                                                     )}
                                                 </Tooltip>
                                             </TooltipProvider>
@@ -2032,31 +2420,175 @@ export default function ClashClient({ id }: { id: string }) {
                                             {typeof output === 'string' ? (
                                                 <pre className="whitespace-pre-wrap font-code text-sm"><code>{output}</code></pre>
                                             ) : (
-                                                <div className="space-y-4 font-code text-sm">
-                                                    {output.map((res, index) => (
-                                                        <div key={index} className="border-b border-border/50 pb-3 last:border-b-0">
-                                                            <div className="flex items-center gap-2 font-bold mb-2">
-                                                                {res.passed ? <CheckCircle2 className="h-5 w-5 text-green-500" /> : <XCircle className="h-5 w-5 text-red-500" />}
-                                                                <span className={cn(res.passed ? "text-green-400" : "text-red-400")}>Case {res.case}: {res.passed ? 'Passed' : 'Failed'}</span>
-                                                            </div>
-                                                            <div className='space-y-1 pl-7 text-xs'>
-                                                            <p><span className="text-muted-foreground w-20 inline-block font-semibold">Input:</span> {formatArgsForDisplay(JSON.parse(res.input))}</p>
-                                                            <p><span className="text-muted-foreground w-20 inline-block font-semibold">Output:</span> {res.output}</p>
-                                                            {!res.passed && <p><span className="text-muted-foreground w-20 inline-block font-semibold">Expected:</span> {res.expected}</p>}
+                                                <>
+                                                    {/* Performance Analysis Display */}
+                                                    {performanceAnalysis && (
+                                                        <div className="mb-4 p-4 bg-card/50 border border-primary/30 rounded-lg shadow-lg backdrop-blur-sm">
+                                                            <h3 className="font-bold text-primary mb-2 flex items-center">
+                                                                <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="w-5 h-5 mr-2"><path d="m22 12-4 4-4-4"/><path d="M12 18V2"/><rect width="20" height="3" x="2" y="20" rx="1"/></svg>
+                                                                Performance Analysis
+                                                            </h3>
+                                                            
+                                                            <div className="space-y-2 text-sm">
+                                                                {performanceAnalysis.timeComplexity && (
+                                                                    <div className="flex items-center gap-2 bg-background/40 p-2 rounded-md border border-border/50">
+                                                                        <div className="flex-shrink-0 h-8 w-8 rounded-full bg-primary/10 flex items-center justify-center">
+                                                                            <Clock className="h-4 w-4 text-primary" />
+                                                                        </div>
+                                                                        <div>
+                                                                            <p className="text-xs text-muted-foreground">Time Complexity</p>
+                                                                            <p className="font-mono font-bold">{performanceAnalysis.timeComplexity}</p>
+                                                                        </div>
+                                                                    </div>
+                                                                )}
+                                                                
+                                                                {performanceAnalysis.spaceComplexity && (
+                                                                    <div className="flex items-center gap-2 bg-background/40 p-2 rounded-md border border-border/50">
+                                                                        <div className="flex-shrink-0 h-8 w-8 rounded-full bg-accent/10 flex items-center justify-center">
+                                                                            <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="h-4 w-4 text-accent"><path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"></path><polyline points="3.29 7 12 12 20.71 7"></polyline><line x1="12" y1="22" x2="12" y2="12"></line></svg>
+                                                                        </div>
+                                                                        <div>
+                                                                            <p className="text-xs text-muted-foreground">Space Complexity</p>
+                                                                            <p className="font-mono font-bold">{performanceAnalysis.spaceComplexity}</p>
+                                                                        </div>
+                                                                    </div>
+                                                                )}
+                                                                
+                                                                {performanceAnalysis.suggestions && performanceAnalysis.suggestions.length > 0 && (
+                                                                    <div className="mt-3 bg-background/40 p-3 rounded-md border border-border/50">
+                                                                        <p className="text-sm font-semibold mb-2 flex items-center">
+                                                                            <Lightbulb className="h-4 w-4 mr-2 text-yellow-400" />
+                                                                            Improvement Suggestions
+                                                                        </p>
+                                                                        <ul className="space-y-1.5">
+                                                                            {performanceAnalysis.suggestions.map((suggestion, i) => (
+                                                                                <li key={i} className="flex items-start gap-2">
+                                                                                    <span className="inline-block mt-1 w-1.5 h-1.5 rounded-full bg-yellow-500 mr-1"></span>
+                                                                                    <span className="text-sm text-muted-foreground">{suggestion}</span>
+                                                                                </li>
+                                                                            ))}
+                                                                        </ul>
+                                                                    </div>
+                                                                )}
                                                             </div>
                                                         </div>
-                                                    ))}
-                                                </div>
+                                                    )}
+                                                    
+                                                    {/* Summary of results */}
+                                                    <div className="mb-4 flex items-center justify-between">
+                                                        <div className="font-bold text-base">
+                                                            {output.filter(r => r.passed).length}/{output.length} Tests Passed
+                                                        </div>
+                                                        <div className="text-xs text-muted-foreground">
+                                                            Average Runtime: {
+                                                                (output.reduce((acc, curr) => acc + parseFloat(curr.runtime), 0) / output.length).toFixed(2)
+                                                            }ms
+                                                        </div>
+                                                    </div>
+                                                    
+                                                    <div className="space-y-4 font-code text-sm">
+                                                        {output.map((res, index) => (
+                                                            <div key={index} className={`border rounded-lg p-3 shadow-md ${res.passed ? 'bg-green-500/10 border-green-500/30' : 'bg-red-500/10 border-red-500/30'}`}>
+                                                                <div className="flex items-center justify-between gap-2 font-bold mb-2">
+                                                                    <div className="flex items-center gap-2">
+                                                                        {res.passed ? 
+                                                                            <CheckCircle2 className="h-5 w-5 text-green-500" /> : 
+                                                                            <XCircle className="h-5 w-5 text-red-500" />
+                                                                        }
+                                                                        <span className={cn(res.passed ? "text-green-400" : "text-red-400")}>
+                                                                            Case {res.case}: {res.passed ? 'Passed' : 'Failed'}
+                                                                        </span>
+                                                                    </div>
+                                                                    <span className="text-xs bg-background/40 px-2 py-0.5 rounded-full text-muted-foreground">{res.runtime}</span>
+                                                                </div>
+                                                                <div className='space-y-2 pl-7 text-xs'>
+                                                                    <div className="bg-card/50 p-2 rounded-md border border-border/50">
+                                                                        <p className="flex items-center mb-1">
+                                                                            <span className="inline-block w-1.5 h-1.5 rounded-full bg-primary mr-1.5"></span>
+                                                                            <span className="text-muted-foreground font-semibold">Input:</span>
+                                                                        </p>
+                                                                        <div className="pl-4 font-mono">{formatArgsForDisplay(JSON.parse(res.input))}</div>
+                                                                    </div>
+                                                                    
+                                                                    <div className="bg-card/50 p-2 rounded-md border border-border/50">
+                                                                        <p className="flex items-center mb-1">
+                                                                            <span className="inline-block w-1.5 h-1.5 rounded-full bg-blue-500 mr-1.5"></span>
+                                                                            <span className="text-muted-foreground font-semibold">Output:</span>
+                                                                        </p>
+                                                                        <div className="pl-4 font-mono">{res.output}</div>
+                                                                    </div>
+                                                                    
+                                                                    {!res.passed && (
+                                                                        <div className="bg-card/50 p-2 rounded-md border border-border/50">
+                                                                            <p className="flex items-center mb-1">
+                                                                                <span className="inline-block w-1.5 h-1.5 rounded-full bg-green-500 mr-1.5"></span>
+                                                                                <span className="text-muted-foreground font-semibold">Expected:</span>
+                                                                            </p>
+                                                                            <div className="pl-4 font-mono">{res.expected}</div>
+                                                                        </div>
+                                                                    )}
+                                                                    
+                                                                    {res.explanation && (
+                                                                        <div className="bg-card/30 p-2 rounded-md border border-border/30">
+                                                                            <p className="flex items-center mb-1">
+                                                                                <span className="inline-block w-1.5 h-1.5 rounded-full bg-yellow-500 mr-1.5"></span>
+                                                                                <span className="text-muted-foreground font-semibold">Explanation:</span>
+                                                                            </p>
+                                                                            <div className="pl-4 italic text-muted-foreground">{res.explanation}</div>
+                                                                        </div>
+                                                                    )}
+                                                                </div>
+                                                            </div>
+                                                        ))}
+                                                    </div>
+                                                </>
                                             )}
                                         </TabsContent>
                                         <TabsContent value="testcases" className="m-0 h-full overflow-y-auto p-4">
+                                        <div className="mb-4 p-4 bg-card/50 border border-primary/30 rounded-lg shadow-lg backdrop-blur-sm">
+                                            <h3 className="font-bold text-primary mb-2 flex items-center">
+                                                <TestTube2 className="w-5 h-5 mr-2" />
+                                                Test Cases Information
+                                            </h3>
+                                            <p className="text-sm text-muted-foreground">
+                                                The problem includes {problem?.testCases.length} test cases in total. 
+                                                {problem?.testCases.length > 3 && ` Below are the first ${submissionResult ? 'five' : 'three'} test cases to help you understand the problem.`}
+                                                <br />
+                                                When you submit your solution, it will be tested against all test cases.
+                                            </p>
+                                        </div>
+                                        
                                         <div className="space-y-4 font-code text-base">
-                                            {problem?.testCases.slice(0, 3).map((tc, index) => (
-                                                <div key={index} className="border-b border-border/50 pb-3 last:border-b-0">
-                                                    <p className="font-bold mb-2 text-lg">Case {index + 1}</p>
-                                                    <div className="bg-background/40 p-3 mt-1 rounded-md space-y-2">
-                                                        <p><strong className='text-muted-foreground'>Input:</strong> {formatArgsForDisplay(tc.input)}</p>
-                                                        <p><strong className='text-muted-foreground'>Output:</strong> {formatValueForDisplay(tc.expected)}</p>
+                                            {problem?.testCases.slice(0, submissionResult ? 5 : 3).map((tc, index) => (
+                                                <div key={index} className="border border-border/50 rounded-lg overflow-hidden shadow-md transition-all duration-300 hover:shadow-primary/20 hover:border-primary/30">
+                                                    <div className="bg-primary/10 p-3 flex justify-between items-center">
+                                                        <p className="font-bold text-primary flex items-center">
+                                                            <TestTube2 className="h-4 w-4 mr-2" />
+                                                            Test Case {index + 1}
+                                                        </p>
+                                                        <div className="text-xs bg-background/40 px-2 py-0.5 rounded-full text-muted-foreground">
+                                                            {index < 3 ? "Example" : "Hidden"}
+                                                        </div>
+                                                    </div>
+                                                    <div className="bg-background/40 p-4 space-y-3">
+                                                        <div>
+                                                            <div className="text-xs font-semibold text-muted-foreground mb-1 flex items-center">
+                                                                <span className="inline-block w-1.5 h-1.5 rounded-full bg-primary mr-1.5"></span>
+                                                                Input:
+                                                            </div>
+                                                            <div className="bg-card/50 p-3 rounded-md overflow-x-auto border border-border/50">
+                                                                {formatArgsForDisplay(tc.input)}
+                                                            </div>
+                                                        </div>
+                                                        <div>
+                                                            <div className="text-xs font-semibold text-muted-foreground mb-1 flex items-center">
+                                                                <span className="inline-block w-1.5 h-1.5 rounded-full bg-green-500 mr-1.5"></span>
+                                                                Expected Output:
+                                                            </div>
+                                                            <div className="bg-card/50 p-3 rounded-md overflow-x-auto border border-border/50">
+                                                                {formatValueForDisplay(tc.expected)}
+                                                            </div>
+                                                        </div>
                                                     </div>
                                                 </div>
                                             ))}
@@ -2175,16 +2707,243 @@ export default function ClashClient({ id }: { id: string }) {
         </AlertDialog>
 
        <AlertDialog open={!!submissionResult} onOpenChange={(open) => !open && setSubmissionResult(null)}>
-        <AlertDialogContent>
-            <AlertDialogHeader>
-                <AlertDialogTitle className={cn(
-                    submissionResult?.status === 'Accepted' && 'text-green-500',
-                    submissionResult?.status === 'Wrong Answer' && 'text-red-500',
-                    submissionResult?.status === 'Error' && 'text-yellow-500',
-                )}>{submissionResult?.status}</AlertDialogTitle>
-                <AlertDialogDescription>{submissionResult?.message}</AlertDialogDescription>
-            </AlertDialogHeader>
-            <AlertDialogFooter><AlertDialogAction onClick={() => setSubmissionResult(null)}>Close</AlertDialogAction></AlertDialogFooter>
+        <AlertDialogContent className="max-w-[600px] max-h-[90vh] overflow-auto">
+            <div className="absolute inset-0 overflow-hidden pointer-events-none">
+                <div className="absolute -top-10 -right-10 w-40 h-40 bg-primary/10 rounded-full blur-3xl"></div>
+                <div className="absolute -bottom-10 -left-10 w-40 h-40 bg-accent/10 rounded-full blur-3xl"></div>
+            </div>
+            
+            <div className="relative">
+                <AlertDialogHeader>
+                    <div className="flex items-center gap-3 mb-4">
+                        {submissionResult?.status === 'Accepted' && (
+                            <div className="h-12 w-12 rounded-full bg-green-500/20 flex items-center justify-center">
+                                <CheckCircle2 className="h-7 w-7 text-green-500" />
+                            </div>
+                        )}
+                        {submissionResult?.status === 'Wrong Answer' && (
+                            <div className="h-12 w-12 rounded-full bg-red-500/20 flex items-center justify-center">
+                                <XCircle className="h-7 w-7 text-red-500" />
+                            </div>
+                        )}
+                        {submissionResult?.status === 'Error' && (
+                            <div className="h-12 w-12 rounded-full bg-yellow-500/20 flex items-center justify-center">
+                                <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="h-7 w-7 text-yellow-500"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg>
+                            </div>
+                        )}
+                        <AlertDialogTitle className={cn(
+                            "text-2xl font-bold",
+                            submissionResult?.status === 'Accepted' && 'text-green-500',
+                            submissionResult?.status === 'Wrong Answer' && 'text-red-500',
+                            submissionResult?.status === 'Error' && 'text-yellow-500',
+                        )}>{submissionResult?.status}</AlertDialogTitle>
+                    </div>
+                    
+                    <div className="whitespace-pre-wrap bg-card/50 backdrop-blur-sm border border-border/50 rounded-lg p-4 shadow-md">
+                        <AlertDialogDescription className="text-base text-foreground">
+                            {submissionResult?.message}
+                        </AlertDialogDescription>
+                    </div>
+                </AlertDialogHeader>
+                
+                {/* Performance Analysis */}
+                {submissionResult?.performance && (
+                    <div className="mt-6 p-4 bg-card/50 border border-primary/30 rounded-lg shadow-lg backdrop-blur-sm">
+                        <h3 className="font-bold text-primary mb-3 flex items-center text-base">
+                            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="w-5 h-5 mr-2"><path d="m22 12-4 4-4-4"/><path d="M12 18V2"/><rect width="20" height="3" x="2" y="20" rx="1"/></svg>
+                            Performance Analysis
+                        </h3>
+                        
+                        <div className="space-y-3">
+                            <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                                {submissionResult.performance.timeComplexity && (
+                                    <div className="flex items-center gap-3 bg-background/40 p-3 rounded-md border border-border/50">
+                                        <div className="flex-shrink-0 h-10 w-10 rounded-full bg-primary/10 flex items-center justify-center">
+                                            <Clock className="h-5 w-5 text-primary" />
+                                        </div>
+                                        <div>
+                                            <p className="text-xs text-muted-foreground">Time Complexity</p>
+                                            <p className="font-mono font-bold">{submissionResult.performance.timeComplexity}</p>
+                                        </div>
+                                    </div>
+                                )}
+                                
+                                {submissionResult.performance.spaceComplexity && (
+                                    <div className="flex items-center gap-3 bg-background/40 p-3 rounded-md border border-border/50">
+                                        <div className="flex-shrink-0 h-10 w-10 rounded-full bg-accent/10 flex items-center justify-center">
+                                            <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="h-5 w-5 text-accent"><path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"></path><polyline points="3.29 7 12 12 20.71 7"></polyline><line x1="12" y1="22" x2="12" y2="12"></line></svg>
+                                        </div>
+                                        <div>
+                                            <p className="text-xs text-muted-foreground">Space Complexity</p>
+                                            <p className="font-mono font-bold">{submissionResult.performance.spaceComplexity}</p>
+                                        </div>
+                                    </div>
+                                )}
+                            </div>
+                            
+                            {submissionResult.performance.suggestions && submissionResult.performance.suggestions.length > 0 && (
+                                <div className="mt-3 bg-background/40 p-3 rounded-md border border-border/50">
+                                    <p className="text-sm font-semibold mb-2 flex items-center">
+                                        <Lightbulb className="h-4 w-4 mr-2 text-yellow-400" />
+                                        Improvement Suggestions
+                                    </p>
+                                    <ul className="space-y-1.5">
+                                        {submissionResult.performance.suggestions.map((suggestion, i) => (
+                                            <li key={i} className="flex items-start gap-2">
+                                                <span className="inline-block mt-1 w-1.5 h-1.5 rounded-full bg-yellow-500 mr-1"></span>
+                                                <span className="text-sm text-muted-foreground">{suggestion}</span>
+                                            </li>
+                                        ))}
+                                    </ul>
+                                </div>
+                            )}
+                        </div>
+                    </div>
+                )}
+                
+                {/* Next steps */}
+                <div className="mt-6 p-4 bg-card/50 border border-border/50 rounded-lg shadow-md backdrop-blur-sm">
+                    <h3 className="font-bold mb-3 text-base flex items-center">
+                        <ChevronRight className="h-5 w-5 mr-2 text-primary" />
+                        Next Steps
+                    </h3>
+                    <ul className="space-y-2">
+                        {submissionResult?.status === 'Accepted' ? (
+                            <>
+                                <li className="flex items-start gap-2">
+                                    <span className="inline-block mt-1 w-1.5 h-1.5 rounded-full bg-primary mr-1.5"></span>
+                                    <span>View the optimal solution in the "Solution" tab</span>
+                                </li>
+                                <li className="flex items-start gap-2">
+                                    <span className="inline-block mt-1 w-1.5 h-1.5 rounded-full bg-primary mr-1.5"></span>
+                                    <span>Challenge another player</span>
+                                </li>
+                                <li className="flex items-start gap-2">
+                                    <span className="inline-block mt-1 w-1.5 h-1.5 rounded-full bg-primary mr-1.5"></span>
+                                    <span>Try another problem</span>
+                                </li>
+                            </>
+                        ) : (
+                            <>
+                                <li className="flex items-start gap-2">
+                                    <span className="inline-block mt-1 w-1.5 h-1.5 rounded-full bg-primary mr-1.5"></span>
+                                    <span>Review your code for logic errors</span>
+                                </li>
+                                <li className="flex items-start gap-2">
+                                    <span className="inline-block mt-1 w-1.5 h-1.5 rounded-full bg-primary mr-1.5"></span>
+                                    <span>Check test cases for edge cases you missed</span>
+                                </li>
+                                <li className="flex items-start gap-2">
+                                    <span className="inline-block mt-1 w-1.5 h-1.5 rounded-full bg-primary mr-1.5"></span>
+                                    <span>Try getting a hint if you're stuck</span>
+                                </li>
+                            </>
+                        )}
+                    </ul>
+                </div>
+                
+                <AlertDialogFooter className="mt-6">
+                    <AlertDialogAction 
+                        onClick={() => setSubmissionResult(null)}
+                        className={cn(
+                            "px-8 py-2 shadow-lg transition-all duration-300",
+                            submissionResult?.status === 'Accepted' && 'bg-green-600 hover:bg-green-700 hover:shadow-green-500/20',
+                            submissionResult?.status === 'Wrong Answer' && 'bg-primary hover:bg-primary/90 hover:shadow-primary/20',
+                            submissionResult?.status === 'Error' && 'bg-yellow-600 hover:bg-yellow-700 hover:shadow-yellow-500/20',
+                        )}
+                    >
+                        {submissionResult?.status === 'Accepted' ? 'Continue' : 'Try Again'}
+                    </AlertDialogAction>
+                </AlertDialogFooter>
+            </div>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      {/* Victory Dialog */}
+      <AlertDialog open={showVictoryDialog} onOpenChange={(open) => !open && setShowVictoryDialog(false)}>
+        <AlertDialogContent className="max-w-[600px] max-h-[90vh] overflow-auto">
+            <div className="absolute inset-0 overflow-hidden pointer-events-none">
+                <div className="absolute -top-10 -right-10 w-40 h-40 bg-primary/20 rounded-full blur-3xl"></div>
+                <div className="absolute -bottom-10 -left-10 w-40 h-40 bg-accent/20 rounded-full blur-3xl"></div>
+            </div>
+            
+            <div className="relative">
+                <div className="absolute top-0 left-0 w-full h-full flex items-center justify-center opacity-10 pointer-events-none">
+                    <Trophy className="w-60 h-60 text-primary" />
+                </div>
+                
+                <div className="text-center py-6">
+                    <div className="flex justify-center mb-4">
+                        {victoryData?.isFirstSolver ? (
+                            <div className="relative">
+                                <Trophy className="h-20 w-20 text-yellow-400" />
+                                <Sparkles className="absolute top-0 right-0 h-6 w-6 text-yellow-300" />
+                            </div>
+                        ) : (
+                            <Trophy className="h-20 w-20 text-primary" />
+                        )}
+                    </div>
+                    
+                    <h2 className="text-3xl font-bold mb-2 bg-clip-text text-transparent bg-gradient-to-r from-primary via-accent to-primary">
+                        Victory!
+                    </h2>
+                    
+                    <p className="text-xl mb-6">You've solved the challenge!</p>
+                    
+                    <div className="bg-card/50 backdrop-blur-sm border border-primary/20 rounded-lg p-6 mb-6 shadow-lg">
+                        <div className="text-4xl font-bold text-primary mb-2">+{victoryData?.score}</div>
+                        <p className="text-muted-foreground">Points Earned</p>
+                        
+                        {victoryData?.isFirstSolver && (
+                            <div className="mt-4 flex items-center justify-center gap-2 text-yellow-400">
+                                <Star className="h-5 w-5" />
+                                <span className="font-semibold">First Solver Bonus!</span>
+                                <Star className="h-5 w-5" />
+                            </div>
+                        )}
+                    </div>
+                    
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
+                        <div className="bg-card/30 backdrop-blur-sm border border-border/50 rounded-lg p-4">
+                            <div className="text-muted-foreground mb-1">Completion Time</div>
+                            <div className="text-xl font-mono">{formatTime(30 * 60 - timeLeft)}</div>
+                        </div>
+                        
+                        <div className="bg-card/30 backdrop-blur-sm border border-border/50 rounded-lg p-4">
+                            <div className="text-muted-foreground mb-1">Opponent Status</div>
+                            <div className="text-xl">
+                                {victoryData?.opponentSolved ? (
+                                    <span className="text-yellow-400">Also Solved</span>
+                                ) : (
+                                    <span className="text-green-400">Not Solved</span>
+                                )}
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                
+                <AlertDialogFooter className="flex gap-4">
+                    <Button 
+                        variant="outline" 
+                        onClick={() => {
+                            setShowVictoryDialog(false);
+                            router.push('/leaderboard');
+                        }}
+                        className="flex-1"
+                    >
+                        View Leaderboard
+                    </Button>
+                    <Button 
+                        onClick={() => {
+                            setShowVictoryDialog(false);
+                            router.push('/lobby');
+                        }}
+                        className="flex-1 bg-primary hover:bg-primary/90"
+                    >
+                        New Challenge
+                    </Button>
+                </AlertDialogFooter>
+            </div>
         </AlertDialogContent>
       </AlertDialog>
       </div>

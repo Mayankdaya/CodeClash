@@ -1,0 +1,63 @@
+# Instructions for Pushing CodeClash to GitHub
+
+Follow these steps to push your CodeClash project to GitHub:
+
+## Prerequisites
+- Git installed on your computer
+- A GitHub account
+- A GitHub repository created at https://github.com/Mayankdaya/CodeClash
+
+## Step 1: Set up Git if not already set up
+```
+git config --global user.name "Your Name"
+git config --global user.email "your.email@example.com"
+```
+
+## Step 2: Initialize Git repository (if not already initialized)
+```
+git init
+```
+
+## Step 3: Add the GitHub repository as remote
+```
+git remote add origin https://github.com/Mayankdaya/CodeClash.git
+```
+If you get an error that the remote already exists, you can remove it first:
+```
+git remote remove origin
+git remote add origin https://github.com/Mayankdaya/CodeClash.git
+```
+
+## Step 4: Stage all files (excluding .trae folder due to .gitignore)
+```
+git add .
+```
+
+## Step 5: Commit your changes
+```
+git commit -m "Initial commit"
+```
+
+## Step 6: Push to GitHub
+```
+git push -u origin main
+```
+
+If you get an error about the branch name, try:
+```
+git push -u origin master
+```
+
+Or create a main branch and push:
+```
+git branch -M main
+git push -u origin main
+```
+
+## Step 7: Authenticate with GitHub
+When prompted, enter your GitHub username and password or personal access token.
+
+Note: If you're using HTTPS and password authentication is disabled, you'll need to create a personal access token at https://github.com/settings/tokens and use that as your password.
+
+## Verify
+After completing these steps, visit https://github.com/Mayankdaya/CodeClash to verify your code has been pushed successfully. 

@@ -1,4 +1,3 @@
-
 'use server';
 /**
  * @fileOverview A flow to execute code against test cases using an AI judge.
@@ -31,6 +30,7 @@ const TestCaseResultSchema = z.object({
   expected: z.string().describe('The stringified expected output.'),
   passed: z.boolean().describe('Whether the code passed this test case.'),
   runtime: z.string().describe('A simulated runtime for the test case, e.g., "15ms".'),
+  explanation: z.string().optional().describe('Optional explanation for why the test case failed or notable observations.'),
 });
 
 const ExecuteCodeOutputSchema = z.object({
@@ -39,6 +39,11 @@ const ExecuteCodeOutputSchema = z.object({
   passedCount: z.number().describe('The total number of test cases that passed.'),
   totalCount: z.number().describe('The total number of test cases provided.'),
   results: z.array(TestCaseResultSchema).describe('An array of detailed results for each test case.'),
+  performance: z.object({
+    timeComplexity: z.string().optional().describe('Estimated time complexity of the solution.'),
+    spaceComplexity: z.string().optional().describe('Estimated space complexity of the solution.'),
+    suggestions: z.array(z.string()).optional().describe('Optional suggestions for improving the code.'),
+  }).optional().describe('Performance analysis of the submitted code.'),
 });
 export type ExecuteCodeOutput = z.infer<typeof ExecuteCodeOutputSchema>;
 
@@ -98,6 +103,12 @@ Your task is to take a user's code snippet in a specific language, execute it ag
     *   'totalCount': The total number of test cases provided.
     *   'results': An array containing an object for each test case, with stringified versions of input, output, and expected values.
     *   'runtime': Provide a realistic but simulated runtime in milliseconds for each test case (e.g., "12ms", "45ms").
+    *   'explanation': For failed test cases, provide a concise explanation of why the test failed and what the user might need to fix.
+
+5.  **Performance Analysis:** 
+    *   Analyze the submitted code and estimate its time and space complexity.
+    *   When appropriate, provide suggestions for optimization without revealing the full solution.
+    *   Consider algorithmic choices, data structures, and potential bottlenecks.
 
 **Request:**
 

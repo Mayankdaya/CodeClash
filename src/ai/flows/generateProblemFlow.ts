@@ -1,4 +1,3 @@
-
 'use server';
 /**
  * @fileOverview A flow to generate coding problems using AI.
@@ -44,6 +43,7 @@ export type { Problem };
 
 const GenerateProblemInputSchema = z.object({
   topic: z.string().describe('The topic for the coding problem, e.g., "Arrays & Hashing", "Dynamic Programming".'),
+  difficulty: z.enum(['easy', 'medium', 'hard']).default('medium').optional().describe('The difficulty level of the problem.'),
   seed: z.string().optional().describe('A random string to ensure the problem is unique and not from a cache.'),
 });
 export type GenerateProblemInput = z.infer<typeof GenerateProblemInputSchema>;
@@ -59,12 +59,27 @@ const generateProblemPrompt = ai.definePrompt({
   output: { schema: ProblemSchema },
   prompt: `You are an expert programming challenge creator for a platform called CodeClash. Your task is to generate a unique, LeetCode-style problem based on a given topic.
 
-The problem should be self-contained and clearly explained. The difficulty should be easy to medium. The problem, examples, and test cases should be solvable in JavaScript.
+The problem should be self-contained, clearly explained, and engaging. The difficulty should match the requested level (defaulting to medium if not specified). The problem, examples, and test cases should be solvable in JavaScript.
 
 **CRITICAL INSTRUCTIONS - FOLLOW THESE EXACTLY:**
 1.  **Output Format:** You MUST return a single JSON object that strictly adheres to the provided schema. ALL fields (\`id\`, \`title\`, \`description\`, \`examples\`, \`starterCode\`, \`solution\`, \`testCases\`, \`entryPoint\`) are mandatory.
-2.  **TEST CASE VALIDITY IS PARAMOUNT:** This is the most important rule. Failure to follow this rule will result in an error.
-    *   You MUST provide at least 5 complete test cases.
+
+2.  **Problem Description Quality:**
+    *   Write clear, concise problem statements with proper formatting.
+    *   Include constraints like input size limits and value ranges.
+    *   Break down complex problems into steps or parts.
+    *   Use consistent terminology throughout the description.
+    *   Include time and space complexity expectations for optimal solutions.
+
+3.  **Examples Quality:**
+    *   Provide at least 3 examples with increasing complexity.
+    *   Include edge cases in your examples.
+    *   For each example, give a clear explanation of the step-by-step solution process.
+    *   Make sure examples are diverse and cover different scenarios.
+
+4.  **Test Case Validity is PARAMOUNT:**
+    *   You MUST provide at least 8 complete test cases.
+    *   Include a mix of simple cases, edge cases, and complex scenarios.
     *   For **EVERY SINGLE TEST CASE**, the \`expected\` field MUST have a valid, concrete value.
     *   The \`expected\` field **CANNOT BE \`null\`**.
     *   The \`expected\` field **CANNOT BE \`undefined\`**.
@@ -72,7 +87,8 @@ The problem should be self-contained and clearly explained. The difficulty shoul
     *   If the correct output is an empty string, the \`expected\` value must be \`""\`.
     *   If the correct output is \`0\`, the \`expected\` value must be \`0\`.
     *   **There are no exceptions. The \`expected\` field must always be populated with a real value.**
-3.  **CRITICAL \`testCases.input\` FORMATTING:**
+
+5.  **CRITICAL \`testCases.input\` FORMATTING:**
     *   The \`input\` field for each test case MUST be an array of arguments.
     *   The values within this array MUST be pure, valid JSON types (strings, numbers, booleans, nulls, and arrays). Objects are NOT supported.
     *   **DO NOT** represent arrays or numbers as strings within the JSON.
@@ -82,9 +98,21 @@ The problem should be self-contained and clearly explained. The difficulty shoul
     *   **INCORRECT:** \`"input": "[[1,2,3], 4]"\` (The entire value should not be a string)
     *   For a function \`twoSum(nums, target)\` a CORRECT \`input\` is \`[[2, 7, 11, 15], 9]\`.
     *   For a function \`rotate(nums, k)\` a CORRECT \`input\` is \`[[1,2,3,4,5], 2]\`.
-4.  **No Comments:** The final JSON output must NOT contain any comments.
+
+6.  **Starter Code Quality:**
+    *   Provide meaningful variable names and basic structure.
+    *   Include helpful comments explaining the function parameters and expected return value.
+    *   Do not include solution hints in the starter code.
+
+7.  **Solution Quality:**
+    *   Provide an optimal, well-commented solution.
+    *   Include time and space complexity analysis in comments.
+    *   Use clear variable names and follow best practices.
+
+8.  **No Comments:** The final JSON output must NOT contain any comments.
 
 **Topic:** {{{topic}}}
+**Difficulty:** {{{difficulty}}}
 **Unique Request Seed:** {{{seed}}}
 
 Generate a problem with all the required fields, paying special attention to the format and validity of the \`testCases\`. Double-check your work to ensure \`expected\` is never null or undefined and that all input values are pure JSON types.`,

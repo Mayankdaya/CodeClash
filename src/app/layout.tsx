@@ -3,7 +3,7 @@ import './globals.css';
 import FirebaseConfigGuard from '@/components/FirebaseConfigGuard';
 import { AuthProvider } from '@/hooks/useAuth';
 import { Toaster } from "@/components/ui/toaster";
-
+import InvitationNotifier from '@/components/InvitationNotifier';
 
 export const metadata: Metadata = {
   title: 'CodeClash – Real-Time Coding Arena',
@@ -26,6 +26,7 @@ export default function RootLayout({
         <FirebaseConfigGuard>
           <AuthProvider>
             {children}
+            <InvitationNotifier />
             <Toaster />
           </AuthProvider>
         </FirebaseConfigGuard>
