@@ -7,11 +7,11 @@ import { Header } from "@/components/Header";
 import { 
   ArrowRight, Coins, List, Search, GitMerge, Link as LinkIcon, ToyBrick, MoveHorizontal, 
   Type, Repeat, Binary, Container, Pocket, GitBranchPlus, Workflow, SpellCheck, Users,
-  Zap, Trophy, Clock, Sparkles, UserRound, UserCheck, UserPlus, Loader2
+  Zap, Trophy, Clock, Sparkles, UserRound, UserCheck, UserPlus, Loader2, RefreshCw, Bug
 } from "lucide-react";
 import Link from "next/link";
 import { rtdb, db } from "@/lib/firebase";
-import { ref, onValue, set, get, push, serverTimestamp } from "firebase/database";
+import { ref, onValue, set, get, push, serverTimestamp, remove } from "firebase/database";
 import { doc, getDoc } from "firebase/firestore";
 import { useToast } from "@/hooks/use-toast";
 import AuthGuard from "@/components/AuthGuard";
@@ -57,6 +57,7 @@ interface OnlineUser {
   photoURL: string | null;
   isOnline: boolean;
   lastChanged: number;
+  lastActive?: number; // Time in ms since last activity
   status?: 'available' | 'in-match' | 'busy';
 }
 
@@ -67,9 +68,137 @@ function LobbyContent() {
   const [selectedTopic, setSelectedTopic] = useState<string | null>(null);
   const [isCreatingDirectMatch, setIsCreatingDirectMatch] = useState(false);
   const [selectedUser, setSelectedUser] = useState<OnlineUser | null>(null);
+  const [isRefreshing, setIsRefreshing] = useState(false);
   const { toast } = useToast();
   const { user: currentUser } = useAuth();
   const router = useRouter();
+
+  // Function to update waiting counts based on online users
+  const updateWaitingCounts = async (onlineUsers: OnlineUser[]) => {
+    if (!rtdb) return;
+    
+    setIsRefreshing(true);
+    
+    try {
+      const matchmakingRef = ref(rtdb, 'matchmaking');
+      const snapshot = await get(matchmakingRef);
+      
+      const counts: Record<string, number> = {};
+      if (snapshot.exists()) {
+        const allQueues = snapshot.val();
+        
+        for (const topicId in allQueues) {
+          // Skip if no queue exists for this topic
+          if (!allQueues[topicId]) continue;
+          
+          // Get all users in this topic's queue
+          const queueEntries = Object.entries(allQueues[topicId]);
+          
+          // Filter out the current user, test users, and already matched users
+          const activeQueueUsers = queueEntries.filter(([uid, userData]: [string, any]) => {
+            // Exclude current user
+            if (uid === currentUser?.uid) return false;
+            
+            // Exclude test users
+            if (uid.startsWith('test_')) return false;
+            
+            // Exclude users who are already matched
+            if (userData.clashId) return false;
+            
+            // If we have online user data, use it to check if they're online and not in a match
+            const onlineUser = onlineUsers.find(u => u.uid === uid);
+            if (onlineUser) {
+              return onlineUser.isOnline && 
+                     (onlineUser.status === 'available' || onlineUser.status === 'waiting');
+            }
+            
+            // If we don't have online user data for this user, check if they're still in the queue
+            // and their timestamp is recent (within the last 2 minutes)
+            const userData_typed = userData as any;
+            const timestamp = userData_typed.timestamp;
+            if (timestamp) {
+              const twoMinutesAgo = Date.now() - 2 * 60 * 1000;
+              return timestamp > twoMinutesAgo;
+            }
+            
+            return false;
+          });
+          
+          // Add topics with waiting users
+          if (activeQueueUsers.length > 0) {
+            counts[topicId] = activeQueueUsers.length;
+            console.log(`Topic ${topicId} has ${activeQueueUsers.length} waiting users:`, 
+                         activeQueueUsers.map(([uid]) => uid));
+          }
+        }
+      }
+      
+      console.log("Updated waiting counts:", counts);
+      setWaitingCounts(counts);
+      
+      if (Object.keys(counts).length > 0) {
+        toast({
+          title: "Refreshed",
+          description: `Found ${Object.keys(counts).length} topics with waiting players.`,
+          variant: "default",
+        });
+      } else {
+        toast({
+          title: "Refreshed",
+          description: "No waiting players found in any topic.",
+          variant: "default",
+        });
+      }
+    } catch (error) {
+      console.error("Error updating waiting counts:", error);
+      toast({
+        title: "Error Refreshing Data",
+        description: "Could not update waiting player counts. Please try again.",
+        variant: "destructive",
+      });
+    } finally {
+      setIsRefreshing(false);
+    }
+  };
+
+  // Clean up stale matchmaking entries
+  const cleanupStaleEntries = async () => {
+    if (!rtdb) return;
+    
+    try {
+      const matchmakingRef = ref(rtdb, 'matchmaking');
+      const snapshot = await get(matchmakingRef);
+      
+      if (snapshot.exists()) {
+        const allQueues = snapshot.val();
+        
+        for (const topicId in allQueues) {
+          if (!allQueues[topicId]) continue;
+          
+          const queueEntries = Object.entries(allQueues[topicId]);
+          
+          for (const [uid, userData] of queueEntries) {
+            // Skip current user and test users
+            if (uid === currentUser?.uid || uid.startsWith('test_')) continue;
+            
+            // Check if this entry is stale
+            const userData_typed = userData as any;
+            const timestamp = userData_typed.timestamp;
+            if (timestamp) {
+              const fiveMinutesAgo = Date.now() - 5 * 60 * 1000;
+              if (timestamp < fiveMinutesAgo) {
+                // This is a stale entry, remove it
+                console.log(`Removing stale queue entry for user ${uid} in topic ${topicId}`);
+                await remove(ref(rtdb, `matchmaking/${topicId}/${uid}`));
+              }
+            }
+          }
+        }
+      }
+    } catch (error) {
+      console.error("Error cleaning up stale entries:", error);
+    }
+  };
 
   useEffect(() => {
     if (!rtdb) {
@@ -81,48 +210,43 @@ function LobbyContent() {
       return;
     }
 
+    // Debug: Listen directly to matchmaking queue for debugging
     const matchmakingRef = ref(rtdb, 'matchmaking');
-    const matchmakingUnsubscribe = onValue(matchmakingRef, (snapshot) => {
-      const counts: Record<string, number> = {};
+    const matchmakingDebugUnsubscribe = onValue(matchmakingRef, (snapshot) => {
       if (snapshot.exists()) {
-        const allQueues = snapshot.val();
-        for (const topicId in allQueues) {
-          // Filter out the current user and test users from the waiting count
-          const queueUsers = Object.entries(allQueues[topicId]).filter(([uid, userData]: [string, any]) => {
-            // Exclude current user
-            if (uid === currentUser?.uid) return false;
-            // Exclude test users (those with uid starting with "test_")
-            if (uid.startsWith('test_')) return false;
-            // Include all other users
-            return true;
-          });
-          counts[topicId] = queueUsers.length;
-        }
+        console.log("Raw matchmaking data:", snapshot.val());
+      } else {
+        console.log("No matchmaking data exists");
       }
-      setWaitingCounts(counts);
-    }, (error) => {
-      console.error("RTDB listener error on lobby:", error);
-      toast({
-        title: "Connection Error",
-        description: "Could not fetch waiting player counts. Please check your connection and Firebase security rules.",
-        variant: "destructive",
-      });
     });
 
-    // Listen for online users
+    // Add a real-time listener for the matchmaking queue
+    const matchmakingListenerUnsubscribe = onValue(matchmakingRef, (snapshot) => {
+      if (snapshot.exists()) {
+        // Update waiting counts when matchmaking data changes
+        updateWaitingCounts(onlineUsers);
+      }
+    });
+
+    // Listen for online users with more frequent updates
     const statusRef = ref(rtdb, 'status');
     const statusUnsubscribe = onValue(statusRef, async (snapshot) => {
       if (!snapshot.exists()) return;
       
       const statusData = snapshot.val();
       const users: OnlineUser[] = [];
+      const now = Date.now();
+      const ONLINE_THRESHOLD = 60000; // 60 seconds
       
       // Process all users
       for (const uid in statusData) {
         if (uid === currentUser?.uid) continue; // Skip current user
         
         const userData = statusData[uid];
-        if (userData.isOnline) {
+        // Check if user is actually online (has updated status recently)
+        const isRecentlyActive = now - (userData.lastChanged || 0) < ONLINE_THRESHOLD;
+        
+        if (userData.isOnline && isRecentlyActive) {
           try {
             // Get user profile data from Firestore
             const userDocRef = doc(db, 'users', uid);
@@ -136,6 +260,7 @@ function LobbyContent() {
                 photoURL: userProfile.photoURL || null,
                 isOnline: userData.isOnline,
                 lastChanged: userData.lastChanged,
+                lastActive: now - (userData.lastChanged || 0),
                 status: 'available', // Default status
               });
             } else {
@@ -146,6 +271,7 @@ function LobbyContent() {
                 photoURL: null,
                 isOnline: userData.isOnline,
                 lastChanged: userData.lastChanged,
+                lastActive: now - (userData.lastChanged || 0),
                 status: 'available',
               });
             }
@@ -178,15 +304,30 @@ function LobbyContent() {
       }
       
       setOnlineUsers(users);
+      
+      // Now update waiting counts based on the actual online users
+      updateWaitingCounts(users);
+      
     }, (error) => {
       console.error("Error fetching online users:", error);
     });
-
+    
+    // Set up periodic refresh of waiting counts and cleanup of stale entries
+    const refreshInterval = setInterval(() => {
+      console.log("Periodic refresh of waiting counts");
+      if (onlineUsers.length > 0) {
+        updateWaitingCounts(onlineUsers);
+        cleanupStaleEntries(); // Clean up stale entries periodically
+      }
+    }, 30000); // Every 30 seconds (increased from 10 seconds)
+    
     return () => {
-      matchmakingUnsubscribe();
       statusUnsubscribe();
+      matchmakingDebugUnsubscribe();
+      matchmakingListenerUnsubscribe(); // Clean up the new listener
+      clearInterval(refreshInterval);
     };
-  }, [toast, currentUser]);
+  }, [toast, currentUser]); // Don't include onlineUsers.length to avoid re-creating the interval
 
   const createDirectMatch = async (targetUserId: string, topicId: string) => {
     if (!currentUser || !rtdb) {
@@ -298,7 +439,7 @@ function LobbyContent() {
             </p>
             
             {/* Online users counter and button */}
-            <div className="mt-8 flex items-center justify-center">
+            <div className="mt-8 flex items-center justify-center gap-3">
               <Button 
                 variant="outline" 
                 className="flex items-center gap-2 border-white/10 hover:border-white/20 bg-white/5"
@@ -313,6 +454,45 @@ function LobbyContent() {
                 </div>
                 <span>{onlineUsers.length} users online</span>
               </Button>
+              
+              <Button
+                variant="outline"
+                size="icon"
+                className="border-white/10 hover:border-white/20 bg-white/5"
+                onClick={() => updateWaitingCounts(onlineUsers)}
+                title="Refresh waiting counts"
+                disabled={isRefreshing}
+              >
+                {isRefreshing ? (
+                  <Loader2 className="h-4 w-4 animate-spin" />
+                ) : (
+                  <RefreshCw className="h-4 w-4" />
+                )}
+              </Button>
+              
+              {process.env.NODE_ENV === 'development' && (
+                <Button
+                  variant="outline"
+                  size="icon"
+                  className="border-white/10 hover:border-white/20 bg-white/5"
+                  onClick={() => {
+                    console.log("Current waiting counts:", waitingCounts);
+                    console.log("Current online users:", onlineUsers);
+                    if (rtdb) {
+                      get(ref(rtdb, 'matchmaking')).then(snapshot => {
+                        console.log("Current matchmaking data:", snapshot.val());
+                      });
+                    }
+                    toast({
+                      title: "Debug Info",
+                      description: "Check browser console for matchmaking data",
+                    });
+                  }}
+                  title="Debug matchmaking data"
+                >
+                  <Bug className="h-4 w-4" />
+                </Button>
+              )}
             </div>
           </motion.div>
 
@@ -350,7 +530,7 @@ function LobbyContent() {
                           <span>+25 XP</span>
                         </div>
                         {waitingCount > 0 ? (
-                          <div className="flex items-center gap-2 text-xs text-accent">
+                          <div className="flex items-center gap-2 text-xs text-accent animate-pulse">
                             <Users className="h-3.5 w-3.5" />
                             <span>{waitingCount} {waitingCount === 1 ? 'player' : 'players'} waiting</span>
                           </div>

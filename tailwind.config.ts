@@ -105,11 +105,96 @@ export default {
             transform: "translate(-50%,-40%) scale(1)",
           },
         },
+        'bounce-slow': {
+          "0%, 100%": {
+            transform: "translateY(-5%)",
+            animationTimingFunction: "cubic-bezier(0.8, 0, 1, 1)",
+          },
+          "50%": {
+            transform: "translateY(0)",
+            animationTimingFunction: "cubic-bezier(0, 0, 0.2, 1)",
+          },
+        },
+        'spin-slow': {
+          "0%": {
+            transform: "rotate(0deg)",
+          },
+          "100%": {
+            transform: "rotate(360deg)",
+          },
+        },
+        'ping-slow': {
+          "0%": {
+            transform: "scale(1)",
+            opacity: "1",
+          },
+          "75%, 100%": {
+            transform: "scale(1.2)",
+            opacity: "0",
+          },
+        },
+        'pulse-slow': {
+          "0%, 100%": {
+            opacity: "1",
+          },
+          "50%": {
+            opacity: "0.6",
+          },
+        },
+        'gradient': {
+          "0%": {
+            backgroundPosition: "0% 50%",
+          },
+          "50%": {
+            backgroundPosition: "100% 50%",
+          },
+          "100%": {
+            backgroundPosition: "0% 50%",
+          },
+        },
+        'fall-slow-1': {
+          "0%": {
+            transform: "translateY(-10px) rotate(0deg)",
+            opacity: "1",
+          },
+          "100%": {
+            transform: "translateY(400px) rotate(360deg)",
+            opacity: "0",
+          },
+        },
+        'fall-slow-2': {
+          "0%": {
+            transform: "translateY(-10px) rotate(0deg)",
+            opacity: "1",
+          },
+          "100%": {
+            transform: "translateY(400px) rotate(-360deg)",
+            opacity: "0",
+          },
+        },
+        'fall-slow-3': {
+          "0%": {
+            transform: "translateY(-10px) rotate(0deg)",
+            opacity: "1",
+          },
+          "100%": {
+            transform: "translateY(400px) rotate(720deg)",
+            opacity: "0",
+          },
+        },
       },
       animation: {
         'accordion-down': 'accordion-down 0.2s ease-out',
         'accordion-up': 'accordion-up 0.2s ease-out',
         spotlight: "spotlight 2s ease .75s 1 forwards",
+        'bounce-slow': 'bounce-slow 2s infinite',
+        'spin-slow': 'spin-slow 6s linear infinite',
+        'ping-slow': 'ping-slow 2s cubic-bezier(0, 0, 0.2, 1) infinite',
+        'pulse-slow': 'pulse-slow 3s cubic-bezier(0.4, 0, 0.6, 1) infinite',
+        'gradient': 'gradient 3s ease infinite',
+        'fall-slow-1': 'fall-slow-1 4s ease-in forwards',
+        'fall-slow-2': 'fall-slow-2 5s ease-in forwards',
+        'fall-slow-3': 'fall-slow-3 6s ease-in forwards',
       },
     },
   },

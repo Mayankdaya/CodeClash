@@ -14,7 +14,7 @@ import { UserVideo } from '@/components/UserVideo';
 import AuthGuard from '@/components/AuthGuard';
 import { useAuth } from '@/hooks/useAuth';
 import { FirebaseError } from 'firebase/app';
-import { ref, onValue, set, get, remove, update, onDisconnect, off, type DatabaseReference } from 'firebase/database';
+import { ref, onValue, set, get, remove, update, onDisconnect, off, serverTimestamp, type DatabaseReference } from 'firebase/database';
 import { doc, getDoc } from 'firebase/firestore';
 import Link from 'next/link';
 
@@ -100,11 +100,18 @@ function MatchingContent() {
     // Real-time matchmaking only - bot matching functionality removed
     
     const startRealtimeMatchmaking = async () => {
-      const queueRef = ref(rtdb, `matchmaking/${topicId}`);
+      const topicId = searchParams.get('topic');
       setMatchmakingStatus('initializing');
+      
+      if (!topicId) {
+        toast({ title: "No Topic Selected", description: "Please select a topic from the lobby.", variant: "destructive" });
+        router.push('/lobby');
+        return;
+      }
       
       try {
         // First check if queue exists and how many users are in it
+        const queueRef = ref(rtdb, `matchmaking/${topicId}`);
         const snapshot = await get(queueRef);
         if (matchmakingActive.current) return;
 
@@ -120,11 +127,27 @@ function MatchingContent() {
           await remove(ref(rtdb, `matchmaking/${topicId}/${currentUser.uid}`));
         }
 
-        // Simplified opponent filtering logic - only filter by user ID
+        // Find potential opponents who are actively waiting in this topic
         const opponents = snapshot.exists()
           ? Object.entries(queueData)
-              .filter(([uid]) => uid !== currentUser.uid)
-              // Sort by timestamp if available
+              .filter(([uid, userData]) => {
+                // Filter out myself and test users
+                if (uid === currentUser.uid || uid.startsWith('test_')) return false;
+                
+                // Check if the user has a clashId (already matched)
+                const userData_typed = userData as any;
+                if (userData_typed.clashId) return false;
+                
+                // Check if the user's timestamp is recent (within last 2 minutes)
+                const timestamp = userData_typed.timestamp;
+                if (timestamp) {
+                  const twoMinutesAgo = Date.now() - 2 * 60 * 1000;
+                  return timestamp > twoMinutesAgo;
+                }
+                
+                return true;
+              })
+              // Sort by timestamp (oldest first) to ensure fair matching
               .sort((a, b) => {
                 const aData = a[1] as any;
                 const bData = b[1] as any;
@@ -167,10 +190,12 @@ function MatchingContent() {
               }
               
               // Ensure all participant fields are defined to prevent Firebase errors
-              const currentUserName = currentUser.displayName || 'Anonymous';
+              const currentUserName = currentUser.displayName || `User_${currentUser.uid.substring(0, 6)}`;
               const currentUserAvatar = currentUser.photoURL || `https://api.dicebear.com/8.x/initials/svg?seed=${encodeURIComponent(currentUserName)}`;
-              const opponentName = (opponentData as any).userName || 'Anonymous';
-              const opponentAvatar = (opponentData as any).userAvatar || `https://api.dicebear.com/8.x/initials/svg?seed=${encodeURIComponent(opponentName)}`;
+              
+              const opponentData_typed = opponentData as any;
+              const opponentName = opponentData_typed.userName || `User_${opponentId.substring(0, 6)}`;
+              const opponentAvatar = opponentData_typed.userAvatar || `https://api.dicebear.com/8.x/initials/svg?seed=${encodeURIComponent(opponentName)}`;
 
               const clashDocRef = await addDoc(collection(db, 'clashes'), {
                 topicId,
@@ -191,6 +216,13 @@ function MatchingContent() {
                 remove(myQueueRef.current);
                 myQueueRef.current = null;
               }
+
+              // Update user statuses in the online status database
+              const myStatusRef = ref(rtdb, `status/${currentUser.uid}`);
+              await update(myStatusRef, { status: 'in-match' });
+              
+              const opponentStatusRef = ref(rtdb, `status/${opponentId}`);
+              await update(opponentStatusRef, { status: 'in-match' });
 
               toast({ title: "Match Found!", description: "Let's go!" });
               router.push(`/clash/${clashDocRef.id}`);
@@ -232,9 +264,10 @@ function MatchingContent() {
           myQueueRef.current = myRef;
 
           const myData = {
-            userName: currentUser.displayName,
-            userAvatar: currentUser.photoURL,
+            userName: currentUser.displayName || `User_${currentUser.uid.substring(0, 6)}`,
+            userAvatar: currentUser.photoURL || `https://api.dicebear.com/8.x/initials/svg?seed=${encodeURIComponent(currentUser.displayName || currentUser.uid)}`,
             timestamp: Date.now(),  // Add timestamp for sorting
+            topicId: topicId, // Explicitly store the topic ID to make matching more reliable
           };
 
           console.log('Adding myself to queue with data:', myData);
@@ -245,6 +278,10 @@ function MatchingContent() {
           
           // Add myself to the queue
           await set(myRef, myData);
+
+          // Update my status in the online status database
+          const myStatusRef = ref(rtdb, `status/${currentUser.uid}`);
+          await update(myStatusRef, { status: 'waiting' });
 
           // Set a timeout to notify the user if no opponents are found
           const notificationTimeouts = [
@@ -290,10 +327,51 @@ function MatchingContent() {
                   variant: "default"
                 });
               }
+              
+              // Check if there are any new opponents to match with
+              const newOpponents = Object.entries(latestData)
+                .filter(([uid, userData]) => {
+                  // Filter out myself and test users
+                  if (uid === currentUser.uid || uid.startsWith('test_')) return false;
+                  
+                  // Check if the user has a clashId (already matched)
+                  const userData_typed = userData as any;
+                  if (userData_typed.clashId) return false;
+                  
+                  // Check if the user's timestamp is recent (within last 2 minutes)
+                  const timestamp = userData_typed.timestamp;
+                  if (timestamp) {
+                    const twoMinutesAgo = Date.now() - 2 * 60 * 1000;
+                    return timestamp > twoMinutesAgo;
+                  }
+                  
+                  return true;
+                })
+                .sort((a, b) => {
+                  const aData = a[1] as any;
+                  const bData = b[1] as any;
+                  return (aData.timestamp || 0) - (bData.timestamp || 0);
+                });
+              
+              // If there are new opponents and I'm the oldest in the queue (or second oldest),
+              // initiate the match creation process
+              if (newOpponents.length > 0) {
+                const myTimestamp = myData.timestamp;
+                const oldestOpponentTimestamp = (newOpponents[0][1] as any).timestamp || 0;
+                
+                // If I've been waiting longer than the oldest opponent, I should create the match
+                if (myTimestamp < oldestOpponentTimestamp) {
+                  console.log("I've been waiting longer than the oldest opponent, initiating match creation");
+                  cleanup(); // Clean up my queue entry and listeners
+                  
+                  // Re-run the matchmaking process to create the match
+                  startRealtimeMatchmaking();
+                }
+              }
             } catch (e) {
               console.warn("Failed to check queue status:", e);
             }
-          }, 30000); // Every 30 seconds
+          }, 10000); // Every 10 seconds
           
           // Listen for match notification
           onValue(myRef, (snap) => {
@@ -312,6 +390,10 @@ function MatchingContent() {
               clearInterval(queueCheckInterval);
               notificationTimeouts.forEach(clearTimeout);
               
+              // Update my status
+              const myStatusRef = ref(rtdb, `status/${currentUser.uid}`);
+              update(myStatusRef, { status: 'in-match' });
+              
               toast({ title: "Match Found!", description: "Let's go!" });
               router.push(`/clash/${data.clashId}`);
             }
@@ -322,6 +404,10 @@ function MatchingContent() {
             clearInterval(timerInterval);
             clearInterval(queueCheckInterval);
             notificationTimeouts.forEach(clearTimeout);
+            
+            // Reset my status when leaving matchmaking
+            const myStatusRef = ref(rtdb, `status/${currentUser.uid}`);
+            update(myStatusRef, { status: 'available' });
           };
         }
       } catch (error) {

@@ -3,7 +3,18 @@
 import { useState, useEffect, useRef, useMemo } from 'react';
 import Image from 'next/image';
 import { useRouter } from 'next/navigation';
-import { addDoc, collection, doc, onSnapshot, orderBy, query, runTransaction, serverTimestamp, getDoc, updateDoc } from 'firebase/firestore';
+import { 
+  getFirestore, 
+  collection, 
+  doc, 
+  onSnapshot, 
+  addDoc, 
+  updateDoc, 
+  query, 
+  orderBy, 
+  runTransaction,
+  serverTimestamp
+} from 'firebase/firestore';
 import { db, rtdb } from '@/lib/firebase';
 import { ref, onValue, set, update, remove, onDisconnect, push, onChildAdded, off } from 'firebase/database';
 import { useToast } from '@/hooks/use-toast';
@@ -20,7 +31,32 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Header } from '@/components/Header';
 import { CodeEditor } from '@/components/CodeEditor';
 import { UserVideo } from '@/components/UserVideo';
-import { BookOpen, Send, Timer, Loader2, Lightbulb, CheckCircle2, XCircle, MessageSquare, TestTube2, Terminal, RefreshCw, CameraOff, Video, Mic, MicOff, VideoOff, Trophy, Medal, Star, Sparkles, ChevronRight, Clock, Lock } from 'lucide-react';
+import { 
+  CheckCircle2, 
+  XCircle, 
+  Terminal, 
+  TestTube2, 
+  Lock, 
+  Send,
+  Play, 
+  Lightbulb, 
+  MessageSquare, 
+  BookOpen, 
+  Clock,
+  ChevronRight, 
+  Loader2,
+  Star,
+  Trophy,
+  Sparkles,
+  Timer,
+  Medal,
+  Video,
+  CameraOff,
+  Mic,
+  MicOff,
+  VideoOff,
+  RefreshCw
+} from 'lucide-react';
 import { cn } from '@/lib/utils';
 import type { Problem } from '@/lib/problems';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
@@ -37,6 +73,7 @@ import {
   AlertDialogTitle,
 } from '@/components/ui/alert-dialog';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
+import { TabSwitchWarningDialog } from '@/components/TabSwitchWarningDialog';
 
 
 interface Participant {
@@ -286,6 +323,10 @@ export default function ClashClient({ id }: { id: string }) {
   
   const [timeLeft, setTimeLeft] = useState(30 * 60); // Default time, will be updated based on startTime
   const [performanceAnalysis, setPerformanceAnalysis] = useState<PerformanceAnalysis | null>(null);
+  
+  // Track if opponent has submitted a solution
+  const [opponentHasSubmitted, setOpponentHasSubmitted] = useState(false);
+  const previousOpponentSolvedTimestamp = useRef<number | null>(null);
 
   const [isGettingHint, setIsGettingHint] = useState(false);
   const [hint, setHint] = useState<string | null>(null);
@@ -305,11 +346,23 @@ export default function ClashClient({ id }: { id: string }) {
   const endOfMessagesRef = useRef<HTMLDivElement>(null);
   const languages = ["javascript", "python", "java", "cpp"];
   
-  const me = useMemo(() => clashData?.participants.find(p => p.userId === currentUser?.uid), [clashData?.participants, currentUser?.uid]);
-  const opponent = useMemo(() => clashData?.participants.find(p => p.userId !== currentUser?.uid), [clashData?.participants, currentUser?.uid]);
+  const me = useMemo(() => {
+    if (!clashData || !Array.isArray(clashData.participants) || !currentUser) return null;
+    return clashData.participants.find(p => p.userId === currentUser.uid);
+  }, [clashData, currentUser]);
+  
+  const opponent = useMemo(() => {
+    if (!clashData || !Array.isArray(clashData.participants) || !currentUser) return null;
+    return clashData.participants.find(p => p.userId !== currentUser.uid);
+  }, [clashData, currentUser]);
+  
   const opponentId = opponent?.userId;
 
-  const allReady = useMemo(() => clashData?.participants.every(p => p.ready) ?? false, [clashData?.participants]);
+  const allReady = useMemo(() => {
+    if (!clashData || !Array.isArray(clashData.participants)) return false;
+    return clashData.participants.every(p => p.ready) ?? false;
+  }, [clashData]);
+  
   const isClashActive = (clashData?.status === 'active' || allReady);
   
   // Deterministic role assignment for WebRTC connection. This is stable once the opponent is identified.
@@ -367,6 +420,22 @@ export default function ClashClient({ id }: { id: string }) {
           ? JSON.parse(rawData.problem)
           : rawData.problem
         );
+
+        // Ensure all participants have proper display names
+        if (rawData.participants && Array.isArray(rawData.participants)) {
+          rawData.participants = rawData.participants.map(participant => {
+            if (!participant.userName || participant.userName === 'Anonymous') {
+              return {
+                ...participant,
+                userName: participant.userId.startsWith('test_') 
+                  ? 'Test Opponent' 
+                  : `User_${participant.userId.substring(0, 6)}`,
+                userAvatar: participant.userAvatar || `https://api.dicebear.com/8.x/initials/svg?seed=${participant.userId}`
+              };
+            }
+            return participant;
+          });
+        }
 
         const data = { ...rawData, problem: problemData } as ClashData;
         setClashData(data);
@@ -456,7 +525,9 @@ export default function ClashClient({ id }: { id: string }) {
       });
     }
   
+    // Only start the match when both participants are ready
     if (allReady && clashData?.status === 'pending' && db && id) {
+        // Only the first participant (index 0) should update the match status
         if (clashData.participants[0].userId === currentUser?.uid) {
             // Use runTransaction to ensure all fields are properly defined when updating status
             runTransaction(db, async (transaction) => {
@@ -469,6 +540,15 @@ export default function ClashClient({ id }: { id: string }) {
                 
                 const data = clashDoc.data() as ClashData;
                 
+                // Double-check that all participants are still ready
+                const allParticipantsReady = data.participants.every(p => p.ready === true);
+                
+                // Don't start the match if not all participants are ready
+                if (!allParticipantsReady) {
+                    console.log("Not all participants are ready, not starting match");
+                    return;
+                }
+                
                 // Ensure all participant fields are defined to prevent Firebase errors
                 const updatedParticipants = data.participants.map(p => ({
                     userId: p.userId,
@@ -479,6 +559,7 @@ export default function ClashClient({ id }: { id: string }) {
                     ready: p.ready || false
                 }));
                 
+                // Only update status to active if all participants are still ready
                 transaction.update(clashDocRef, { 
                     status: 'active',
                     participants: updatedParticipants,
@@ -539,7 +620,7 @@ export default function ClashClient({ id }: { id: string }) {
           senderName: opponent.userName,
           senderAvatar: opponent.userAvatar,
           text: "I've completed the challenge! How are you doing?",
-          timestamp: firestoreServerTimestamp()
+          timestamp: serverTimestamp()
         };
         
         transaction.set(doc(chatRef), messageData);
@@ -1263,10 +1344,18 @@ export default function ClashClient({ id }: { id: string }) {
     // Only update the timer if the clash is active and time is remaining
     if (!isClashActive || timeLeft <= 0) return;
     
-    const timer = setInterval(() => setTimeLeft((prev) => Math.max(0, prev - 1)), 1000);
+    // Instead of decrementing locally, calculate the time left based on the startTime in Firebase
+    const timer = setInterval(() => {
+      if (clashData?.startTime) {
+        const totalDuration = 30 * 60; // 30 minutes in seconds
+        const elapsedTime = Math.floor((Date.now() - clashData.startTime) / 1000);
+        const remainingTime = Math.max(0, totalDuration - elapsedTime);
+        setTimeLeft(remainingTime);
+      }
+    }, 1000);
     
     return () => clearInterval(timer);
-  }, [isClashActive, timeLeft]);
+  }, [isClashActive, clashData?.startTime]);
 
   // Add an effect to handle when the timer reaches zero
   useEffect(() => {
@@ -1300,6 +1389,11 @@ export default function ClashClient({ id }: { id: string }) {
         
         const data = clashDoc.data() as ClashData;
         
+        // Ensure participants is an array
+        if (!Array.isArray(data.participants)) {
+          throw new Error("Invalid clash data: participants is not an array");
+        }
+        
         // Find the current participant's index
         const participantIndex = data.participants.findIndex(p => p.userId === currentUser.uid);
         if (participantIndex === -1) throw new Error("You are not a participant in this clash.");
@@ -1308,52 +1402,75 @@ export default function ClashClient({ id }: { id: string }) {
         if (data.participants[participantIndex].solvedTimestamp !== null) return;
         
         // Update the participant's score and mark as solved
-        const newParticipants = [...data.participants];
-        
-        // Award 100 points for solving
-        const basePoints = 100;
-        
-        // Bonus points for being first to solve (50 points)
-        const firstToSolve = !data.participants.some(p => p.solvedTimestamp !== null);
-        const firstSolveBonus = firstToSolve ? 50 : 0;
-        
-        // Time bonus (up to 50 points for solving quickly)
-        // Earliest possible submit is when clash starts, latest is when timer ends
-        const elapsedSeconds = (Date.now() - (data.startTime || 0)) / 1000;
-        const maxTimeBonus = 50;
-        const timeBonus = Math.max(0, Math.floor(maxTimeBonus * (1 - elapsedSeconds / (30 * 60))));
-        
-        // Calculate total points
-        const totalPoints = basePoints + firstSolveBonus + timeBonus;
-        
-        newParticipants[participantIndex] = {
-          ...newParticipants[participantIndex],
-          score: (newParticipants[participantIndex].score || 0) + totalPoints,
-          solvedTimestamp: Date.now(),
-        };
-        
-        // Reset any tab switching flags/warnings - solution has been submitted successfully
-        if (newParticipants[participantIndex].flagged) {
-          newParticipants[participantIndex].flagged = false;
-          newParticipants[participantIndex].flagReason = '';
-        }
+        const newParticipants = data.participants.map(p => {
+          // Create a clean participant object with no undefined values
+          const cleanParticipant: Participant = {
+            userId: p.userId,
+            userName: p.userName || (p.userId === currentUser.uid 
+              ? (currentUser.displayName || `User_${currentUser.uid.substring(0, 6)}`)
+              : (p.userId.startsWith('test_') ? 'Test Opponent' : `User_${p.userId.substring(0, 6)}`)),
+            userAvatar: p.userAvatar || `https://api.dicebear.com/8.x/initials/svg?seed=${encodeURIComponent(p.userId)}`,
+            score: p.score || 0,
+            solvedTimestamp: p.solvedTimestamp || null,
+            ready: p.ready || false
+          };
+          
+          // Only add optional fields if they exist and are not undefined
+          if (p.isTestUser) {
+            cleanParticipant.isTestUser = true;
+          }
+          
+          if (p.flagged) {
+            cleanParticipant.flagged = p.flagged;
+          }
+          
+          if (p.flagReason) {
+            cleanParticipant.flagReason = p.flagReason;
+          }
+          
+          // If this is the current user, update their score and mark as solved
+          if (p.userId === currentUser.uid) {
+            // Award 100 points for solving
+            const basePoints = 100;
+            
+            // Bonus points for being first to solve (50 points)
+            const firstToSolve = !data.participants.some(p => p.solvedTimestamp !== null);
+            const firstSolveBonus = firstToSolve ? 50 : 0;
+            
+            // Time bonus (up to 50 points for solving quickly)
+            // Earliest possible submit is when clash starts, latest is when timer ends
+            const elapsedSeconds = (Date.now() - (data.startTime || 0)) / 1000;
+            const maxTimeBonus = 50;
+            const timeBonus = Math.max(0, Math.floor(maxTimeBonus * (1 - elapsedSeconds / (30 * 60))));
+            
+            // Calculate total points
+            const totalPoints = basePoints + firstSolveBonus + timeBonus;
+            
+            cleanParticipant.score = (cleanParticipant.score || 0) + totalPoints;
+            cleanParticipant.solvedTimestamp = Date.now();
+            cleanParticipant.flagged = false;
+            cleanParticipant.flagReason = '';
+            
+            // Update user profile with score
+            updateUserScore(currentUser.uid, totalPoints);
+            
+            // Update local state to show congratulations modal
+            setShowWinModal({
+              totalPoints,
+              breakdown: {
+                base: basePoints,
+                firstSolve: firstSolveBonus,
+                time: timeBonus
+              },
+              firstToSolve,
+              opponentSolved: data.participants.some(p => p.userId !== currentUser.uid && p.solvedTimestamp !== null)
+            });
+          }
+          
+          return cleanParticipant;
+        });
         
         transaction.update(clashDocRef, { participants: newParticipants });
-        
-        // Update user profile with score
-        updateUserScore(currentUser.uid, totalPoints);
-        
-        // Update local state to show congratulations modal
-        setShowWinModal({
-          totalPoints,
-          breakdown: {
-            base: basePoints,
-            firstSolve: firstSolveBonus,
-            time: timeBonus
-          },
-          firstToSolve,
-          opponentSolved: data.participants.some(p => p.userId !== currentUser.uid && p.solvedTimestamp !== null)
-        });
       });
     } catch (error) {
       console.error("Failed to award points:", error);
@@ -1372,7 +1489,7 @@ export default function ClashClient({ id }: { id: string }) {
     const chatRef = collection(db, 'clashes', id, 'chat');
     try {
         // Ensure all fields have defined values to prevent Firebase errors
-        const displayName = currentUser.displayName || 'Anonymous';
+        const displayName = currentUser.displayName || `User_${currentUser.uid.substring(0, 6)}`;
         const photoURL = currentUser.photoURL || `https://api.dicebear.com/8.x/initials/svg?seed=${encodeURIComponent(displayName)}&backgroundColor=e74c86&textColor=ffffff&radius=50`;
         
         await addDoc(chatRef, {
@@ -1456,6 +1573,7 @@ export default function ClashClient({ id }: { id: string }) {
     else setIsRunning(true);
     
     setConsoleTab('test-result');
+    // Always run all test cases when submitting
     const testCasesToRun = isSubmission ? problem.testCases : problem.testCases.slice(0, 3);
     setOutput(`Running ${testCasesToRun.length} test case(s)...`);
 
@@ -1480,15 +1598,21 @@ export default function ClashClient({ id }: { id: string }) {
           setPerformanceAnalysis(result.performance);
         }
         
+        // Always set the output to show all test case results
         setOutput(result.results);
         
         if (isSubmission) {
-          if (result.passedCount === result.totalCount) {
+          // Create a detailed message that shows the exact number of test cases passed
+          const passedCount = result.passedCount;
+          const totalCount = result.totalCount;
+          
+          if (passedCount === totalCount) {
             setSubmissionResult({ 
               status: 'Accepted', 
-              message: `Congratulations! All ${result.totalCount} test cases passed.`,
+              message: `Congratulations! All ${totalCount} test cases passed.`,
               performance: result.performance
             });
+            // Only award points and show win modal if ALL test cases pass
             awardPoints();
           } else {
             // Find failing test cases and their explanations
@@ -1500,7 +1624,7 @@ export default function ClashClient({ id }: { id: string }) {
               
             setSubmissionResult({ 
               status: 'Wrong Answer', 
-              message: `Your solution failed. Passed ${result.passedCount} out of ${result.totalCount} test cases.${failureExplanations ? `\n\nHints:\n${failureExplanations}` : ''}`,
+              message: `Your solution failed. Passed ${passedCount} out of ${totalCount} test cases.${failureExplanations ? `\n\nHints:\n${failureExplanations}` : ''}`,
               performance: result.performance
             });
           }
@@ -1550,10 +1674,11 @@ export default function ClashClient({ id }: { id: string }) {
             
             const data = clashDoc.data() as ClashData;
             
-            // Ensure all participant fields are defined to prevent Firebase errors
+            // Update only the current user's ready status
             const updatedParticipants = data.participants.map(p => {
                 if (p.userId === currentUser.uid) {
-                    return { 
+                    return {
+                        ...p,
                         userId: p.userId,
                         userName: p.userName || 'Anonymous',
                         userAvatar: p.userAvatar || `https://api.dicebear.com/8.x/initials/svg?seed=${encodeURIComponent(p.userName || 'Anonymous')}&backgroundColor=e74c86&textColor=ffffff&radius=50`,
@@ -1562,16 +1687,10 @@ export default function ClashClient({ id }: { id: string }) {
                         ready: true
                     };
                 }
-                return {
-                    userId: p.userId,
-                    userName: p.userName || 'Anonymous',
-                    userAvatar: p.userAvatar || `https://api.dicebear.com/8.x/initials/svg?seed=${encodeURIComponent(p.userName || 'Anonymous')}&backgroundColor=e74c86&textColor=ffffff&radius=50`,
-                    score: p.score || 0,
-                    solvedTimestamp: p.solvedTimestamp || null,
-                    ready: p.ready || false
-                };
+                return p;
             });
-
+            
+            // Only update participants array, not the status
             transaction.update(clashDocRef, { participants: updatedParticipants });
         });
     } catch (e) {
@@ -1621,7 +1740,7 @@ export default function ClashClient({ id }: { id: string }) {
       const tabSwitchRef = collection(db, 'clashes', id, 'tabSwitches');
       await addDoc(tabSwitchRef, {
         userId: currentUser.uid,
-        userName: currentUser.displayName || 'Anonymous',
+        userName: currentUser.displayName || `User_${currentUser.uid.substring(0, 6)}`,
         timestamp: serverTimestamp(),
         count: tabSwitchWarnings + 1,
         clientTimestamp: Date.now() // Backup client timestamp
@@ -1629,11 +1748,48 @@ export default function ClashClient({ id }: { id: string }) {
       
       // If this exceeds the maximum allowed tab switches, flag the clash
       if (tabSwitchWarnings + 1 >= maxTabSwitches) {
-        // Update the clash document with a flag
+        // Update the clash document with a flag using a transaction
         const clashDocRef = doc(db, 'clashes', id);
-        await updateDoc(clashDocRef, {
-          [`participants.${clashData?.participants.findIndex(p => p.userId === currentUser.uid)}.flagged`]: true,
-          [`participants.${clashData?.participants.findIndex(p => p.userId === currentUser.uid)}.flagReason`]: 'Excessive tab switching'
+        
+        // Use a transaction to safely update the participant data
+        await runTransaction(db, async (transaction) => {
+          const clashDoc = await transaction.get(clashDocRef);
+          if (!clashDoc.exists()) {
+            throw new Error("Clash document does not exist!");
+          }
+          
+          const data = clashDoc.data() as ClashData;
+          
+          // Ensure participants is an array
+          if (!Array.isArray(data.participants)) {
+            throw new Error("Invalid clash data: participants is not an array");
+          }
+          
+          // Find the current participant's index
+          const participantIndex = data.participants.findIndex(p => p.userId === currentUser.uid);
+          if (participantIndex === -1) throw new Error("You are not a participant in this clash.");
+          
+          // Create a new participants array with the updated participant
+          const newParticipants = data.participants.map((p, index) => {
+            if (index === participantIndex) {
+              return {
+                ...p,
+                flagged: true,
+                flagReason: 'Excessive tab switching'
+              };
+            }
+            return p;
+          });
+          
+          // Update the document with the new participants array
+          transaction.update(clashDocRef, { participants: newParticipants });
+        });
+        
+        // Show a toast notification
+        toast({ 
+          title: "Violation Detected", 
+          description: "Excessive tab switching has been flagged in the system.", 
+          variant: "destructive" 
         });
       }
     } catch (error) {
@@ -1654,11 +1810,23 @@ export default function ClashClient({ id }: { id: string }) {
         
         // If they haven't submitted yet and the clash is active
         if (!hasSubmittedSolution && isClashActive) {
-          setTabSwitchWarnings(prev => prev + 1);
+          // Increment the warning counter
+          const newWarningCount = tabSwitchWarnings + 1;
+          setTabSwitchWarnings(newWarningCount);
+          
+          // Show the warning dialog
           setIsTabSwitchDialogOpen(true);
           
           // Record the tab switch event in Firebase
           recordTabSwitchEvent();
+          
+          // If this is the final warning (max tab switches reached), take additional actions
+          if (newWarningCount >= maxTabSwitches) {
+            // Apply visual indicators or other UI changes to indicate the violation
+            // This is handled in the dialog component
+            
+            // Redirection is now handled by the TabSwitchWarningDialog component
+          }
         }
       } else {
         // User has returned to the tab
@@ -1691,6 +1859,48 @@ export default function ClashClient({ id }: { id: string }) {
       window.removeEventListener('beforeunload', handleBeforeUnload);
     };
   }, [isClashActive, hasSubmittedSolution, tabSwitchWarnings, id, currentUser, clashData, db]);
+
+  // Add a new useEffect to watch for changes in opponent's solvedTimestamp
+  useEffect(() => {
+    if (!opponent || !opponent.userId) return;
+    
+    // Check if opponent has submitted a solution and it's a new submission
+    if (opponent.solvedTimestamp && !opponentHasSubmitted) {
+      setOpponentHasSubmitted(true);
+      
+      // Show a toast notification
+      toast({
+        title: "Opponent Submitted Solution",
+        description: `${opponent.userName} has completed the challenge. You can still continue working on your solution.`,
+        variant: "default",
+        duration: 6000,
+      });
+    }
+    
+    // If this is a new submission (different from the previous one)
+    if (opponent.solvedTimestamp && 
+        previousOpponentSolvedTimestamp.current !== opponent.solvedTimestamp) {
+      
+      previousOpponentSolvedTimestamp.current = opponent.solvedTimestamp;
+      
+      if (opponent.solvedTimestamp) {
+        // Add a system message to the chat
+        if (db && id && currentUser) {
+          const chatRef = collection(db, 'clashes', id, 'chat');
+          addDoc(chatRef, {
+            text: `${opponent.userName} has completed the challenge!`,
+            senderId: 'system',
+            senderName: 'System',
+            senderAvatar: '/logo.svg',
+            timestamp: serverTimestamp(),
+            isSystemMessage: true,
+          }).catch(err => {
+            console.error("Failed to add system message:", err);
+          });
+        }
+      }
+    }
+  }, [opponent, opponentHasSubmitted, toast, db, id, currentUser]);
 
   if (!clashData || !problem || !currentUser) {
     return (
@@ -2202,32 +2412,106 @@ export default function ClashClient({ id }: { id: string }) {
         <Header />
         
         {/* Tab Switch Warning Dialog */}
-        <AlertDialog open={isTabSwitchDialogOpen} onOpenChange={setIsTabSwitchDialogOpen}>
-          <AlertDialogContent>
-            <AlertDialogHeader>
-              <AlertDialogTitle className="text-red-500 flex items-center">
-                <XCircle className="h-5 w-5 mr-2" />
-                Tab Switch Detected!
-              </AlertDialogTitle>
-              <AlertDialogDescription className="space-y-3">
-                <p>You have switched away from the challenge tab. This may be considered cheating.</p>
-                
-                <div className="bg-amber-500/10 border border-amber-500/30 rounded-md p-3 text-amber-200">
-                  <p className="font-medium">Warning {tabSwitchWarnings} of {maxTabSwitches}</p>
-                  <p className="text-sm mt-1">Continued tab switching may result in disqualification.</p>
+        <AlertDialog open={isTabSwitchDialogOpen} onOpenChange={(open) => !open && setIsTabSwitchDialogOpen(false)}>
+          <AlertDialogContent className="max-w-[500px]">
+            <div className="absolute inset-0 overflow-hidden pointer-events-none">
+              <div className="absolute -top-10 -right-10 w-40 h-40 bg-destructive/10 rounded-full blur-3xl"></div>
+              <div className="absolute -bottom-10 -left-10 w-40 h-40 bg-destructive/10 rounded-full blur-3xl"></div>
+            </div>
+            
+            <div className="relative">
+              <AlertDialogHeader>
+                <div className="flex items-center gap-3 mb-4">
+                  <div className="h-12 w-12 rounded-full bg-destructive/20 flex items-center justify-center">
+                    <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="h-7 w-7 text-destructive">
+                      <path d="M18 6 6 18"></path><path d="m6 6 12 12"></path>
+                    </svg>
+                  </div>
+                  <AlertDialogTitle className="text-2xl font-bold text-destructive">
+                    {tabSwitchWarnings >= maxTabSwitches ? 'Tab Switching Violation' : 'Tab Switching Warning'}
+                  </AlertDialogTitle>
                 </div>
                 
-                {tabSwitchWarnings >= maxTabSwitches && (
-                  <div className="bg-red-500/10 border border-red-500/30 rounded-md p-3 text-red-200">
-                    <p className="font-medium">Final warning!</p>
-                    <p className="text-sm mt-1">Your activity has been flagged for review. Further violations may result in automatic disqualification.</p>
+                <div className="whitespace-pre-wrap bg-card/50 backdrop-blur-sm border border-border/50 rounded-lg p-4 shadow-md">
+                  <AlertDialogDescription className="text-base text-foreground">
+                    {tabSwitchWarnings >= maxTabSwitches ? (
+                      <>
+                        <p className="mb-2">You have switched tabs or minimized the window <strong className="text-destructive">{tabSwitchWarnings} times</strong>, exceeding the maximum allowed limit of {maxTabSwitches}.</p>
+                        <p className="mb-2">This activity has been flagged as a potential violation of the coding challenge rules.</p>
+                        <p>Your submission may be subject to review or penalty.</p>
+                      </>
+                    ) : (
+                      <>
+                        <p className="mb-2">You have switched tabs or minimized the window <strong className="text-destructive">{tabSwitchWarnings} time{tabSwitchWarnings > 1 ? 's' : ''}</strong>.</p>
+                        <p className="mb-2">Please remain on this page during the coding challenge.</p>
+                        <p>Switching tabs more than {maxTabSwitches} times may result in your submission being flagged.</p>
+                      </>
+                    )}
+                  </AlertDialogDescription>
+                </div>
+              </AlertDialogHeader>
+              
+              <div className="mt-6 flex items-center justify-between bg-background/50 backdrop-blur-sm border border-border/50 rounded-lg p-4">
+                <div className="flex items-center gap-3">
+                  <div className={cn(
+                    "h-8 w-8 rounded-full flex items-center justify-center",
+                    tabSwitchWarnings >= maxTabSwitches ? "bg-destructive text-destructive-foreground" : "bg-amber-500/20 text-amber-500"
+                  )}>
+                    <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="h-5 w-5">
+                      <path d="M10.29 3.86 1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"></path>
+                      <line x1="12" y1="9" x2="12" y2="13"></line>
+                      <line x1="12" y1="17" x2="12.01" y2="17"></line>
+                    </svg>
                   </div>
-                )}
-              </AlertDialogDescription>
-            </AlertDialogHeader>
-            <AlertDialogFooter>
-              <AlertDialogAction>I understand</AlertDialogAction>
-            </AlertDialogFooter>
+                  <div>
+                    <p className="font-medium">Tab Switches</p>
+                    <div className="flex items-center gap-1 mt-1">
+                      {Array.from({ length: maxTabSwitches }).map((_, i) => (
+                        <div 
+                          key={i} 
+                          className={cn(
+                            "h-2 w-6 rounded-full", 
+                            i < tabSwitchWarnings 
+                              ? (i >= maxTabSwitches - 1 ? "bg-destructive" : "bg-amber-500") 
+                              : "bg-muted"
+                          )}
+                        ></div>
+                      ))}
+                    </div>
+                  </div>
+                </div>
+                <div className="text-2xl font-bold">
+                  {tabSwitchWarnings}/{maxTabSwitches}
+                </div>
+              </div>
+              
+              {tabSwitchWarnings >= maxTabSwitches && (
+                <div className="mt-4 p-3 bg-destructive/10 border border-destructive/30 rounded-lg text-sm">
+                  <p className="flex items-center gap-2">
+                    <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="h-4 w-4 text-destructive">
+                      <circle cx="12" cy="12" r="10"></circle>
+                      <line x1="12" y1="8" x2="12" y2="12"></line>
+                      <line x1="12" y1="16" x2="12.01" y2="16"></line>
+                    </svg>
+                    <span>Your activity has been flagged in the system.</span>
+                  </p>
+                </div>
+              )}
+              
+              <AlertDialogFooter className="mt-6">
+                <AlertDialogAction 
+                  onClick={() => setIsTabSwitchDialogOpen(false)}
+                  className={cn(
+                    "px-8 py-2 shadow-lg transition-all duration-300",
+                    tabSwitchWarnings >= maxTabSwitches 
+                      ? "bg-destructive hover:bg-destructive/90 text-destructive-foreground" 
+                      : "bg-primary hover:bg-primary/90"
+                  )}
+                >
+                  {tabSwitchWarnings >= maxTabSwitches ? 'I Understand' : 'Continue'}
+                </AlertDialogAction>
+              </AlertDialogFooter>
+            </div>
           </AlertDialogContent>
         </AlertDialog>
         
@@ -2238,13 +2522,13 @@ export default function ClashClient({ id }: { id: string }) {
                     <h2 className="text-2xl font-bold">Ready to Clash?</h2>
                     <p className="text-muted-foreground max-w-md">The timer will begin once both players are ready. Get your setup prepared and click the ready button when you're good to go.</p>
                     <div className="flex gap-8 md:gap-16 items-start my-4">
-                        {clashData.participants.map(p => (
+                        {clashData?.participants && Array.isArray(clashData.participants) && clashData.participants.map(p => (
                             <div key={p.userId} className="flex flex-col items-center gap-2 w-32">
                                 <Avatar className="h-20 w-20 border-4 data-[ready=true]:border-green-500 data-[ready=false]:border-primary" data-ready={p.ready}>
                                     <AvatarImage src={p.userAvatar} />
                                     <AvatarFallback>{p.userName.substring(0,2).toUpperCase()}</AvatarFallback>
                                 </Avatar>
-                                <span className="font-semibold truncate w-full">{p.userName} {p.userId === currentUser.uid && '(You)'}</span>
+                                <span className="font-semibold truncate w-full">{p.userName} {p.userId === currentUser?.uid && '(You)'}</span>
                                 {p.ready ? (
                                     <div className="flex items-center justify-center gap-2 text-green-400 font-medium"><CheckCircle2 className="h-5 w-5"/> Ready</div>
                                 ) : (
@@ -2284,12 +2568,20 @@ export default function ClashClient({ id }: { id: string }) {
                     </div>
                     <div className='text-muted-foreground font-bold text-lg'>VS</div>
                     {opponent && <div className='flex items-center gap-3'>
-                        <Avatar className="h-10 w-10">
+                        <Avatar className={`h-10 w-10 ${opponent.solvedTimestamp ? 'border-2 border-green-500' : ''}`}>
                         <AvatarImage src={opponent.userAvatar} data-ai-hint="person coding" />
                         <AvatarFallback>{opponent.userName.substring(0, 2).toUpperCase()}</AvatarFallback>
                         </Avatar>
                         <div>
-                        <p className="font-semibold">{opponent.userName}</p>
+                        <div className="flex items-center gap-2">
+                          <p className="font-semibold">{opponent.userName}</p>
+                          {opponent.solvedTimestamp && (
+                            <div className="bg-green-500/20 text-green-500 text-xs px-1.5 py-0.5 rounded-full flex items-center gap-1">
+                              <CheckCircle2 className="h-3 w-3" />
+                              <span>Completed</span>
+                            </div>
+                          )}
+                        </div>
                         <p className="text-xs text-muted-foreground">Score: {opponent.score}</p>
                         </div>
                     </div>}
@@ -2302,7 +2594,16 @@ export default function ClashClient({ id }: { id: string }) {
                     </div>
                     </div>
                 </CardContent>
-                <Progress value={progressValue} className="w-full h-1 rounded-none" />
+                
+                {/* Add timer progress bar */}
+                <div className="w-full h-1.5 bg-muted/30">
+                  <div 
+                    className={`h-full transition-all duration-1000 ease-linear ${
+                      timeLeft < 300 ? 'bg-red-500' : timeLeft < 600 ? 'bg-amber-500' : 'bg-primary'
+                    }`} 
+                    style={{ width: `${progressValue}%` }}
+                  ></div>
+                </div>
             </Card>
           )}
 
@@ -2552,14 +2853,15 @@ export default function ClashClient({ id }: { id: string }) {
                                             </h3>
                                             <p className="text-sm text-muted-foreground">
                                                 The problem includes {problem?.testCases.length} test cases in total. 
-                                                {problem?.testCases.length > 3 && ` Below are the first ${submissionResult ? 'five' : 'three'} test cases to help you understand the problem.`}
+                                                {!submissionResult && problem?.testCases.length > 3 && ` Below are the first three test cases to help you understand the problem.`}
+                                                {submissionResult && ` All test cases are shown below after your submission.`}
                                                 <br />
                                                 When you submit your solution, it will be tested against all test cases.
                                             </p>
                                         </div>
                                         
                                         <div className="space-y-4 font-code text-base">
-                                            {problem?.testCases.slice(0, submissionResult ? 5 : 3).map((tc, index) => (
+                                            {problem?.testCases.slice(0, submissionResult ? problem.testCases.length : 3).map((tc, index) => (
                                                 <div key={index} className="border border-border/50 rounded-lg overflow-hidden shadow-md transition-all duration-300 hover:shadow-primary/20 hover:border-primary/30">
                                                     <div className="bg-primary/10 p-3 flex justify-between items-center">
                                                         <p className="font-bold text-primary flex items-center">
@@ -2745,6 +3047,40 @@ export default function ClashClient({ id }: { id: string }) {
                         </AlertDialogDescription>
                     </div>
                 </AlertDialogHeader>
+                
+                {/* Test Results Summary */}
+                {submissionResult && submissionResult.status !== 'Error' && (
+                    <div className="mt-4 p-4 bg-card/50 border border-border/50 rounded-lg shadow-md backdrop-blur-sm">
+                        <h3 className="font-bold mb-3 text-base flex items-center">
+                            <TestTube2 className="h-5 w-5 mr-2 text-primary" />
+                            Test Results Summary
+                        </h3>
+                        
+                        <div className="flex items-center justify-between mb-2">
+                            <div className="font-semibold">
+                                {submissionResult.status === 'Accepted' ? 'All tests passed!' : 'Some tests failed'}
+                            </div>
+                            <div className="text-sm text-muted-foreground">
+                                {submissionResult.message.match(/Passed (\d+) out of (\d+)/)?.[1] || problem?.testCases.length} / {problem?.testCases.length} tests passed
+                            </div>
+                        </div>
+                        
+                        <div className="w-full h-2 bg-muted/30 rounded-full overflow-hidden">
+                            <div 
+                                className={`h-full ${submissionResult.status === 'Accepted' ? 'bg-green-500' : 'bg-amber-500'}`}
+                                style={{ 
+                                    width: `${(parseInt(submissionResult.message.match(/Passed (\d+) out of (\d+)/)?.[1] || '0') / problem?.testCases.length) * 100}%` 
+                                }}
+                            ></div>
+                        </div>
+                        
+                        <div className="mt-2 text-xs text-muted-foreground">
+                            {submissionResult.status === 'Accepted' 
+                                ? 'Great job! Your solution passed all test cases.' 
+                                : 'Check the test results tab for details on which tests failed.'}
+                        </div>
+                    </div>
+                )}
                 
                 {/* Performance Analysis */}
                 {submissionResult?.performance && (
@@ -2946,6 +3282,237 @@ export default function ClashClient({ id }: { id: string }) {
             </div>
         </AlertDialogContent>
       </AlertDialog>
+
+      {/* Enhanced Win Modal */}
+      <AlertDialog open={!!showWinModal} onOpenChange={(open) => !open && setShowWinModal(null)}>
+        <AlertDialogContent className="max-w-[650px] max-h-[90vh] overflow-auto">
+            <div className="absolute inset-0 overflow-hidden pointer-events-none">
+                <div className="absolute -top-10 -right-10 w-64 h-64 bg-primary/10 rounded-full blur-3xl"></div>
+                <div className="absolute -bottom-10 -left-10 w-64 h-64 bg-yellow-400/10 rounded-full blur-3xl"></div>
+            </div>
+            
+            <div className="relative">
+                {/* Animated background elements */}
+                <div className="absolute top-0 left-0 w-full h-full flex items-center justify-center opacity-5 pointer-events-none">
+                    <svg xmlns="http://www.w3.org/2000/svg" width="300" height="300" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1" strokeLinecap="round" strokeLinejoin="round" className="text-primary animate-pulse">
+                        <path d="m2 4 3 12h14l3-12-6 7-4-7-4 7-6-7zm3 16h14"></path>
+                    </svg>
+                </div>
+                
+                {/* Header with trophy */}
+                <div className="text-center py-4 relative">
+                    <div className="absolute -top-10 left-1/2 transform -translate-x-1/2 w-full h-40 flex items-center justify-center">
+                        <div className="relative animate-bounce-slow">
+                            {showWinModal?.firstToSolve ? (
+                                <>
+                                    <Trophy className="h-24 w-24 text-yellow-400 drop-shadow-lg" />
+                                    <div className="absolute -top-4 -right-4 text-yellow-300 animate-spin-slow">
+                                        <Sparkles className="h-10 w-10" />
+                                    </div>
+                                    <div className="absolute -bottom-2 -left-4 text-yellow-300 animate-ping-slow">
+                                        <Sparkles className="h-8 w-8" />
+                                    </div>
+                                </>
+                            ) : (
+                                <Trophy className="h-24 w-24 text-primary drop-shadow-lg" />
+                            )}
+                        </div>
+                    </div>
+                    
+                    <h2 className="text-3xl font-bold mt-14 mb-1 bg-clip-text text-transparent bg-gradient-to-r from-yellow-400 via-primary to-yellow-400 animate-gradient">
+                        {showWinModal?.firstToSolve ? 'FIRST BLOOD!' : 'Challenge Completed!'}
+                    </h2>
+                    
+                    <p className="text-xl mb-2">
+                        {showWinModal?.firstToSolve 
+                            ? 'You were the first to solve this challenge!' 
+                            : 'You\'ve successfully solved the challenge!'}
+                    </p>
+                    
+                    {/* Confetti effect for first solver */}
+                    {showWinModal?.firstToSolve && (
+                        <div className="absolute top-0 left-0 w-full h-full pointer-events-none overflow-hidden">
+                            <div className="absolute -top-10 left-10 w-4 h-4 bg-yellow-400 rounded-full animate-fall-slow-1"></div>
+                            <div className="absolute -top-10 left-1/4 w-3 h-3 bg-primary rounded-full animate-fall-slow-2"></div>
+                            <div className="absolute -top-10 left-2/4 w-2 h-2 bg-accent rounded-full animate-fall-slow-3"></div>
+                            <div className="absolute -top-10 right-1/4 w-4 h-4 bg-yellow-400 rounded-full animate-fall-slow-2"></div>
+                            <div className="absolute -top-10 right-10 w-3 h-3 bg-primary rounded-full animate-fall-slow-1"></div>
+                        </div>
+                    )}
+                </div>
+                
+                {/* Points breakdown */}
+                <div className="bg-card/50 backdrop-blur-sm border border-primary/30 rounded-lg p-6 mb-6 shadow-lg">
+                    <div className="flex flex-col md:flex-row justify-between items-center gap-4">
+                        <div className="text-center md:text-left">
+                            <h3 className="text-lg font-semibold text-muted-foreground mb-1">Total Points Earned</h3>
+                            <div className="text-5xl font-bold text-primary animate-pulse-slow">+{showWinModal?.totalPoints}</div>
+                        </div>
+                        
+                        <div className="flex-1 h-px md:w-px md:h-16 bg-border/50 mx-2"></div>
+                        
+                        <div className="grid grid-cols-3 gap-2 text-center flex-1">
+                            <div className="p-2 bg-background/40 rounded-lg border border-border/50">
+                                <div className="text-2xl font-bold text-foreground">{showWinModal?.breakdown.base}</div>
+                                <div className="text-xs text-muted-foreground">Base Points</div>
+                            </div>
+                            
+                            <div className={cn(
+                                "p-2 rounded-lg border",
+                                showWinModal?.breakdown.firstSolve ? "bg-yellow-400/10 border-yellow-400/30" : "bg-background/40 border-border/50"
+                            )}>
+                                <div className={cn(
+                                    "text-2xl font-bold",
+                                    showWinModal?.breakdown.firstSolve ? "text-yellow-400" : "text-muted-foreground"
+                                )}>{showWinModal?.breakdown.firstSolve}</div>
+                                <div className="text-xs text-muted-foreground">First Solve</div>
+                            </div>
+                            
+                            <div className="p-2 bg-background/40 rounded-lg border border-border/50">
+                                <div className="text-2xl font-bold text-foreground">{showWinModal?.breakdown.time}</div>
+                                <div className="text-xs text-muted-foreground">Time Bonus</div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                
+                {/* Stats & Analysis */}
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
+                    <div className="bg-background/30 backdrop-blur-sm border border-border/50 rounded-lg p-4 flex flex-col">
+                        <div className="text-sm text-muted-foreground mb-1">Completion Time</div>
+                        <div className="text-xl font-mono font-bold flex items-center gap-2">
+                            <Timer className="h-5 w-5 text-primary" />
+                            {formatTime(30 * 60 - timeLeft)}
+                        </div>
+                        <div className="mt-auto pt-2 text-xs text-muted-foreground">
+                            {30 * 60 - timeLeft < 600 ? 'Blazing fast!' : 
+                             30 * 60 - timeLeft < 1200 ? 'Great time!' : 
+                             'Well done!'}
+                        </div>
+                    </div>
+                    
+                    <div className="bg-background/30 backdrop-blur-sm border border-border/50 rounded-lg p-4 flex flex-col">
+                        <div className="text-sm text-muted-foreground mb-1">Opponent Status</div>
+                        <div className="text-xl font-bold flex items-center gap-2">
+                            {showWinModal?.opponentSolved ? (
+                                <>
+                                    <Medal className="h-5 w-5 text-yellow-400" />
+                                    <span className="text-yellow-400">Also Solved</span>
+                                </>
+                            ) : (
+                                <>
+                                    <Medal className="h-5 w-5 text-green-400" />
+                                    <span className="text-green-400">Not Solved Yet</span>
+                                </>
+                            )}
+                        </div>
+                        <div className="mt-auto pt-2 text-xs text-muted-foreground">
+                            {showWinModal?.opponentSolved ? 
+                                'You both completed the challenge!' : 
+                                'You solved it before your opponent!'}
+                        </div>
+                    </div>
+                </div>
+                
+                {/* Real-time score updates */}
+                <div className="bg-background/20 backdrop-blur-md border border-accent/30 rounded-lg p-4 mb-6 shadow-lg overflow-hidden relative">
+                    <div className="absolute inset-0 bg-gradient-to-r from-primary/5 to-accent/5 animate-pulse-slow"></div>
+                    
+                    <h3 className="font-bold mb-3 text-base flex items-center relative z-10">
+                        <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="h-5 w-5 mr-2 text-primary"><path d="M18 18v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"></path><circle cx="12" cy="7" r="3"></circle></svg>
+                        Live Score Update
+                    </h3>
+                    
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4 relative z-10">
+                        <div className="flex items-center gap-3 bg-background/40 p-3 rounded-md border border-border/50">
+                            <Avatar className="h-10 w-10 border-2 border-primary">
+                                <AvatarImage src={me?.userAvatar} />
+                                <AvatarFallback>{me?.userName?.substring(0, 2).toUpperCase()}</AvatarFallback>
+                            </Avatar>
+                            <div className="flex-1">
+                                <div className="flex justify-between">
+                                    <p className="font-medium">{me?.userName} (You)</p>
+                                    <p className="font-bold text-primary">{me?.score}</p>
+                                </div>
+                                <div className="w-full bg-muted h-1.5 rounded-full mt-1 overflow-hidden">
+                                    <div className="bg-primary h-full rounded-full" style={{ width: `${Math.min(100, (me?.score || 0) / 10)}%` }}></div>
+                                </div>
+                            </div>
+                        </div>
+                        
+                        {opponent && (
+                            <div className="flex items-center gap-3 bg-background/40 p-3 rounded-md border border-border/50">
+                                <Avatar className="h-10 w-10">
+                                    <AvatarImage src={opponent.userAvatar} />
+                                    <AvatarFallback>{opponent.userName.substring(0, 2).toUpperCase()}</AvatarFallback>
+                                </Avatar>
+                                <div className="flex-1">
+                                    <div className="flex justify-between">
+                                        <p className="font-medium">{opponent.userName}</p>
+                                        <p className="font-bold text-accent">{opponent.score}</p>
+                                    </div>
+                                    <div className="w-full bg-muted h-1.5 rounded-full mt-1 overflow-hidden">
+                                        <div className="bg-accent h-full rounded-full" style={{ width: `${Math.min(100, (opponent.score || 0) / 10)}%` }}></div>
+                                    </div>
+                                </div>
+                            </div>
+                        )}
+                    </div>
+                </div>
+                
+                {/* Next steps */}
+                <div className="relative z-10 flex gap-3 items-center p-3 bg-background/40 rounded-lg border border-green-500/30 mb-6">
+                    <div className="h-9 w-9 rounded-full bg-green-500/20 flex items-center justify-center shrink-0">
+                        <CheckCircle2 className="h-5 w-5 text-green-500" />
+                    </div>
+                    <div>
+                        <p className="font-medium text-green-500">Solution Unlocked</p>
+                        <p className="text-sm text-muted-foreground">You can now view the optimal solution in the "Solution" tab</p>
+                    </div>
+                </div>
+                
+                <AlertDialogFooter className="flex flex-col sm:flex-row gap-2">
+                    <Button 
+                        variant="outline" 
+                        onClick={() => {
+                            setShowWinModal(null);
+                            router.push('/leaderboard');
+                        }}
+                        className="flex-1"
+                    >
+                        <Trophy className="h-4 w-4 mr-2" />
+                        Leaderboard
+                    </Button>
+                    <Button 
+                        onClick={() => {
+                            setConsoleTab("solution");
+                            setShowWinModal(null);
+                        }}
+                        className="flex-1 bg-accent hover:bg-accent/90"
+                    >
+                        <BookOpen className="h-4 w-4 mr-2" />
+                        View Solution
+                    </Button>
+                    <Button 
+                        onClick={() => {
+                            setShowWinModal(null);
+                            router.push('/lobby');
+                        }}
+                        className="flex-1 bg-primary hover:bg-primary/90"
+                    >
+                        <Sparkles className="h-4 w-4 mr-2" />
+                        New Challenge
+                    </Button>
+                </AlertDialogFooter>
+            </div>
+        </AlertDialogContent>
+      </AlertDialog>
+      <TabSwitchWarningDialog 
+        open={isTabSwitchDialogOpen}
+        onOpenChange={(open) => setIsTabSwitchDialogOpen(open)}
+        tabSwitchWarnings={tabSwitchWarnings}
+        maxTabSwitches={maxTabSwitches}
+      />
       </div>
   );
 }
